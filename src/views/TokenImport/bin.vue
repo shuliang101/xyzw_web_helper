@@ -68,6 +68,7 @@ import PQueue from 'p-queue';
 // import { useI18n } from 'vue-i18n';
 import useIndexedDB from '@/hooks/useIndexedDB';
 import { transformToken } from '@/utils/token';
+import api from '@/api';
 
 const $emit = defineEmits(['cancel', 'ok']);
 
@@ -118,33 +119,37 @@ const initName = (fileName: string) => {
 
 const uploadBin = (binFile: File) => {
   tQueue.add(async () => {
-    console.log('上传文件数据:', binFile);
     const roleMeta = initName(binFile.name) as any;
     const reader = new FileReader();
     reader.onload = async (e) => {
-      const userToken = e.target?.result as ArrayBuffer;
-      // console.log('转换Token:', userToken);
-      const roleToken = await transformToken(userToken);
-      const roleName = roleMeta.roleName || binFile.name.split('.')?.[0] || ''
-      // 刷新indexDB数据库token数据
-      storeArrayBuffer(roleName, userToken);
-      // 上传列表中发现已存在的重复名称，提示消息
-      if (roleList.value.some(role => role.name === roleName)) {
-        message.error('上传列表中已存在同名角色! ');
-        return;
+      try {
+        const userToken = e.target?.result as ArrayBuffer;
+        const roleToken = await transformToken(userToken);
+        const roleName = roleMeta.roleName || binFile.name.split('.')?.[0] || '';
+        storeArrayBuffer(roleName, userToken);
+        if (roleList.value.some(role => role.name === roleName)) {
+          message.error('上传列表中已存在同名角色!');
+          return;
+        }
+        const existingToken = tokenStore.gameTokens.find(t => t.name === roleName);
+        if (existingToken) {
+          message.warning(`角色"${roleName}"已存在，将更新该角色的Token`);
+        }
+
+        const form = new FormData();
+        form.append('bin', binFile);
+        await api.bins.upload(form);
+
+        message.success('bin文件上传成功，请检查角色信息后提交');
+        roleList.value.push({
+          name: roleName,
+          token: roleToken,
+          server: roleMeta.server + '' + roleMeta.roleIndex || '',
+          wsUrl: importForm.wsUrl || ''
+        });
+      } catch (error: any) {
+        message.error(error?.message || '读取或上传文件失败，请重试');
       }
-      // 检查待上传的角色是否已在tokenStore中存在
-      const existingToken = tokenStore.gameTokens.find(t => t.name === roleName);
-      if (existingToken) {
-        message.warning(`角色"${roleName}"已存在，将更新该角色的Token`);
-      }
-      message.success('Token读取成功，请检查角色名称等信息后提交');
-      roleList.value.push({
-        name: roleName,
-        token: roleToken,
-        server: roleMeta.server + '' + roleMeta.roleIndex || '',
-        wsUrl: importForm.wsUrl || ''
-      });
     };
     reader.onerror = () => {
       message.error('读取文件失败，请重试');

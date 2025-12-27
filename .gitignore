@@ -14,6 +14,7 @@ docker/**/*.tgz
 # Production builds
 dist/
 build/
+release_bundle/
 
 # Environment variables
 .env
@@ -70,6 +71,10 @@ jspm_packages/
 # Temporary folders
 tmp/
 temp/
+
+server/data/
+
+.vscode/
 
 .github
 *.bat

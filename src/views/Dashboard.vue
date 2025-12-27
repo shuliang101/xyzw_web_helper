@@ -28,38 +28,6 @@
           </div>
         </section>
 
-        <!-- 统计卡片 -->
-        <section class="stats-section">
-          <div class="stats-grid">
-            <div
-              v-for="stat in statistics"
-              :key="stat.id"
-              class="stat-card"
-            >
-              <div
-                class="stat-icon"
-                :style="{ color: stat.color }"
-              >
-                <component :is="stat.icon" />
-              </div>
-              <div class="stat-content">
-                <div class="stat-number">
-                  {{ stat.value }}
-                </div>
-                <div class="stat-label">
-                  {{ stat.label }}
-                </div>
-                <div
-                  class="stat-change"
-                  :class="stat.changeType"
-                >
-                  {{ stat.change }}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
         <!-- 快速操作 -->
         <section class="quick-actions-section">
           <h2 class="section-title">
@@ -84,7 +52,10 @@
         </section>
 
         <!-- 最近活动 -->
-        <section class="recent-activity-section">
+        <section
+          v-if="showRecentActivity"
+          class="recent-activity-section"
+        >
           <div class="activity-header">
             <h2 class="section-title">
               最近活动
@@ -92,44 +63,46 @@
             <n-button
               text
               type="primary"
-              @click="refreshActivity"
+              @click="refreshActivity(true)"
             >
               刷新
             </n-button>
           </div>
 
-          <div
-            v-if="recentActivities.length"
-            class="activity-list"
-          >
+          <n-spin :show="activityLoading">
             <div
-              v-for="activity in recentActivities"
-              :key="activity.id"
-              class="activity-item"
+              v-if="recentActivities.length"
+              class="activity-list"
             >
               <div
-                class="activity-icon"
-                :class="activity.type"
+                v-for="activity in recentActivities"
+                :key="activity.id"
+                class="activity-item"
               >
-                <component :is="getActivityIcon(activity.type)" />
-              </div>
-              <div class="activity-content">
-                <div class="activity-text">
-                  {{ activity.message }}
+                <div
+                  class="activity-icon"
+                  :class="activity.type"
+                >
+                  <component :is="getActivityIcon(activity.type)" />
                 </div>
-                <div class="activity-time">
-                  {{ formatTime(activity.timestamp) }}
+                <div class="activity-content">
+                  <div class="activity-text">
+                    {{ activity.message }}
+                  </div>
+                  <div class="activity-time">
+                    {{ formatTime(activity.createdAt) }}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div
-            v-else
-            class="empty-activity"
-          >
-            <n-empty description="暂无活动记录" />
-          </div>
+            <div
+              v-else
+              class="empty-activity"
+            >
+              <n-empty description="暂无活动记录" />
+            </div>
+          </n-spin>
         </section>
       </div>
     </main>
@@ -141,13 +114,12 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import { useTokenStore } from '@/stores/tokenStore'
+import api from '@/api'
 import {
-  PersonCircle,
   Cube,
   Settings,
   CheckmarkCircle,
   Time,
-  TrendingUp,
   Add,
   Cloud
 } from '@vicons/ionicons5'
@@ -158,6 +130,7 @@ const tokenStore = useTokenStore()
 
 // 响应式数据
 const recentActivities = ref([])
+const activityLoading = ref(false)
 
 // 计算属性
 const currentDate = computed(() => {
@@ -169,45 +142,6 @@ const currentDate = computed(() => {
   })
 })
 
-
-const statistics = computed(() => [
-  {
-    id: 1,
-    icon: PersonCircle,
-    label: '游戏Token',
-    value: tokenStore.gameTokens.length,
-    change: '+2 本月',
-    changeType: 'positive',
-    color: '#18a058'
-  },
-  {
-    id: 2,
-    icon: CheckmarkCircle,
-    label: '已完成任务',
-    value: '156',
-    change: '+12 今日',
-    changeType: 'positive',
-    color: '#2080f0'
-  },
-  {
-    id: 3,
-    icon: Time,
-    label: '节省时间',
-    value: '24.5h',
-    change: '+3.2h 本周',
-    changeType: 'positive',
-    color: '#f0a020'
-  },
-  {
-    id: 4,
-    icon: TrendingUp,
-    label: '效率提升',
-    value: '85%',
-    change: '+15% 本月',
-    changeType: 'positive',
-    color: '#d03050'
-  }
-])
 
 const quickActions = ref([
   {
@@ -246,6 +180,25 @@ const quickActions = ref([
     action: 'open-settings'
   }
 ])
+
+const showRecentActivity = false
+
+const activityTypeMap = {
+  bin_upload: 'success',
+  bin_delete: 'warning',
+  bin_download: 'info',
+  bin_removed_by_admin: 'warning',
+  auth_login: 'info',
+  account_register: 'success'
+}
+
+const normalizeActivity = (activity) => ({
+  id: activity.id,
+  type: activityTypeMap[activity.type] || 'info',
+  message: activity.message || activity.description,
+  createdAt: activity.createdAt,
+  metadata: activity.metadata || null
+})
 
 
 
@@ -286,29 +239,28 @@ const handleQuickAction = (action) => {
   }
 }
 
-const refreshActivity = () => {
-  // 模拟刷新活动数据
-  recentActivities.value = [
-    {
-      id: 1,
-      type: 'success',
-      message: '成功完成日常任务：每日签到',
-      timestamp: Date.now() - 30 * 60 * 1000
-    },
-    {
-      id: 2,
-      type: 'info',
-      message: '添加了新的游戏角色：剑士小明',
-      timestamp: Date.now() - 2 * 60 * 60 * 1000
-    },
-    {
-      id: 3,
-      type: 'warning',
-      message: '任务执行遇到错误，请检查网络连接',
-      timestamp: Date.now() - 4 * 60 * 60 * 1000
+const refreshActivity = async (showToast = false) => {
+  activityLoading.value = true
+  try {
+    const { activities } = await api.activity.list(6)
+    recentActivities.value = Array.isArray(activities) ? activities.map(normalizeActivity) : []
+    if (showToast) {
+      if (recentActivities.value.length) {
+        message.success('活动数据已刷新')
+      } else {
+        message.info('暂无活动记录')
+      }
     }
-  ]
-  message.success('活动数据已刷新')
+  } catch (error) {
+    if (showToast) {
+      message.error(error.message || '刷新活动数据失败')
+    } else {
+      console.error('加载最近活动失败', error)
+    }
+    recentActivities.value = []
+  } finally {
+    activityLoading.value = false
+  }
 }
 
 const getActivityIcon = (type) => {
@@ -323,8 +275,12 @@ const getActivityIcon = (type) => {
   }
 }
 
-const formatTime = (timestamp) => {
-  const diff = Date.now() - timestamp
+const formatTime = (value) => {
+  const parsed = typeof value === 'number' ? value : Date.parse(value)
+  if (Number.isNaN(parsed)) {
+    return '-'
+  }
+  const diff = Date.now() - parsed
   const minutes = Math.floor(diff / (1000 * 60))
   const hours = Math.floor(diff / (1000 * 60 * 60))
   const days = Math.floor(diff / (1000 * 60 * 60 * 24))
@@ -350,7 +306,9 @@ onMounted(async () => {
 
   // 初始化Token数据
   tokenStore.initTokenStore()
-  refreshActivity()
+  if (showRecentActivity) {
+    await refreshActivity()
+  }
 })
 </script>
 
@@ -405,67 +363,6 @@ onMounted(async () => {
   gap: var(--spacing-md);
 }
 
-
-// 统计区域
-.stats-section {
-  margin-bottom: var(--spacing-xl);
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: var(--spacing-lg);
-}
-
-.stat-card {
-  background: var(--bg-primary);
-  border-radius: var(--border-radius-large);
-  padding: var(--spacing-lg);
-  box-shadow: var(--shadow-light);
-  transition: all var(--transition-normal);
-
-  &:hover {
-    box-shadow: var(--shadow-medium);
-    transform: translateY(-2px);
-  }
-}
-
-.stat-icon {
-  width: 48px;
-  height: 48px;
-  margin-bottom: var(--spacing-md);
-
-  :deep(svg) {
-    width: 100%;
-    height: 100%;
-  }
-}
-
-.stat-number {
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--text-primary);
-  margin-bottom: var(--spacing-xs);
-}
-
-.stat-label {
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  margin-bottom: var(--spacing-xs);
-}
-
-.stat-change {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-
-  &.positive {
-    color: var(--success-color);
-  }
-
-  &.negative {
-    color: var(--error-color);
-  }
-}
 
 // 快速操作区域
 .quick-actions-section {
@@ -616,9 +513,6 @@ onMounted(async () => {
     text-align: center;
   }
 
-  .stats-grid {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  }
 }
 
 @media (max-width: 768px) {
@@ -641,10 +535,6 @@ onMounted(async () => {
   .welcome-actions {
     flex-direction: column;
     width: 100%;
-  }
-
-  .stats-grid {
-    grid-template-columns: 1fr;
   }
 
   .actions-grid {

@@ -4,9 +4,9 @@
       <div class="register-card glass">
         <div class="card-header">
           <div class="brand">
-            <img src="/icons/xiaoyugan.png" alt="XYZW" class="brand-logo">
+            <img src="/icons/logo.png" alt="隐♥月" class="brand-logo">
             <h1 class="brand-title">
-              注册 XYZW 账户
+              注册 隐♥月 账户
             </h1>
           </div>
           <p class="welcome-text">
@@ -27,11 +27,12 @@
               </n-input>
             </n-form-item>
 
-            <n-form-item path="email">
-              <n-input v-model:value="registerForm.email" placeholder="邮箱地址" :input-props="{ autocomplete: 'email' }">
+            <n-form-item path="nickname">
+              <n-input v-model:value="registerForm.nickname" placeholder="昵称"
+                :input-props="{ autocomplete: 'nickname' }">
                 <template #prefix>
                   <n-icon>
-                    <Mail />
+                    <PersonOutline />
                   </n-icon>
                 </template>
               </n-input>
@@ -42,7 +43,7 @@
                 :input-props="{ autocomplete: 'new-password' }">
                 <template #prefix>
                   <n-icon>
-                    <Lock />
+                    <LockClosed />
                   </n-icon>
                 </template>
               </n-input>
@@ -53,7 +54,7 @@
                 :input-props="{ autocomplete: 'new-password' }" @keydown.enter="handleRegister">
                 <template #prefix>
                   <n-icon>
-                    <Lock />
+                    <LockClosed />
                   </n-icon>
                 </template>
               </n-input>
@@ -95,7 +96,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import { useAuthStore } from '@/stores/auth'
-import { PersonCircle, Mail } from '@vicons/ionicons5'
+import { PersonCircle, PersonOutline, LockClosed } from '@vicons/ionicons5'
 
 const router = useRouter()
 const message = useMessage()
@@ -105,7 +106,7 @@ const registerFormRef = ref(null)
 // 注册表单数据
 const registerForm = reactive({
   username: '',
-  email: '',
+  nickname: '',
   password: '',
   confirmPassword: '',
   agreeTerms: false
@@ -126,15 +127,16 @@ const registerRules = {
       trigger: ['input', 'blur']
     }
   ],
-  email: [
+  nickname: [
     {
       required: true,
-      message: '请输入邮箱地址',
+      message: '请输入昵称',
       trigger: ['input', 'blur']
     },
     {
-      type: 'email',
-      message: '请输入正确的邮箱格式',
+      min: 2,
+      max: 20,
+      message: '昵称长度应在 2-20 个字符之间',
       trigger: ['input', 'blur']
     }
   ],
@@ -180,7 +182,7 @@ const handleRegister = async () => {
 
     const result = await authStore.register({
       username: registerForm.username,
-      email: registerForm.email,
+      nickname: registerForm.nickname,
       password: registerForm.password
     })
 
@@ -248,7 +250,8 @@ const handleRegister = async () => {
 .brand-logo {
   width: 64px;
   height: 64px;
-  border-radius: var(--border-radius-large);
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .brand-title {
