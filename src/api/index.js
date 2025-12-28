@@ -41,26 +41,31 @@ request.interceptors.response.use(
           window.location.href = '/login'
           return Promise.reject({
             success: false,
+            status,
             message: '登录已过期，请重新登录'
           })
         case 403:
           return Promise.reject({
             success: false,
+            status,
             message: '没有权限访问'
           })
         case 404:
           return Promise.reject({
             success: false,
+            status,
             message: '请求的资源不存在'
           })
         case 500:
           return Promise.reject({
             success: false,
+            status,
             message: '服务器内部错误'
           })
         default:
           return Promise.reject({
             success: false,
+            status,
             message: data?.message || '请求失败'
           })
       }
@@ -68,12 +73,14 @@ request.interceptors.response.use(
       // 网络错误
       return Promise.reject({
         success: false,
+        status: null,
         message: '网络连接失败，请检查网络'
       })
     } else {
       // 其他错误
       return Promise.reject({
         success: false,
+        status: null,
         message: error.message || '未知错误'
       })
     }

@@ -1,5 +1,11 @@
 
 import { useTokenStore } from '@/stores/tokenStore'
+import { useAuthStore } from '@/stores/auth'
+import {
+  buildDailySettingsKeySets,
+  createDefaultDailySettings,
+  loadDailySettings as loadDailySettingsRecord
+} from '@/utils/dailySettingsStorage'
 
 // 辅助函数
 const pickArenaTargetId = (targets) => {
@@ -43,6 +49,9 @@ const getTodayBossId = () => {
   const dayOfWeek = new Date().getDay()
   return DAY_BOSS_MAP[dayOfWeek]
 }
+
+const authStore = useAuthStore()
+const cloneSettings = (data) => JSON.parse(JSON.stringify(data || createDefaultDailySettings()))
 
 export class DailyTaskRunner {
   constructor(tokenStore) {
@@ -113,31 +122,30 @@ export class DailyTaskRunner {
     }
   }
 
-  loadSettings(roleId) {
+  async loadSettings(tokenId) {
+    const tokenList = Array.isArray(this.tokenStore.gameTokens)
+      ? this.tokenStore.gameTokens
+      : this.tokenStore.gameTokens?.value || []
+    const token = tokenList.find?.(t => t.id === tokenId)
+    const keySets = buildDailySettingsKeySets({
+      authUser: authStore.user,
+      token
+    })
     try {
-      const raw = localStorage.getItem(`daily-settings:${roleId}`)
-      const defaultSettings = {
-        arenaFormation: 1,
-        bossFormation: 1,
-        bossTimes: 2,
-        claimBottle: true,
-        payRecruit: true,
-        openBox: true,
-        arenaEnable: true,
-        claimHangUp: true,
-        claimEmail: true,
-        blackMarketPurchase: true
-      }
-      return raw ? { ...defaultSettings, ...JSON.parse(raw) } : defaultSettings
+      const result = await loadDailySettingsRecord({
+        keySets,
+        hasAuth: !!authStore.token
+      })
+      return cloneSettings(result?.data)
     } catch (error) {
       console.error('Failed to load settings:', error)
-      return null
+      return cloneSettings()
     }
   }
 
   async run(tokenId, callbacks = {}, customSettings = null) {
     this.callbacks = callbacks
-    const settings = customSettings || this.loadSettings(tokenId) // 优先使用传入的设置
+    const settings = customSettings || await this.loadSettings(tokenId) // 优先使用传入的设置
 
     // 获取角色信息以确认 roleId 和 任务状态
     this.log('正在获取角色信息...')

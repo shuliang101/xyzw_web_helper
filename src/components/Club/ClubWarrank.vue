@@ -362,14 +362,11 @@ const handleExport1 = async () => {
   }
 
   try {
-    //导出图片
-    exportToImage() 
-    //导出excel,俩种方式自选一种吧
-    // const exportText = formatWarrankRecordsForExport(
-    //   battleRecords1.value.legionRankList,
-    //   queryDate.value
-    // )
-    message.success('导出成功')
+    formatWarrankRecordsForExport(
+      battleRecords1.value.legionRankList,
+      queryDate.value
+    )
+    message.success('已导出 Excel 文件')
   } catch (error) {
     console.error('导出失败:', error)
     message.error('导出失败，请重试')

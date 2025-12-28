@@ -230,7 +230,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useMessage } from 'naive-ui'
 import { useTokenStore } from '@/stores/tokenStore'
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas'
 import {
   Trophy,
   Refresh,
@@ -260,7 +260,7 @@ const props = defineProps({
 })
 
 
-const exportDom = ref(null);
+const exportDom = ref(null)
 const emit = defineEmits(['update:visible'])
 
 const message = useMessage()
@@ -392,14 +392,11 @@ const handleExport = async () => {
   }
 
   try {
-    //导出成excel
-    // const exportText = formatBattleRecordsForExport(
-    //   battleRecords.value.roleDetailsList,
-    //   queryDate.value
-    // )
-    // await copyToClipboard(exportText)
-    //导出成图片,两种方式自选一吧
-    exportToImage()
+    const exportText = formatBattleRecordsForExport(
+      battleRecords.value.roleDetailsList,
+      queryDate.value
+    )
+    await copyToClipboard(exportText)
     message.success('战绩已复制到剪贴板')
   } catch (error) {
     console.error('导出失败:', error)
@@ -407,38 +404,33 @@ const handleExport = async () => {
   }
 }
 
+// 导出为图片的备用方案（暂不在界面触发）
 const exportToImage = async () => {
-  // 校验：确保DOM已正确绑定
   if (!exportDom.value) {
-    alert('未找到要导出的DOM元素');
-    return;
+    message.error('未找到可导出的内容区域')
+    return
   }
 
   try {
-    // 5. 用html2canvas渲染DOM为Canvas
     const canvas = await html2canvas(exportDom.value, {
-      scale: 2, // 放大2倍，解决图片模糊问题
-      useCORS: true, // 允许跨域图片（若DOM内有远程图片，需开启）
-      backgroundColor: '#ffffff', // 避免透明背景（默认透明）
-      logging: false // 关闭控制台日志
-    });
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false
+    })
 
-    // 6. Canvas转图片链接（支持PNG/JPG）
-    const imgUrl = canvas.toDataURL('image/png'); // 若要JPG，改为'image/jpeg'
-
-    // 7. 创建下载链接，触发浏览器下载
-    const link = document.createElement('a');
-    link.href = imgUrl;
-    console.log()
-    link.download = queryDate.value.replace("/",'月').replace("/",'日')+'盐场战报.png'; // 下载文件名
-    document.body.appendChild(link);
-    link.click(); // 触发点击下载
-    document.body.removeChild(link); // 下载后清理DOM
+    const imgUrl = canvas.toDataURL('image/png')
+    const link = document.createElement('a')
+    link.href = imgUrl
+    link.download = queryDate.value.replace('/', '月').replace('/', '日') + '盐场战报.png'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   } catch (err) {
-    console.error('DOM转图片失败：', err);
-    alert('导出图片失败，请重试');
+    console.error('导出图片失败:', err)
+    message.error('导出图片失败，请重试')
   }
-};
+}
 
 // 关闭弹窗
 const handleClose = () => {

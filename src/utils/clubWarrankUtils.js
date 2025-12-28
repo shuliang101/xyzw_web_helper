@@ -97,6 +97,71 @@ legionRankList.forEach((member) => {
   return ('')
 }
 
+export function formatTopClubRecordsForExport(clubList = [], queryDate) {
+  if (!clubList.length) {
+    throw new Error('暂无俱乐部数据')
+  }
+
+  const worksheetData = [
+    ['排名', '区服', '俱乐部名称', '总红炼', '战力', '成员1', 'ID1', '成员2', 'ID2', '成员3', 'ID3']
+  ]
+
+  clubList
+    .sort((a, b) => (a.rank || 0) - (b.rank || 0))
+    .forEach((club) => {
+      worksheetData.push([
+        club.rank || '',
+        club.ServerId || '',
+        club.Clubname || '',
+        club.redQuench || '',
+        formatPower(club.power),
+        club.name1 || '',
+        club.roleID1 || '',
+        club.name2 || '',
+        club.roleID2 || '',
+        club.name3 || '',
+        club.roleID3 || ''
+      ])
+    })
+
+  const workbook = XLSX.utils.book_new()
+  const worksheet = XLSX.utils.aoa_to_sheet(worksheetData)
+  worksheet['!cols'] = [{ wch: 8 }, { wch: 12 }, { wch: 18 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 14 }]
+  XLSX.utils.book_append_sheet(workbook, worksheet, '五百服TOP俱乐部')
+  const fileName = `五百服TOP俱乐部_${queryDate.replace(/\//g, '-')}.xlsx`
+  XLSX.writeFile(workbook, fileName)
+}
+
+export function formatPeakRankRecordsForExport(roleList = [], queryDate) {
+  if (!roleList.length) {
+    throw new Error('暂无巅峰榜数据')
+  }
+
+  const worksheetData = [
+    ['排名', '区服', '玩家ID', '玩家昵称', '战力', '巅峰积分']
+  ]
+
+  roleList
+    .sort((a, b) => (a.rank || 0) - (b.rank || 0))
+    .forEach((role) => {
+      worksheetData.push([
+        role.rank || '',
+        role.serverId || '',
+        role.roleId || '',
+        role.name || '',
+        formatPower(role.power),
+        formatScore(role.score)
+      ])
+    })
+
+  const workbook = XLSX.utils.book_new()
+  const worksheet = XLSX.utils.aoa_to_sheet(worksheetData)
+  worksheet['!cols'] = [{ wch: 8 }, { wch: 10 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 14 }]
+  XLSX.utils.book_append_sheet(workbook, worksheet, '巅峰榜')
+  const fileName = `巅峰榜_${queryDate.replace(/\//g, '-')}.xlsx`
+  XLSX.writeFile(workbook, fileName)
+}
+
 const formatPower = (power) => {
   if (!power) return '0'
   if (power >= 100000000) {
@@ -109,7 +174,8 @@ const formatPower = (power) => {
 }
 
 const formatScore = (score) => {
-return score.toFixed(0).toString()
+  const numeric = Number(score) || 0
+  return numeric.toFixed(0).toString()
 }
 
 

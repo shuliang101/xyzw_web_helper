@@ -74,7 +74,6 @@
 
           <n-dropdown :options="userMenuOptions" @select="handleUserAction">
             <div class="user-info">
-              <n-avatar src="" size="medium" fallback-src="/icons/logo.png" />
               <span class="username">{{ displayName }}</span>
               <n-icon>
                 <ChevronDown />
@@ -147,7 +146,6 @@
 </template>
 
 <script setup>
-import { useTokenStore, selectedToken, selectedTokenId } from '@/stores/tokenStore'
 import { useAuthStore } from '@/stores/auth'
 import ThemeToggle from '@/components/Common/ThemeToggle.vue'
 import {
@@ -167,7 +165,6 @@ import { useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import { ref, computed } from 'vue'
 
-const tokenStore = useTokenStore()
 const authStore = useAuthStore()
 const router = useRouter()
 const message = useMessage()
@@ -175,17 +172,13 @@ const message = useMessage()
 const isMobileMenuOpen = ref(false)
 const isAdmin = computed(() => authStore.user?.role === 'admin')
 const displayName = computed(() =>
-  isAdmin.value ? authStore.user?.username || '管理员' : selectedToken?.name || '未选择Token'
+  authStore.user?.nickname || authStore.user?.username || '未登录'
 )
 
 const userMenuOptions = [
   {
     label: '个人资料',
     key: 'profile'
-  },
-  {
-    label: '账户设置',
-    key: 'settings'
   },
   {
     type: 'divider'
@@ -201,9 +194,6 @@ const handleUserAction = (key) => {
   switch (key) {
     case 'profile':
       router.push('/admin/profile')
-      break
-    case 'settings':
-      router.push('/settings')
       break
     case 'logout':
       authStore.logout()

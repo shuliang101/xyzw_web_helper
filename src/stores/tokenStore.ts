@@ -56,6 +56,18 @@ export const selectedToken = computed(() => {
 })
 export const selectedRoleInfo = useLocalStorage<any>('selectedRoleInfo', null);
 
+const getStoredUserId = () => {
+  try {
+    const raw = localStorage.getItem('user')
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return parsed?.id ?? parsed?.userId ?? null
+  } catch (error) {
+    console.warn('读取本地用户信息失败，无法校验bin所属:', error)
+    return null
+  }
+}
+
 // 跨标签页连接协调
 const activeConnections = useLocalStorage("activeConnections", {});
 
@@ -314,6 +326,7 @@ export const useTokenStore = defineStore('tokens', () => {
     }
     remoteBinSyncing.value = true
     try {
+      const currentUserId = getStoredUserId()
       const binsResponse = await fetch('/api/bins', {
         headers: {
           Authorization: `Bearer ${sessionToken}`
@@ -324,13 +337,26 @@ export const useTokenStore = defineStore('tokens', () => {
       }
       const data = await binsResponse.json()
       const bins = Array.isArray(data?.bins) ? data.bins : []
-      if (!bins.length) {
+      const filteredBins = bins.filter(bin => {
+        if (!currentUserId) return true
+        const ownerId = bin?.userId ?? bin?.user_id ?? bin?.ownerId
+        if (ownerId === undefined || ownerId === null) {
+          wsLogger.warn('[BinRestore] bin缺少 userId 字段，已跳过', { binId: bin?.id })
+          return false
+        }
+        const isOwner = String(ownerId) === String(currentUserId)
+        if (!isOwner) {
+          wsLogger.warn('[BinRestore] 检测到其他用户的 bin，已跳过', { binId: bin?.id, ownerId, currentUserId })
+        }
+        return isOwner
+      })
+      if (!filteredBins.length) {
         remoteBinSynced.value = true
         return { restored: false }
       }
 
       let restoredCount = 0
-      for (const bin of bins) {
+      for (const bin of filteredBins) {
         try {
           const downloadResponse = await fetch(`/api/bins/${bin.id}/download`, {
             headers: {
