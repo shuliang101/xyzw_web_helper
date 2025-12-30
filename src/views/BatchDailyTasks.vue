@@ -2634,8 +2634,6 @@ const stopBatch = () => {
   font-size: 14px;
   color: #666;
 }
-<<<<<<< HEAD
-=======
 
 /* Responsive Design */
 @media (max-width: 1200px) {
@@ -2698,5 +2696,4 @@ const stopBatch = () => {
     gap: 4px;
   }
 }
->>>>>>> main
 </style>
