@@ -14,10 +14,10 @@
                     <template #icon>
                     <n-icon><Refresh /></n-icon>
                     </template>查询</n-button>
-                <n-button type="primary" size="small" :disabled="!topranklist || loading1" @click="exportToImage">
+                <n-button type="primary" size="small" :disabled="!topranklist || loading1" @click="handleExport1">
                     <template #icon>
                         <n-icon><Copy /></n-icon>
-                    </template>导出图片</n-button>
+                    </template>导出</n-button>
 
             </div>
 
@@ -95,7 +95,7 @@ import {
   formatBattleRecordsForExport,
   copyToClipboard
 } from '@/utils/clubBattleUtils'
-import { gettoday, formatWarrankRecordsForExport, allianceincludes} from '@/utils/clubWarrankUtils'
+import { gettoday, formatPeakRankRecordsForExport } from '@/utils/clubWarrankUtils'
 
 const props = defineProps({
   visible: {
@@ -233,8 +233,17 @@ const handleExport1 = async () => {
     message.warning('没有可导出的数据')
     return
   }
-    exportToImage()
-    message.success('导出成功')
+
+  try {
+    formatPeakRankRecordsForExport(
+      Object.values(topranklist.value),
+      queryDate.value
+    )
+    message.success('Excel 导出成功')
+  } catch (error) {
+    console.error('导出失败:', error)
+    message.error(error.message || '导出失败，请重试')
+  }
 }
 
 const exportToImage = async () => {

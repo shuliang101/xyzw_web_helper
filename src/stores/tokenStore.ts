@@ -11,8 +11,11 @@ import { transformToken } from '@/utils/token';
 import { generateRandomSeed } from '@/utils/randomSeed';
 
 const {
-  getArrayBuffer
+  getArrayBuffer,
+  storeArrayBuffer
 } = useIndexedDB();
+
+const TOKEN_REFRESH_THRESHOLD = 12 * 60 * 60 * 1000 // 12 hours
 
 declare interface TokenData {
   id: string;
@@ -53,6 +56,18 @@ export const selectedToken = computed(() => {
 })
 export const selectedRoleInfo = useLocalStorage<any>('selectedRoleInfo', null);
 
+const getStoredUserId = () => {
+  try {
+    const raw = localStorage.getItem('user')
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return parsed?.id ?? parsed?.userId ?? null
+  } catch (error) {
+    console.warn('读取本地用户信息失败，无法校验bin所属:', error)
+    return null
+  }
+}
+
 // 跨标签页连接协调
 const activeConnections = useLocalStorage("activeConnections", {});
 
@@ -64,6 +79,8 @@ export const useTokenStore = defineStore('tokens', () => {
 
   const wsConnections = ref<WebCtx>({}) // WebSocket连接状态
   const connectionLocks = ref<LockCtx>({}) // 连接操作锁，防止竞态条件
+  const remoteBinSynced = ref(false)
+  const remoteBinSyncing = ref(false)
 
   // 游戏数据存储
   const gameData = ref({
@@ -214,6 +231,165 @@ export const useTokenStore = defineStore('tokens', () => {
     }
 
     return true
+  }
+
+  const deriveRoleNameFromBin = (bin: any) => {
+    const originalName = bin?.originalName || bin?.storedName || `role_${bin?.id || Date.now()}`
+    const nameWithoutExt = originalName.replace(/\.[^/.]+$/, '')
+    const pattern = /^bin-(.*?)-([0-2])-([0-9]{6,12})-(.*)$/i
+    const match = nameWithoutExt.match(pattern)
+    if (match) {
+      return `${match[1]}_${match[2]}_${match[4]}`
+    }
+    return nameWithoutExt
+  }
+
+  const upsertTokenFromBin = (name: string, tokenValue: string, bin: any) => {
+    const payload = {
+      token: tokenValue,
+      server: bin?.server || '',
+      importMethod: 'bin',
+      lastUsed: new Date().toISOString()
+    } as any
+    const existing = gameTokens.value.find(token => token.name === name)
+    if (existing) {
+      updateToken(existing.id, payload)
+    } else {
+      addToken({
+        name,
+        token: tokenValue,
+        wsUrl: '',
+        server: bin?.server || '',
+        importMethod: 'bin',
+        lastUsed: new Date().toISOString()
+      } as any)
+    }
+  }
+
+  const getTokenTimestamp = (token: TokenData) => {
+    return new Date(token.lastUsed || (token as any).updatedAt || token.createdAt || new Date().toISOString()).getTime()
+  }
+
+  const refreshTokenFromBin = async (token: TokenData) => {
+    try {
+      const buffer = await getArrayBuffer(token.name)
+      if (!buffer) {
+        wsLogger.warn(`[TokenRefresh] 未找到 bin 数据: ${token.name}`)
+        return false
+      }
+      const refreshedToken = await transformToken(buffer)
+      updateToken(token.id, {
+        token: refreshedToken,
+        lastUsed: new Date().toISOString(),
+        refreshedAt: new Date().toISOString(),
+        refreshSource: 'bin'
+      } as any)
+      wsLogger.info(`[TokenRefresh] Token 已自动刷新: ${token.name}`)
+      return true
+    } catch (error) {
+      wsLogger.error(`[TokenRefresh] 刷新失败 ${token.name}`, error)
+      return false
+    }
+  }
+  const refreshTokensIfNeeded = async () => {
+    for (const token of gameTokens.value) {
+      if (Date.now() - getTokenTimestamp(token) >= TOKEN_REFRESH_THRESHOLD) {
+        await refreshTokenFromBin(token)
+      }
+    }
+  }
+
+  const setDefaultTokenIfNeeded = () => {
+    if (!gameTokens.value.length) {
+      return
+    }
+    if (selectedTokenId.value) {
+      return
+    }
+    const sortedTokens = [...gameTokens.value].sort((a, b) => getTokenTimestamp(b) - getTokenTimestamp(a))
+    const defaultToken = sortedTokens[0]
+    if (defaultToken) {
+      selectToken(defaultToken.id)
+    }
+  }
+
+  const restoreTokensFromRemoteBins = async (force = false) => {
+    if (remoteBinSyncing.value) {
+      return { restored: false }
+    }
+    if (!force && remoteBinSynced.value) {
+      return { restored: false }
+    }
+    const sessionToken = localStorage.getItem('token')
+    if (!sessionToken) {
+      return { restored: false }
+    }
+    remoteBinSyncing.value = true
+    try {
+      const currentUserId = getStoredUserId()
+      const binsResponse = await fetch('/api/bins', {
+        headers: {
+          Authorization: `Bearer ${sessionToken}`
+        }
+      })
+      if (!binsResponse.ok) {
+        throw new Error(`加载远程bin失败: ${binsResponse.status}`)
+      }
+      const data = await binsResponse.json()
+      const bins = Array.isArray(data?.bins) ? data.bins : []
+      const filteredBins = bins.filter(bin => {
+        if (!currentUserId) return true
+        const ownerId = bin?.userId ?? bin?.user_id ?? bin?.ownerId
+        if (ownerId === undefined || ownerId === null) {
+          wsLogger.warn('[BinRestore] bin缺少 userId 字段，已跳过', { binId: bin?.id })
+          return false
+        }
+        const isOwner = String(ownerId) === String(currentUserId)
+        if (!isOwner) {
+          wsLogger.warn('[BinRestore] 检测到其他用户的 bin，已跳过', { binId: bin?.id, ownerId, currentUserId })
+        }
+        return isOwner
+      })
+      if (!filteredBins.length) {
+        remoteBinSynced.value = true
+        return { restored: false }
+      }
+
+      let restoredCount = 0
+      for (const bin of filteredBins) {
+        try {
+          const downloadResponse = await fetch(`/api/bins/${bin.id}/download`, {
+            headers: {
+              Authorization: `Bearer ${sessionToken}`
+            }
+          })
+          if (!downloadResponse.ok) {
+            continue
+          }
+
+          const buffer = await downloadResponse.arrayBuffer()
+          const roleName = deriveRoleNameFromBin(bin)
+          if (storeArrayBuffer) {
+            await storeArrayBuffer(roleName, buffer).catch(() => null)
+          }
+          const tokenValue = await transformToken(buffer)
+          upsertTokenFromBin(roleName, tokenValue, bin)
+          restoredCount++
+        } catch (error) {
+          console.warn('恢复bin失败', error)
+        }
+      }
+      remoteBinSynced.value = true
+      if (restoredCount > 0) {
+        setDefaultTokenIfNeeded()
+      }
+      return { restored: restoredCount > 0 }
+    } catch (error) {
+      console.error('同步远程bin失败', error)
+      return { restored: false, error }
+    } finally {
+      remoteBinSyncing.value = false
+    }
   }
 
   const selectToken = (tokenId: string, forceReconnect = false) => {
@@ -517,6 +693,17 @@ export const useTokenStore = defineStore('tokens', () => {
   // WebSocket连接管理（重构版 - 防重连）
   const createWebSocketConnection = async (tokenId: string, base64Token: string, customWsUrl = null) => {
     wsLogger.info(`开始创建连接: ${tokenId}`)
+
+    const targetToken = gameTokens.value.find(t => t.id === tokenId)
+    if (targetToken && Date.now() - getTokenTimestamp(targetToken) >= TOKEN_REFRESH_THRESHOLD) {
+      const refreshed = await refreshTokenFromBin(targetToken)
+      if (refreshed) {
+        const latest = gameTokens.value.find(t => t.id === tokenId)
+        if (latest) {
+          base64Token = latest.token
+        }
+      }
+    }
 
     // 1. 获取连接锁，防止竞态条件
     const lockAcquired = await acquireConnectionLock(tokenId, 'connect')
@@ -927,6 +1114,9 @@ export const useTokenStore = defineStore('tokens', () => {
 
     gameTokens.value = []
     selectedTokenId.value = null
+    // 重置远程bin同步状态，确保下次登录会重新拉取
+    remoteBinSynced.value = false
+    remoteBinSyncing.value = false
   }
 
   const cleanExpiredTokens = () => {
@@ -1137,6 +1327,8 @@ export const useTokenStore = defineStore('tokens', () => {
 
     // 清理过期token
     cleanExpiredTokens()
+    refreshTokensIfNeeded().catch(error => wsLogger.error('Token自动刷新失败', error))
+    setDefaultTokenIfNeeded()
     // 启动连接监控
     connectionMonitor.startMonitoring()
 
@@ -1196,6 +1388,7 @@ export const useTokenStore = defineStore('tokens', () => {
     exportTokens,
     importTokens,
     clearAllTokens,
+    restoreTokensFromRemoteBins,
     cleanExpiredTokens,
     upgradeTokenToPermanent,
     initTokenStore,

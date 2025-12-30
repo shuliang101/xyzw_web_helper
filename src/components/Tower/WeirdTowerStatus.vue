@@ -7,7 +7,7 @@
         <p>一个不小心就过了</p>
       </div>
       <div class="energy-display">
-        <img src="/icons/xiaoyugan.png" alt="小鱼干" class="energy-icon">
+        <img src="/icons/logo.png" alt="logo" class="energy-icon">
         <span class="energy-count">{{ towerEnergy }}</span>
       </div>
     </div>

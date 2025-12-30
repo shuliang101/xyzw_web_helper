@@ -1,8 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import * as autoRoutes from "vue-router/auto-routes";
+import * as autoRoutes from 'vue-router/auto-routes'
 import { useTokenStore } from '@/stores/tokenStore'
+import { useAuthStore } from '@/stores/auth'
 
-const generatedRoutes = autoRoutes.routes ?? [];
+const generatedRoutes = autoRoutes.routes ?? []
 
 const my_routes = [
   {
@@ -20,7 +21,8 @@ const my_routes = [
     component: () => import('@/views/TokenImport/index.vue'),
     meta: {
       title: 'Token管理',
-      requiresToken: false
+      requiresToken: false,
+      requiresAuth: true
     },
     props: route => ({
       token: route.query.token,
@@ -42,7 +44,8 @@ const my_routes = [
         component: () => import('@/views/Dashboard.vue'),
         meta: {
           title: '控制台',
-          requiresToken: true
+          requiresToken: true,
+          requiresAuth: true
         }
       },
       {
@@ -51,7 +54,8 @@ const my_routes = [
         component: () => import('@/views/GameFeatures.vue'),
         meta: {
           title: '游戏功能',
-          requiresToken: true
+          requiresToken: true,
+          requiresAuth: true
         }
       },
       {
@@ -60,7 +64,8 @@ const my_routes = [
         component: () => import('@/components/Test/MessageTester.vue'),
         meta: {
           title: '消息测试',
-          requiresToken: true
+          requiresToken: true,
+          requiresAuth: true
         }
       },
       {
@@ -69,7 +74,8 @@ const my_routes = [
         component: () => import('@/views/Profile.vue'),
         meta: {
           title: '个人设置',
-          requiresToken: true
+          requiresToken: true,
+          requiresAuth: true
         }
       },
       {
@@ -78,7 +84,8 @@ const my_routes = [
         component: () => import('@/views/DailyTasks.vue'),
         meta: {
           title: '日常任务',
-          requiresToken: true
+          requiresToken: true,
+          requiresAuth: true
         }
       },
       {
@@ -87,11 +94,21 @@ const my_routes = [
         component: () => import('@/views/BatchDailyTasks.vue'),
         meta: {
           title: '批量日常',
-          requiresToken: true
+          requiresToken: true,
+          requiresAuth: true
         }
       },
-      // 增加自动路由引用
-      ...generatedRoutes,
+      {
+        path: 'users',
+        name: 'AdminUsers',
+        component: () => import('@/views/AdminUsers.vue'),
+        meta: {
+          title: '用户管理',
+          requiresAuth: true,
+          requiresAdmin: true
+        }
+      },
+      ...generatedRoutes
     ]
   },
   {
@@ -100,23 +117,32 @@ const my_routes = [
     component: () => import('@/components/Test/WebSocketTester.vue'),
     meta: {
       title: 'WebSocket测试',
-      requiresToken: true
+      requiresToken: true,
+      requiresAuth: true
     }
   },
-  // 兼容旧路由，重定向到新的token管理页面
   {
     path: '/login',
-    redirect: '/tokens'
+    name: 'Login',
+    component: () => import('@/views/Login.vue'),
+    meta: {
+      title: '登录',
+      requiresToken: false
+    }
   },
   {
     path: '/register',
-    redirect: '/tokens'
+    name: 'Register',
+    component: () => import('@/views/Register.vue'),
+    meta: {
+      title: '注册',
+      requiresToken: false
+    }
   },
   {
     path: '/game-roles',
     redirect: '/tokens'
   },
-  // 增加自动路由引用
   ...generatedRoutes,
   {
     path: '/:pathMatch(.*)*',
@@ -134,37 +160,67 @@ const router = createRouter({
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) {
       return savedPosition
-    } else {
-      return { top: 0 }
     }
+    return { top: 0 }
   }
 })
 
-// 热更新路由
-autoRoutes.handleHotUpdate?.(router);
+autoRoutes.handleHotUpdate?.(router)
 
-// 导航守卫
 router.beforeEach((to, from, next) => {
   const tokenStore = useTokenStore()
+  const authStore = useAuthStore()
+  const isAdminUser = authStore.user?.role === 'admin'
 
-  // 设置页面标题
-  document.title = to.meta.title ? `${to.meta.title} - XYZW 游戏管理系统` : 'XYZW 游戏管理系统'
+  document.title = to.meta.title
+    ? `${to.meta.title} - 隐♥月管理系统`
+    : '隐♥月管理系统'
 
-  // 检查是否需要Token
-  if (to.meta.requiresToken && !tokenStore.hasTokens) {
-    next('/tokens')
-  } else if (to.path === '/' && tokenStore.hasTokens) {
-    // 首页重定向逻辑
-    if (tokenStore.selectedToken) {
+  if (to.path === '/' && !authStore.isAuthenticated) {
+    next('/login')
+    return
+  }
+
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    next({ path: '/login', query: { redirect: to.fullPath } })
+    return
+  }
+
+  if (to.meta.requiresAdmin && authStore.user?.role !== 'admin') {
+    next('/admin/dashboard')
+    return
+  }
+
+  if ((to.path === '/login' || to.path === '/register') && authStore.isAuthenticated) {
+    if (isAdminUser) {
+      next('/admin/users')
+    } else {
       next('/admin/dashboard')
+    }
+    return
+  }
+
+  if (to.meta.requiresToken && !tokenStore.hasTokens && !isAdminUser) {
+    next('/tokens')
+    return
+  }
+
+  if (to.path === '/') {
+    if (isAdminUser) {
+      next('/admin/users')
+    } else if (tokenStore.hasTokens) {
+      if (tokenStore.selectedToken) {
+        next('/admin/dashboard')
+      } else {
+        next('/tokens')
+      }
     } else {
       next('/tokens')
     }
-  } else {
-    next()
+    return
   }
+
+  next()
 })
-
-
 
 export default router

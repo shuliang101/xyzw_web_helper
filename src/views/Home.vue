@@ -5,8 +5,8 @@
       <div class="container">
         <div class="nav-content">
           <div class="nav-brand">
-            <img src="/icons/xiaoyugan.png" alt="XYZW" class="brand-logo">
-            <span class="brand-text">XYZW 游戏管理系统</span>
+            <img src="/icons/logo.png" alt="隐♥月" class="brand-logo">
+            <span class="brand-text">隐♥月管理系统</span>
           </div>
 
           <div class="mobile-menu-button">
@@ -89,9 +89,21 @@
                 让游戏变得更简单，让管理变得更高效
               </p>
               <div class="hero-actions">
-                <n-button type="primary" size="large" class="hero-button"
-                  @click="router.push(authStore.isAuthenticated ? '/admin/dashboard' : '/register')">
-                  {{ authStore.isAuthenticated ? '进入控制台' : '立即开始' }}
+                <n-button
+                  type="primary"
+                  size="large"
+                  class="hero-button"
+                  @click="router.push(authStore.isAuthenticated ? '/admin/dashboard' : '/login')"
+                >
+                  {{ authStore.isAuthenticated ? '进入控制台' : '立即登录' }}
+                </n-button>
+                <n-button
+                  v-if="!authStore.isAuthenticated"
+                  size="large"
+                  class="hero-button"
+                  @click="router.push('/register')"
+                >
+                  立即注册
                 </n-button>
                 <n-button text type="primary" size="large" class="hero-button" @click="scrollToFeatures">
                   了解更多
@@ -166,8 +178,8 @@
       <div class="container">
         <div class="footer-content">
           <div class="footer-brand">
-            <img src="/icons/xiaoyugan.png" alt="XYZW" class="footer-logo">
-            <span class="footer-text">XYZW 游戏管理系统</span>
+            <img src="/icons/logo.png" alt="隐♥月" class="footer-logo">
+            <span class="footer-text">隐♥月管理系统</span>
           </div>
           <div class="footer-links">
             <router-link to="/changelog" class="footer-link">
@@ -180,7 +192,7 @@
           </div>
         </div>
         <div class="footer-bottom">
-          <p>&copy; 2024 XYZW. All rights reserved.</p>
+          <p>&copy; 2024 隐♥月. All rights reserved.</p>
         </div>
       </div>
     </footer>
@@ -346,7 +358,8 @@ onMounted(() => {
 .brand-logo {
   width: 32px;
   height: 32px;
-  border-radius: var(--border-radius-small);
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .brand-text {

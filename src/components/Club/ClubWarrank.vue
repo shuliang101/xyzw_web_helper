@@ -428,6 +428,7 @@ const handleExport1 = async () => {
   }
 
   try {
+<<<<<<< HEAD
     if (exportmethod.value.includes('1')) {
       const exportText = formatWarrankRecordsForExport(
         battleRecords1.value.legionRankList,
@@ -438,6 +439,13 @@ const handleExport1 = async () => {
       exportToImage()
     }
     message.success('导出成功')
+=======
+    formatWarrankRecordsForExport(
+      battleRecords1.value.legionRankList,
+      queryDate.value
+    )
+    message.success('已导出 Excel 文件')
+>>>>>>> 65c681794a127ac69bab1b92c2113efa5d19cc80
   } catch (error) {
     console.error('导出失败:', error)
     message.error('导出失败，请重试')
@@ -944,4 +952,14 @@ onMounted(() => {
     background: currentColor;
   }
 }
+<<<<<<< HEAD
+=======
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+>>>>>>> 65c681794a127ac69bab1b92c2113efa5d19cc80
 </style>

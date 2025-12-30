@@ -28,7 +28,7 @@
           <n-tab-pane name="overview" tab="概览" display-directive="show:lazy">
             <div class="overview">
               <div class="club-header">
-                <n-avatar :size="48" :src="club.logo || '/icons/xiaoyugan.png'" />
+                <n-avatar :size="48" :src="club.logo || '/icons/logo.png'" />
                 <div class="meta">
                   <div class="name">{{ club.name }}</div>
                   <div class="sub">ID {{ club.id }} · Lv.{{ club.level }} · 服务器 {{ club.serverId - 27 }}</div>
@@ -68,7 +68,7 @@
               <div class="leader" v-if="leader">
                 <div class="label">会长</div>
                 <div class="leader-info">
-                  <n-avatar :size="32" :src="leader.headImg || '/icons/xiaoyugan.png'" />
+                  <n-avatar :size="32" :src="leader.headImg || '/icons/logo.png'" />
                   <span class="leader-name">{{ leader.name }}</span>
                 </div>
               </div>
@@ -80,7 +80,7 @@
               <div class="members-list">
                 <div v-for="m in topMembers" :key="m.roleId" class="member-row">
                   <div class="left">
-                    <n-avatar :size="28" :src="m.headImg || '/icons/xiaoyugan.png'" />
+                    <n-avatar :size="28" :src="m.headImg || '/icons/logo.png'" />
                     <span class="name">{{ m.name }}(ID:{{ m.roleId }})</span>
                   </div>
                   <div class="right">

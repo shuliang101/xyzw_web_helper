@@ -365,12 +365,15 @@ watch(() => roleInfo.value, initializeAvatar, { deep: true });
 
 .identity-card.embedded {
   width: 100%;
+  max-width: 100%;
   position: relative;
   background: linear-gradient(180deg, var(--bg-primary), var(--bg-secondary));
   border-radius: var(--border-radius-xl);
   padding: var(--spacing-lg);
   box-shadow: none;
   border: 1px solid var(--border-light);
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .identity-overlay {
@@ -479,6 +482,8 @@ watch(() => roleInfo.value, initializeAvatar, { deep: true });
   position: relative;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 16px;
   z-index: 3;
 }
@@ -507,6 +512,15 @@ watch(() => roleInfo.value, initializeAvatar, { deep: true });
   font-size: var(--font-size-sm);
   display: flex;
   gap: 12px;
+}
+
+.role-info-section {
+  flex: 1 1 200px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 
 .rank-section {
@@ -539,10 +553,7 @@ watch(() => roleInfo.value, initializeAvatar, { deep: true });
   }
 
   .role-info-section {
-    display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 4px;
   }
 
   .role-stats {

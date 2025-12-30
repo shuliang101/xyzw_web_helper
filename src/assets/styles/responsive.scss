@@ -1,0 +1,137 @@
+:root {
+  --app-max-width: 1200px;
+}
+
+@media (max-width: 1024px) {
+  body {
+    font-size: var(--font-size-sm);
+  }
+
+  .default-layout .nav-container {
+    flex-wrap: wrap;
+    height: auto;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) 0;
+  }
+
+  .default-layout .nav-menu {
+    flex-wrap: wrap;
+    row-gap: var(--spacing-xs);
+  }
+
+  .default-layout .nav-user {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .default-layout .main {
+    padding: var(--spacing-xl) var(--spacing-lg);
+  }
+
+  .token-import-page .tokens-section .section-header,
+  .token-import-page .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+  }
+
+  .token-import-page .header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: var(--spacing-sm);
+  }
+
+  .token-import-page .tokens-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+
+  .token-import-page .tokens-list {
+    gap: var(--spacing-sm);
+  }
+
+  .login-page .login-container,
+  .register-page .register-container {
+    grid-template-columns: 1fr;
+    padding: var(--spacing-lg);
+  }
+
+  .login-page .features-showcase {
+    order: -1;
+  }
+}
+
+@media (max-width: 640px) {
+  body {
+    font-size: var(--font-size-sm);
+  }
+
+  .default-layout .dashboard-nav {
+    padding: 0 var(--spacing-sm);
+  }
+
+  .default-layout .nav-container {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .default-layout .nav-user {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .default-layout .main {
+    padding: var(--spacing-lg) var(--spacing-sm);
+  }
+
+  .token-import-page {
+    padding: var(--spacing-lg) 0;
+  }
+
+  .token-import-page .container {
+    padding: 0 var(--spacing-sm);
+  }
+
+  .token-import-page .header-content h1 {
+    font-size: var(--font-size-2xl);
+  }
+
+  .token-import-page .header-content p {
+    font-size: var(--font-size-md);
+  }
+
+  .token-import-page .tokens-grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+
+  .token-import-page .header-actions,
+  .token-import-page .section-header,
+  .token-import-page .form-actions {
+    width: 100%;
+  }
+
+  .token-import-page .header-actions .n-button,
+  .token-import-page .header-actions .n-dropdown {
+    flex: 1;
+  }
+
+  .login-page .login-container,
+  .register-page .register-container {
+    padding: var(--spacing-md);
+    gap: var(--spacing-lg);
+  }
+
+  .login-page .login-card,
+  .register-page .register-card {
+    padding: var(--spacing-lg);
+  }
+
+  .login-page .form-options {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+  }
+
+}

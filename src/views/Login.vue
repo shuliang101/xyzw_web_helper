@@ -5,9 +5,9 @@
       <div class="login-card glass">
         <div class="card-header">
           <div class="brand">
-            <img src="/icons/xiaoyugan.png" alt="XYZW" class="brand-logo">
+            <img src="/icons/logo.png" alt="隐♥月" class="brand-logo">
             <h1 class="brand-title">
-              XYZW 游戏管理系统
+              隐♥月管理系统
             </h1>
           </div>
           <p class="welcome-text">
@@ -18,7 +18,7 @@
         <div class="card-body">
           <n-form ref="loginFormRef" :model="loginForm" :rules="loginRules" size="large" :show-label="false">
             <n-form-item path="username">
-              <n-input v-model:value="loginForm.username" placeholder="用户名或邮箱"
+              <n-input v-model:value="loginForm.username" placeholder="用户名"
                 :input-props="{ autocomplete: 'username' }">
                 <template #prefix>
                   <n-icon>
@@ -54,30 +54,6 @@
             </n-button>
           </n-form>
 
-          <n-divider>
-            <span class="divider-text">其他登录方式</span>
-          </n-divider>
-
-          <div class="social-login">
-            <n-button size="large" class="social-button" @click="handleSocialLogin('qq')">
-              <template #icon>
-                <n-icon>
-                  <PersonCircle />
-                </n-icon>
-              </template>
-              QQ登录
-            </n-button>
-
-            <n-button size="large" class="social-button" @click="handleSocialLogin('wechat')">
-              <template #icon>
-                <n-icon>
-                  <PersonCircle />
-                </n-icon>
-              </template>
-              微信登录
-            </n-button>
-          </div>
-
           <div class="register-prompt">
             <span>还没有账户？</span>
             <n-button text type="primary" @click="router.push('/register')">
@@ -87,25 +63,6 @@
         </div>
       </div>
 
-      <!-- 功能展示 -->
-      <div class="features-showcase">
-        <div class="showcase-header">
-          <h2>为什么选择 XYZW？</h2>
-          <p>专业的游戏管理平台，让游戏变得更轻松</p>
-        </div>
-
-        <div class="features-list">
-          <div v-for="feature in features" :key="feature.id" class="feature-item">
-            <div class="feature-icon">
-              <component :is="feature.icon" />
-            </div>
-            <div class="feature-content">
-              <h3>{{ feature.title }}</h3>
-              <p>{{ feature.description }}</p>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- 背景装饰 -->
@@ -122,11 +79,13 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import { useAuthStore } from '@/stores/auth'
-import { PersonCircle, Cube, Ribbon, Settings } from '@vicons/ionicons5'
+import { useTokenStore } from '@/stores/tokenStore'
+import { PersonCircle } from '@vicons/ionicons5'
 
 const router = useRouter()
 const message = useMessage()
 const authStore = useAuthStore()
+const tokenStore = useTokenStore()
 const loginFormRef = ref(null)
 
 // 登录表单数据
@@ -141,7 +100,7 @@ const loginRules = {
   username: [
     {
       required: true,
-      message: '请输入用户名或邮箱',
+      message: '请输入用户名',
       trigger: ['input', 'blur']
     }
   ],
@@ -159,34 +118,6 @@ const loginRules = {
   ]
 }
 
-// 功能特性数据
-const features = [
-  {
-    id: 1,
-    icon: PersonCircle,
-    title: '多角色管理',
-    description: '统一管理多个游戏角色，随时切换查看'
-  },
-  {
-    id: 2,
-    icon: Cube,
-    title: '任务自动化',
-    description: '智能执行日常任务，解放双手节省时间'
-  },
-  {
-    id: 3,
-    icon: Ribbon,
-    title: '数据统计',
-    description: '详细的进度统计，让游戏数据一目了然'
-  },
-  {
-    id: 4,
-    icon: Settings,
-    title: '个性化配置',
-    description: '灵活的设置选项，打造专属管理方案'
-  }
-]
-
 // 处理登录
 const handleLogin = async () => {
   if (!loginFormRef.value) return
@@ -203,9 +134,16 @@ const handleLogin = async () => {
     if (result.success) {
       message.success('登录成功')
 
-      // 跳转到dashboard或之前访问的页面
-      const redirect = router.currentRoute.value.query.redirect || '/admin/dashboard'
-      router.push(redirect)
+      const redirect = router.currentRoute.value.query.redirect
+      if (authStore.isAdmin) {
+        router.push('/admin/users')
+      } else if (redirect) {
+        router.push(redirect)
+      } else if (tokenStore.hasTokens) {
+        router.push('/admin/dashboard')
+      } else {
+        router.push('/tokens')
+      }
     } else {
       message.error(result.message)
     }
@@ -215,15 +153,19 @@ const handleLogin = async () => {
   }
 }
 
-// 处理社交登录
-const handleSocialLogin = (provider) => {
-  message.info(`${provider === 'qq' ? 'QQ' : '微信'}登录功能开发中...`)
+const redirectToHome = () => {
+  if (authStore.isAdmin) {
+    router.push('/admin/users')
+  } else if (tokenStore.hasTokens) {
+    router.push('/admin/dashboard')
+  } else {
+    router.push('/tokens')
+  }
 }
 
 onMounted(() => {
-  // 如果已经登录，直接跳转
   if (authStore.isAuthenticated) {
-    router.push('/admin/dashboard')
+    redirectToHome()
   }
 })
 </script>
@@ -246,11 +188,10 @@ onMounted(() => {
 }
 
 .login-container {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-2xl);
-  max-width: 1200px;
+  display: flex;
+  justify-content: center;
   width: 100%;
+  max-width: 520px;
   padding: var(--spacing-lg);
 }
 
@@ -285,7 +226,8 @@ onMounted(() => {
 .brand-logo {
   width: 64px;
   height: 64px;
-  border-radius: var(--border-radius-large);
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 .brand-title {
@@ -323,106 +265,12 @@ onMounted(() => {
   margin-bottom: var(--spacing-lg);
 }
 
-.divider-text {
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-}
-
-.social-login {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-lg);
-}
-
-.social-button {
-  height: 44px;
-  border: 1px solid var(--border-light);
-
-  &:hover {
-    border-color: var(--primary-color);
-  }
-}
-
 .register-prompt {
   text-align: center;
   color: var(--text-secondary);
 
   span {
     margin-right: var(--spacing-sm);
-  }
-}
-
-// 功能展示区域
-.features-showcase {
-  color: white;
-  padding: var(--spacing-xl);
-}
-
-.showcase-header {
-  text-align: center;
-  margin-bottom: var(--spacing-xl);
-
-  h2 {
-    font-size: var(--font-size-3xl);
-    font-weight: var(--font-weight-bold);
-    margin-bottom: var(--spacing-md);
-  }
-
-  p {
-    font-size: var(--font-size-lg);
-    opacity: 0.9;
-    margin: 0;
-  }
-}
-
-.features-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xl);
-}
-
-.feature-item {
-  display: flex;
-  gap: var(--spacing-lg);
-  padding: var(--spacing-lg);
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: var(--border-radius-large);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  transition: all var(--transition-normal);
-
-  &:hover {
-    transform: translateX(8px);
-    background: rgba(255, 255, 255, 0.15);
-  }
-}
-
-.feature-icon {
-  width: 48px;
-  height: 48px;
-  color: white;
-  flex-shrink: 0;
-
-  :deep(svg) {
-    width: 100%;
-    height: 100%;
-  }
-}
-
-.feature-content {
-  flex: 1;
-
-  h3 {
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-semibold);
-    margin-bottom: var(--spacing-sm);
-  }
-
-  p {
-    opacity: 0.8;
-    line-height: var(--line-height-relaxed);
-    margin: 0;
   }
 }
 
@@ -481,21 +329,6 @@ onMounted(() => {
 }
 
 // 响应式设计
-@media (max-width: 1024px) {
-  .login-container {
-    grid-template-columns: 1fr;
-    max-width: 500px;
-  }
-
-  .features-showcase {
-    order: -1;
-  }
-
-  .showcase-header h2 {
-    font-size: var(--font-size-2xl);
-  }
-}
-
 @media (max-width: 640px) {
   .login-container {
     padding: var(--spacing-md);

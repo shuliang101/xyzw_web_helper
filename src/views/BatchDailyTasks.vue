@@ -109,41 +109,45 @@
     <!-- Settings Modal -->
     <n-modal v-model:show="showSettingsModal" preset="card" :title="`任务设置 - ${currentSettingsTokenName}`"
       style="width: 90%; max-width: 400px">
-      <div class="settings-content">
-        <div class="settings-grid">
-          <div class="setting-item">
-            <label class="setting-label">竞技场阵容</label>
-            <n-select v-model:value="currentSettings.arenaFormation" :options="formationOptions" size="small" />
+      <n-spin :show="settingsModalLoading">
+        <div class="settings-content">
+          <div class="settings-grid">
+            <div class="setting-item">
+              <label class="setting-label">竞技场阵容</label>
+              <n-select v-model:value="currentSettings.arenaFormation" :options="formationOptions" size="small" />
+            </div>
+            <div class="setting-item">
+              <label class="setting-label">BOSS阵容</label>
+              <n-select v-model:value="currentSettings.bossFormation" :options="formationOptions" size="small" />
+            </div>
+            <div class="setting-item">
+              <label class="setting-label">BOSS次数</label>
+              <n-select v-model:value="currentSettings.bossTimes" :options="bossTimesOptions" size="small" />
+            </div>
+            <div class="setting-switches">
+              <div class="switch-row"><span class="switch-label">领罐子</span><n-switch
+                  v-model:value="currentSettings.claimBottle" /></div>
+              <div class="switch-row"><span class="switch-label">领挂机</span><n-switch
+                  v-model:value="currentSettings.claimHangUp" /></div>
+              <div class="switch-row"><span class="switch-label">竞技场</span><n-switch
+                  v-model:value="currentSettings.arenaEnable" /></div>
+              <div class="switch-row"><span class="switch-label">开宝箱</span><n-switch
+                  v-model:value="currentSettings.openBox" /></div>
+              <div class="switch-row"><span class="switch-label">领取邮件奖励</span><n-switch
+                  v-model:value="currentSettings.claimEmail" /></div>
+              <div class="switch-row"><span class="switch-label">黑市购买物品</span><n-switch
+                  v-model:value="currentSettings.blackMarketPurchase" /></div>
+              <div class="switch-row"><span class="switch-label">付费招募</span><n-switch
+                  v-model:value="currentSettings.payRecruit" /></div>
+            </div>
           </div>
-          <div class="setting-item">
-            <label class="setting-label">BOSS阵容</label>
-            <n-select v-model:value="currentSettings.bossFormation" :options="formationOptions" size="small" />
-          </div>
-          <div class="setting-item">
-            <label class="setting-label">BOSS次数</label>
-            <n-select v-model:value="currentSettings.bossTimes" :options="bossTimesOptions" size="small" />
-          </div>
-          <div class="setting-switches">
-            <div class="switch-row"><span class="switch-label">领罐子</span><n-switch
-                v-model:value="currentSettings.claimBottle" /></div>
-            <div class="switch-row"><span class="switch-label">领挂机</span><n-switch
-                v-model:value="currentSettings.claimHangUp" /></div>
-            <div class="switch-row"><span class="switch-label">竞技场</span><n-switch
-                v-model:value="currentSettings.arenaEnable" /></div>
-            <div class="switch-row"><span class="switch-label">开宝箱</span><n-switch
-                v-model:value="currentSettings.openBox" /></div>
-            <div class="switch-row"><span class="switch-label">领取邮件奖励</span><n-switch
-                v-model:value="currentSettings.claimEmail" /></div>
-            <div class="switch-row"><span class="switch-label">黑市购买物品</span><n-switch
-                v-model:value="currentSettings.blackMarketPurchase" /></div>
-            <div class="switch-row"><span class="switch-label">付费招募</span><n-switch
-                v-model:value="currentSettings.payRecruit" /></div>
+          <div class="modal-actions" style="margin-top: 20px; text-align: right;">
+            <n-button type="primary" :loading="settingsSaving" :disabled="settingsModalLoading || settingsSaving" @click="saveSettings">
+              保存设置
+            </n-button>
           </div>
         </div>
-        <div class="modal-actions" style="margin-top: 20px; text-align: right;">
-          <n-button type="primary" @click="saveSettings">保存设置</n-button>
-        </div>
-      </div>
+      </n-spin>
     </n-modal>
 
     <!-- Helper Modal (开箱/钓鱼/招募) -->
@@ -326,13 +330,21 @@
 // Import required dependencies
 import { ref, computed, nextTick, reactive, watch, onMounted } from 'vue'
 import { useTokenStore } from '@/stores/tokenStore'
+import { useAuthStore } from '@/stores/auth'
 import { DailyTaskRunner } from '@/utils/dailyTaskRunner'
 import { preloadQuestions } from '@/utils/studyQuestionsFromJSON.js'
 import { useMessage } from 'naive-ui'
 import { Settings } from '@vicons/ionicons5'
+import {
+  buildDailySettingsKeySets,
+  createDefaultDailySettings,
+  loadDailySettings as loadDailySettingsRecord,
+  saveDailySettings as saveDailySettingsRecord
+} from '@/utils/dailySettingsStorage'
 
 // Initialize token store, message service, and task runner
 const tokenStore = useTokenStore()
+const authStore = useAuthStore()
 const message = useMessage()
 const runner = new DailyTaskRunner(tokenStore)
 
@@ -364,18 +376,7 @@ const shouldStop = ref(false)
 const showSettingsModal = ref(false)
 const currentSettingsTokenId = ref(null)
 const currentSettingsTokenName = ref('')
-const currentSettings = reactive({
-  arenaFormation: 1,
-  bossFormation: 1,
-  bossTimes: 2,
-  claimBottle: true,
-  payRecruit: true,
-  openBox: true,
-  arenaEnable: true,
-  claimHangUp: true,
-  claimEmail: true,
-  blackMarketPurchase: true
-})
+const currentSettings = reactive(createDefaultDailySettings())
 
 // Helper Modal State
 const showHelperModal = ref(false)
@@ -746,41 +747,80 @@ const executeHelper = () => {
 const formationOptions = [1, 2, 3, 4, 5, 6].map(v => ({ label: `阵容${v}`, value: v }))
 const bossTimesOptions = [0, 1, 2, 3, 4].map(v => ({ label: `${v}次`, value: v }))
 
-const loadSettings = (tokenId) => {
-  try {
-    const raw = localStorage.getItem(`daily-settings:${tokenId}`)
-    const defaultSettings = {
-      arenaFormation: 1,
-      bossFormation: 1,
-      bossTimes: 2,
-      claimBottle: true,
-      payRecruit: true,
-      openBox: true,
-      arenaEnable: true,
-      claimHangUp: true,
-      claimEmail: true,
-      blackMarketPurchase: true
-    }
-    return raw ? { ...defaultSettings, ...JSON.parse(raw) } : defaultSettings
-  } catch (error) {
-    console.error('Failed to load settings:', error)
-    return null
+const normalizeSettings = (raw) => ({
+  ...createDefaultDailySettings(),
+  ...(raw || {})
+})
+
+const getSettingsSnapshot = (data) => JSON.parse(JSON.stringify(data))
+const getTokenKeySets = (token) => buildDailySettingsKeySets({ authUser: authStore.user, token })
+
+const loadTokenSettings = async (token) => {
+  const keySets = getTokenKeySets(token)
+  const result = await loadDailySettingsRecord({
+    keySets,
+    hasAuth: !!authStore.token
+  })
+  return {
+    settings: normalizeSettings(result?.data),
+    keySets
   }
 }
 
-const openSettings = (token) => {
-  currentSettingsTokenId.value = token.id
-  currentSettingsTokenName.value = token.name
-  const saved = loadSettings(token.id)
-  Object.assign(currentSettings, saved)
-  showSettingsModal.value = true
+const cloneSettings = (data) => JSON.parse(JSON.stringify(data || createDefaultDailySettings()))
+
+const getTokenSettingsForExecution = async (token) => {
+  if (!token) return cloneSettings()
+  try {
+    const { settings } = await loadTokenSettings(token)
+    return cloneSettings(settings)
+  } catch (error) {
+    console.error(`Failed to load settings for ${token.name}:`, error)
+    return cloneSettings()
+  }
 }
 
-const saveSettings = () => {
-  if (currentSettingsTokenId.value) {
-    localStorage.setItem(`daily-settings:${currentSettingsTokenId.value}`, JSON.stringify(currentSettings))
+const settingsModalLoading = ref(false)
+const settingsSaving = ref(false)
+
+const openSettings = async (token) => {
+  currentSettingsTokenId.value = token.id
+  currentSettingsTokenName.value = token.name
+  settingsModalLoading.value = true
+  showSettingsModal.value = true
+  try {
+    const { settings: saved } = await loadTokenSettings(token)
+    Object.assign(currentSettings, saved)
+  } catch (error) {
+    console.error('Failed to load token settings:', error)
+    message.error('加载任务设置失败，请稍后重试')
+  } finally {
+    settingsModalLoading.value = false
+  }
+}
+
+const saveSettings = async () => {
+  if (!currentSettingsTokenId.value) return
+  const token = tokens.value.find(t => t.id === currentSettingsTokenId.value)
+  if (!token) return
+  const keySets = getTokenKeySets(token)
+  settingsSaving.value = true
+  try {
+    await saveDailySettingsRecord({
+      keySets,
+      data: getSettingsSnapshot(currentSettings),
+      hasAuth: !!authStore.token,
+      remote: true,
+      local: true,
+      throwOnRemoteError: true
+    })
     message.success(`已保存 ${currentSettingsTokenName.value} 的设置`)
     showSettingsModal.value = false
+  } catch (error) {
+    const errorMessage = error?.response?.data?.message || error?.message || '保存设置失败，请稍后重试'
+    message.error(errorMessage)
+  } finally {
+    settingsSaving.value = false
   }
 }
 
@@ -2112,6 +2152,7 @@ const startBatch = async () => {
     let retryCount = 0
     const MAX_RETRIES = 1
     let success = false
+    let executionSettings = null
 
     while (retryCount <= MAX_RETRIES && !success) {
       const token = tokens.value.find(t => t.id === tokenId)
@@ -2123,13 +2164,17 @@ const startBatch = async () => {
           addLog({ time: new Date().toLocaleTimeString(), message: `=== 尝试重试: ${token.name} (第${retryCount}次) ===`, type: 'info' })
         }
 
+        if (!executionSettings) {
+          executionSettings = await getTokenSettingsForExecution(token)
+        }
+
         await ensureConnection(tokenId)
 
         // Run tasks
         await runner.run(tokenId, {
           onLog: (log) => addLog(log),
           onProgress: (p) => { currentProgress.value = p }
-        })
+        }, executionSettings)
 
         success = true
         tokenStatus.value[tokenId] = 'completed'

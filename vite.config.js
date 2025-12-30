@@ -95,8 +95,13 @@ export default defineConfig(async () => {
       }
     },
     server: {
-      port: 3000,
+      port: 8888,
       open: true,
+      host: true,
+      proxy: {
+        '/api': 'http://localhost:4000',
+        '/files/bin': 'http://localhost:4000'
+      }
     },
     css: {
       preprocessorOptions: {

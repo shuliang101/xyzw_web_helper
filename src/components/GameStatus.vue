@@ -124,16 +124,36 @@
         <StudyChallengeCard v-show="activeSection === 'activity'" />
 
         <!-- 盐场（提取组件） -->
-        <ClubWarrank v-if="activeSection === 'warrank'" />
+        <div
+            v-if="activeSection === 'warrank'"
+            class="full-width-card"
+        >
+            <ClubWarrank />
+        </div>
 
         <!-- 巅峰榜（提取组件） -->
-        <TopRankList v-if="activeSection === 'toprank'" />
+        <div
+            v-if="activeSection === 'toprank'"
+            class="full-width-card"
+        >
+            <TopRankList />
+        </div>
 
         <!-- 百服俱乐部（提取组件） -->
-        <TopClubList v-if="activeSection === 'topclubrank'" />
+        <div
+            v-if="activeSection === 'topclubrank'"
+            class="full-width-card"
+        >
+            <TopClubList />
+        </div>
 
         <!-- 黄金积分（提取组件） -->
-        <GoldClubList v-if="activeSection === 'goldclubrank'" />
+        <div
+            v-if="activeSection === 'goldclubrank'"
+            class="full-width-card"
+        >
+            <GoldClubList />
+        </div>
 
         <!-- 切磋（提取组件） -->
         <fightPvp v-if="activeSection === 'fightPvp'" />
@@ -502,20 +522,21 @@ onUnmounted(() => {
 <style scoped lang="scss">
 .game-status-container {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
     gap: var(--spacing-lg);
     padding: var(--spacing-lg);
+    width: 100%;
 
     // 在大屏幕上限制最大列数以确保卡片有足够宽度
     @media (min-width: 1400px) {
-        grid-template-columns: repeat(3, 1fr);
-        max-width: 1400px;
-        margin: 0 auto;
+        grid-template-columns: repeat(3, minmax(360px, 1fr));
+        max-width: none;
+        margin: 0;
     }
 
     // 在中等屏幕上确保有足够空间
     @media (max-width: 1200px) {
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
     }
 
     // 在较小屏幕上使用单列布局
@@ -529,6 +550,20 @@ onUnmounted(() => {
         padding: var(--spacing-sm);
         gap: var(--spacing-md);
     }
+}
+
+.game-status-container > * {
+    min-width: 0;
+}
+
+.full-width-card {
+    grid-column: 1 / -1;
+    width: 100%;
+}
+
+.full-width-card > * {
+    width: 100%;
+    display: block;
 }
 
 .full-grid {
@@ -557,11 +592,83 @@ onUnmounted(() => {
     margin: 0 var(--spacing-sm) var(--spacing-md) var(--spacing-sm);
     grid-column: 1 / -1;
     border-bottom: 1px solid var(--border-light);
-    overflow: auto;
+    overflow: visible;
+    width: 100%;
 }
 
 .section-tabs :deep(.n-tabs-pane-wrapper) {
     display: none;
+}
+
+.section-tabs :deep(.n-tabs-rail),
+.section-tabs :deep(.n-tabs-nav),
+.section-tabs :deep(.n-tabs-nav-scroll-wrapper),
+.section-tabs :deep(.n-tabs-nav-scroll-content) {
+    width: 100%;
+}
+
+.section-tabs :deep(.n-tabs-nav-scroll-wrapper) {
+    overflow: visible;
+}
+
+.section-tabs :deep(.n-tabs-nav-scroll-content) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.section-tabs :deep(.n-tabs-tab) {
+    border-radius: 999px;
+    padding: 6px 14px;
+    transition: background-color var(--transition-fast, 0.2s), color var(--transition-fast, 0.2s);
+}
+
+.section-tabs :deep(.n-tabs-tab--active) {
+    background: var(--primary-color-light);
+    color: var(--primary-color);
+}
+
+.section-tabs :deep(.n-tabs-tab__label) {
+    white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+    .section-tabs {
+        border-bottom: none;
+        padding-bottom: var(--spacing-sm);
+    }
+
+    .section-tabs :deep(.n-tabs-bar) {
+        display: none;
+    }
+
+    .section-tabs :deep(.n-tabs-rail) {
+        background: transparent;
+        padding: 0;
+    }
+
+    .section-tabs :deep(.n-tabs-nav-scroll-content) {
+        border-bottom: none;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: var(--spacing-sm);
+    }
+
+    .section-tabs :deep(.n-tabs-tab) {
+        flex: 1 1 auto;
+        justify-content: center;
+        border-radius: 999px;
+        border: 1px solid var(--border-light);
+        background: var(--bg-primary);
+        box-shadow: var(--shadow-extra-light, 0 1px 2px rgba(0, 0, 0, 0.05));
+    }
+
+    .section-tabs :deep(.n-tabs-tab--active) {
+        background: var(--primary-color-light);
+        color: var(--primary-color);
+        border-color: var(--primary-color);
+    }
 }
 
 .monthly-tasks .description.muted {

@@ -5,7 +5,7 @@
       <div class="page-header">
         <div class="header-content">
           <div class="header-top">
-            <img src="/icons/xiaoyugan.png" alt="XYZW" class="brand-logo">
+            <img src="/icons/logo.png" alt="XYZW" class="brand-logo">
             <!-- 主题切换按钮 -->
             <ThemeToggle />
           </div>

@@ -54,11 +54,22 @@
     <!-- 任务设置模态框 -->
     <n-modal v-model:show="showSettings" preset="card" title="任务设置" style="width: 90%; max-width: 400px">
       <template #header>
-        <div class="modal-header">
-          <n-icon>
-            <Settings />
-          </n-icon>
-          <span>任务设置</span>
+        <div class="modal-header settings-header">
+          <div class="header-left">
+            <n-icon>
+              <Settings />
+            </n-icon>
+            <span>任务设置</span>
+          </div>
+          <n-button
+            type="primary"
+            size="small"
+            :loading="settingsSaving"
+            :disabled="!settingsDirty"
+            @click="handleSaveSettings"
+          >
+            保存设置
+          </n-button>
         </div>
       </template>
 
@@ -118,6 +129,17 @@
               <n-switch v-model:value="settings.payRecruit" />
             </div>
           </div>
+        </div>
+        <div class="settings-actions">
+          <n-button
+            type="primary"
+            block
+            :loading="settingsSaving"
+            :disabled="!settingsDirty"
+            @click="handleSaveSettings"
+          >
+            保存设置
+          </n-button>
         </div>
       </div>
     </n-modal>
@@ -185,8 +207,15 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useTokenStore } from '@/stores/tokenStore'
+import { useAuthStore } from '@/stores/auth'
 import { DailyTaskRunner } from '@/utils/dailyTaskRunner'
 import { useMessage } from 'naive-ui'
+import {
+  buildDailySettingsKeySets,
+  createDefaultDailySettings,
+  loadDailySettings as loadDailySettingsRecord,
+  saveDailySettings as saveDailySettingsRecord
+} from '@/utils/dailySettingsStorage'
 import {
   Settings,
   Calendar,
@@ -197,6 +226,7 @@ import {
 } from '@vicons/ionicons5'
 
 const tokenStore = useTokenStore()
+const authStore = useAuthStore()
 const message = useMessage()
 const runner = new DailyTaskRunner(tokenStore)
 
@@ -206,20 +236,12 @@ const showTaskDetails = ref(false)
 const showLog = ref(false)
 const busy = ref(false)
 const logContainer = ref(null)
+const currentSettingsKey = ref(null)
+const settingsDirty = ref(false)
+const settingsSaving = ref(false)
 
 // 任务设置
-const settings = reactive({
-  arenaFormation: 1,
-  bossFormation: 1,
-  bossTimes: 2,
-  claimBottle: true,
-  payRecruit: true,
-  openBox: true,
-  arenaEnable: true,
-  claimHangUp: true,
-  claimEmail: true,
-  blackMarketPurchase: true
-})
+const settings = reactive(createDefaultDailySettings())
 
 // 每日任务列表
 const tasks = ref([
@@ -277,6 +299,9 @@ const log = (message, type = 'info') => {
     }
   })
 }
+
+let saveSettingsTimer = null
+let isApplyingSettings = false
 
 // 同步服务器任务完成状态
 const syncCompleteFromServer = (resp) => {
@@ -420,32 +445,132 @@ const handleRefreshTaskStatus = async () => {
 }
 
 // 辅助函数
-const getCurrentRole = () => {
-  return tokenStore.selectedToken ? { roleId: tokenStore.selectedToken.id } : null
+const getSettingsStorageKeys = (token = tokenStore.selectedToken, role = roleInfo.value?.role) => {
+  return buildDailySettingsKeySets({
+    authUser: authStore.user,
+    token,
+    role
+  })
 }
 
-const loadSettings = (roleId) => {
-  try {
-    const raw = localStorage.getItem(`daily-settings:${roleId}`)
-    return raw ? JSON.parse(raw) : null
-  } catch (error) {
-    console.error('Failed to load settings:', error)
+const getSettingsSnapshot = () => JSON.parse(JSON.stringify(settings))
+
+const applySettings = (data) => {
+  if (!data) return
+  isApplyingSettings = true
+  Object.entries(data).forEach(([key, value]) => {
+    if (Object.prototype.hasOwnProperty.call(settings, key)) {
+      settings[key] = value
+    }
+  })
+  nextTick(() => {
+    isApplyingSettings = false
+  })
+}
+
+const loadSettingsFromStorage = async (keySets = getSettingsStorageKeys()) => {
+  if (!keySets.primaryKeys.length && !keySets.legacyKeys.length) {
     return null
+  }
+  return loadDailySettingsRecord({
+    keySets,
+    hasAuth: !!authStore.token
+  })
+}
+
+const saveSettingsToStorage = async (
+  data = getSettingsSnapshot(),
+  keySets = getSettingsStorageKeys(),
+  { remote = true, local = true, throwOnRemoteError = false } = {}
+) => {
+  const result = await saveDailySettingsRecord({
+    keySets,
+    data,
+    hasAuth: !!authStore.token,
+    remote,
+    local,
+    throwOnRemoteError
+  })
+  if (!currentSettingsKey.value && keySets.primaryKeys?.length) {
+    currentSettingsKey.value = keySets.primaryKeys[0]
+  }
+  return result
+}
+
+const ensureSettingsLoaded = async (force = false) => {
+  const keySets = getSettingsStorageKeys()
+  const { primaryKeys = [] } = keySets
+  const primaryKey = primaryKeys[0]
+
+  if (!primaryKey && !primaryKeys.length) {
+    return
+  }
+
+  if (!force && currentSettingsKey.value && primaryKeys.includes(currentSettingsKey.value)) {
+    return
+  }
+
+  if (!force && currentSettingsKey.value && !primaryKeys.includes(currentSettingsKey.value)) {
+    await saveSettingsToStorage(getSettingsSnapshot(), keySets)
+    return
+  }
+
+  const result = await loadSettingsFromStorage(keySets)
+  if (result?.data) {
+    applySettings(result.data)
+    currentSettingsKey.value = primaryKey || result.key
+
+    if (result.isLegacy || (primaryKey && result.key !== primaryKey)) {
+      await saveSettingsToStorage(result.data, keySets)
+    }
+  } else if (!currentSettingsKey.value && primaryKey) {
+    currentSettingsKey.value = primaryKey
+    await saveSettingsToStorage(getSettingsSnapshot(), keySets)
   }
 }
 
-const saveSettings = (roleId, s) => {
+const handleSaveSettings = async () => {
+  if (settingsSaving.value || !settingsDirty.value) return
+  settingsSaving.value = true
+  log('正在保存任务设置...', 'info')
   try {
-    localStorage.setItem(`daily-settings:${roleId}`, JSON.stringify(s))
+    const { remoteSaved } = await saveSettingsToStorage(
+      getSettingsSnapshot(),
+      getSettingsStorageKeys(),
+      {
+        remote: true,
+        local: true,
+        throwOnRemoteError: true
+      }
+    )
+    settingsDirty.value = false
+    showSettings.value = false
+    const successMsg = remoteSaved
+      ? '任务设置已保存，并同步到服务器'
+      : '任务设置已保存（仅本地）'
+    log(successMsg, remoteSaved ? 'success' : 'warning')
+    message.success(successMsg)
   } catch (error) {
-    console.error('Failed to save settings:', error)
+    console.error('Failed to save settings manually:', error)
+    const errorMessage = error?.response?.data?.message || error?.message || '保存设置失败，请稍后重试'
+    message.error(errorMessage)
+    log(`保存任务设置失败：${errorMessage}`, 'error')
+  } finally {
+    settingsSaving.value = false
   }
 }
 
 // 监听设置变化
-watch(settings, (cur) => {
-  const role = getCurrentRole()
-  if (role) saveSettings(role.roleId, cur)
+watch(settings, () => {
+  if (isApplyingSettings) return
+  settingsDirty.value = true
+  const keySets = getSettingsStorageKeys()
+  if (!keySets.primaryKeys.length) return
+  if (saveSettingsTimer) clearTimeout(saveSettingsTimer)
+  const snapshot = getSettingsSnapshot()
+  saveSettingsTimer = setTimeout(() => {
+    saveSettingsToStorage(snapshot, keySets, { remote: false, local: true })
+  }, 300)
 }, { deep: true })
 
 // 监听token选择变化
@@ -453,9 +578,8 @@ watch(() => tokenStore.selectedToken, async (newToken, oldToken) => {
   if (newToken && newToken !== oldToken) {
     log(`切换到Token: ${newToken.name}`)
 
-    // 加载新token的设置
-    const saved = loadSettings(newToken.id)
-    if (saved) Object.assign(settings, saved)
+    currentSettingsKey.value = null
+    await ensureSettingsLoaded(true)
 
     // 如果WebSocket已连接，尝试获取最新角色信息
     if (isConnected.value) {
@@ -465,11 +589,14 @@ watch(() => tokenStore.selectedToken, async (newToken, oldToken) => {
         console.warn('切换token后获取角色信息失败:', error.message)
       }
     }
+  } else if (!newToken) {
+    currentSettingsKey.value = null
   }
 }, { immediate: true })
 
 // 监听角色信息变化，自动同步任务状态
-watch(() => tokenStore.selectedTokenRoleInfo, (newRoleInfo) => {
+watch(() => tokenStore.selectedTokenRoleInfo, async (newRoleInfo) => {
+  await ensureSettingsLoaded()
   if (newRoleInfo?.role?.dailyTask?.complete) {
     log('角色信息更新，同步任务状态')
     syncCompleteFromServer(newRoleInfo)
@@ -489,17 +616,17 @@ onMounted(async () => {
     }
   }
 
-  const role = getCurrentRole()
-  if (role) {
-    const saved = loadSettings(role.roleId)
-    if (saved) Object.assign(settings, saved)
-  }
+  await ensureSettingsLoaded(true)
 
   // 初始化时的任务状态同步会通过 watch selectedTokenRoleInfo 自动处理
 })
 
 onBeforeUnmount(() => {
   log('组件即将卸载')
+  if (saveSettingsTimer) {
+    clearTimeout(saveSettingsTimer)
+    saveSettingsTimer = null
+  }
 })
 </script>
 
@@ -650,6 +777,16 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
+.settings-header {
+  justify-content: space-between;
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+}
+
 .refresh-button {
   display: flex;
   align-items: center;
@@ -677,6 +814,10 @@ onBeforeUnmount(() => {
 
 .settings-content {
   padding: var(--spacing-sm) 0;
+}
+
+.settings-actions {
+  margin-top: var(--spacing-md);
 }
 
 .settings-grid {

@@ -403,6 +403,26 @@ onUnmounted(() => {
   padding: var(--spacing-xl) 0;
 }
 
+.features-grid-section .container {
+  display: flex;
+  justify-content: center;
+}
+
+.features-grid-section .container :deep(.game-status-container) {
+  width: 100%;
+  max-width: 1080px;
+}
+
+@media (max-width: 768px) {
+  .features-grid-section .container {
+    padding: 0 var(--spacing-sm);
+  }
+
+  .features-grid-section .container :deep(.game-status-container) {
+    max-width: 100%;
+  }
+}
+
 .features-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

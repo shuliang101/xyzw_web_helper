@@ -38,7 +38,7 @@
           <div class="card-header">
             <div class="role-avatar">
               <img
-                :src="role.avatar || '/icons/xiaoyugan.png'"
+                :src="role.avatar || '/icons/logo.png'"
                 :alt="role.name"
               >
             </div>
@@ -431,7 +431,7 @@ onMounted(async () => {
 
 .roles-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
   gap: var(--spacing-lg);
 }
 
@@ -506,6 +506,8 @@ onMounted(async () => {
 .role-tags {
   display: flex;
   gap: var(--spacing-xs);
+  flex-wrap: wrap;
+  row-gap: var(--spacing-xs);
   justify-content: center;
 }
 
