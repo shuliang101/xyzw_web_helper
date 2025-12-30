@@ -322,12 +322,19 @@ watch(
   () => tokenStore.selectedToken,
   async (newToken, oldToken) => {
     if (newToken && newToken.id !== (oldToken as any)?.id) {
+      // Token切换时，先清空旧数据，避免显示上一个账号的阵容
+      tokenStore.$patch((state: any) => {
+        state.gameData = { ...(state.gameData ?? {}), presetTeam: null };
+      });
+      loading.value = true;
+
       const status = tokenStore.getWebSocketStatus(newToken.id);
       if (status === "connected") {
         await refreshTeamData(true);
         updateAvailableTeams();
         updateCurrentTeam();
       }
+      // 如果还在连接中，wsStatus的watch会在连接成功后触发刷新
     }
   }
 );

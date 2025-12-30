@@ -544,13 +544,19 @@ watch(wsStatus, (newStatus, oldStatus) => {
 // —— 监听Token变化 ——
 watch(() => tokenStore.selectedToken, async (newToken, oldToken) => {
   if (newToken && newToken.id !== oldToken?.id) {
-    // Token切换，刷新队伍信息
+    // Token切换时，先清空旧数据，避免显示上一个账号的阵容
+    tokenStore.$patch((state: any) => {
+      state.gameData = { ...(state.gameData ?? {}), presetTeam: null }
+    })
+    loading.value = true
+
     // 检查WebSocket是否已连接
     const status = tokenStore.getWebSocketStatus(newToken.id)
     if (status === 'connected') {
       await refreshTeamData(true) // 切换Token时强制刷新
       updateAvailableTeams(); updateCurrentTeam()
     }
+    // 如果还在连接中，wsStatus的watch会在连接成功后触发刷新
   }
 })
 
