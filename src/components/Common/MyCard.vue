@@ -268,7 +268,7 @@ const $props = defineProps<{
         .status-title {
             min-width: 100px;
         }
-        
+
         .status-badge {
             margin-left: auto;
         }

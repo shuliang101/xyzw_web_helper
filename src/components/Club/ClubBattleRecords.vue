@@ -269,13 +269,8 @@ const props = defineProps({
   }
 })
 
-<<<<<<< HEAD
-const exportmethod = ref([]);
-const exportDom = ref(null);
-=======
-
+const exportmethod = ref([])
 const exportDom = ref(null)
->>>>>>> 65c681794a127ac69bab1b92c2113efa5d19cc80
 const emit = defineEmits(['update:visible'])
 
 const message = useMessage()
@@ -402,34 +397,40 @@ const handleRefresh = () => {
 // 导出战绩
 const handleExport = async () => {
   if (!battleRecords.value || !battleRecords.value.roleDetailsList) {
-    message.warning('没有可导出的数据')
+    message.warning('No data to export')
+    return
+  }
+  if (!exportmethod.value.length) {
+    message.warning('Select at least one export method')
     return
   }
 
   try {
-<<<<<<< HEAD
+    let exported = false
+
     if (exportmethod.value.includes('1')) {
-      const exportText = formatBattleRecordsForExport(battleRecords.value.roleDetailsList, queryDate.value)
+      const exportText = formatBattleRecordsForExport(
+        battleRecords.value.roleDetailsList,
+        queryDate.value
+      )
+      await copyToClipboard(exportText)
+      exported = true
     }
+
     if (exportmethod.value.includes('2')) {
-      exportToImage()
+      await exportToImage()
+      exported = true
     }
-    message.success('导出成功')
-=======
-    const exportText = formatBattleRecordsForExport(
-      battleRecords.value.roleDetailsList,
-      queryDate.value
-    )
-    await copyToClipboard(exportText)
-    message.success('战绩已复制到剪贴板')
->>>>>>> 65c681794a127ac69bab1b92c2113efa5d19cc80
+
+    if (exported) {
+      message.success('Export completed')
+    }
   } catch (error) {
-    console.error('导出失败:', error)
-    message.error('导出失败，请重试')
+    console.error('Export failed:', error)
+    message.error('Export failed, please retry')
   }
 }
 
-// 导出为图片的备用方案（暂不在界面触发）
 const exportToImage = async () => {
   if (!exportDom.value) {
     message.error('未找到可导出的内容区域')

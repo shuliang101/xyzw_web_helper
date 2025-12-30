@@ -23,16 +23,6 @@
               <Copy />
             </n-icon>
           </template>导出</n-button>
-        <n-button type="info" size="small" :disabled="!battleRecords1 || loading1" @click="hcSort">
-          <template #icon>
-          </template>红淬排序</n-button>
-        <n-button type="info" size="small" :disabled="!battleRecords1 || loading1" @click="scoreSort">
-          <template #icon>
-          </template>积分排序</n-button>
-        <n-checkbox-group v-model:value="exportmethod" name="group-exportmethod" size="small">
-          <n-checkbox value="1">表格导出</n-checkbox>
-          <n-checkbox value="2">图片导出</n-checkbox>
-        </n-checkbox-group>
       </div>
 
 
@@ -82,7 +72,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useMessage, NDatePicker, NCheckboxGroup, NCheckbox } from 'naive-ui'
+import { useMessage, NDatePicker } from 'naive-ui'
 import { useTokenStore } from '@/stores/tokenStore'
 import html2canvas from "html2canvas"
 import {
@@ -124,7 +114,7 @@ const showModal = computed({
   get: () => props.visible,
   set: (val) => emit('update:visible', val)
 })
-const exportmethod = ref([]);
+const exportmethod = ref(['1']);
 const loading1 = ref(false)
 const battleRecords1 = ref(null)
 const expandedMembers = ref(new Set())
@@ -423,35 +413,38 @@ const scoreSort = async () => {
 // 导出战绩
 const handleExport1 = async () => {
   if (!battleRecords1.value || !battleRecords1.value.legionRankList) {
-    message.warning('没有可导出的数据')
+    message.warning('No data to export')
+    return
+  }
+  if (!exportmethod.value.length) {
+    message.warning('Select at least one export method')
     return
   }
 
   try {
-<<<<<<< HEAD
+    let exported = false
+
     if (exportmethod.value.includes('1')) {
-      const exportText = formatWarrankRecordsForExport(
+      formatWarrankRecordsForExport(
         battleRecords1.value.legionRankList,
         queryDate.value
       )
+      exported = true
     }
+
     if (exportmethod.value.includes('2')) {
-      exportToImage()
+      await exportToImage()
+      exported = true
     }
-    message.success('导出成功')
-=======
-    formatWarrankRecordsForExport(
-      battleRecords1.value.legionRankList,
-      queryDate.value
-    )
-    message.success('已导出 Excel 文件')
->>>>>>> 65c681794a127ac69bab1b92c2113efa5d19cc80
+
+    if (exported) {
+      message.success('Export completed')
+    }
   } catch (error) {
-    console.error('导出失败:', error)
-    message.error('导出失败，请重试')
+    console.error('Export failed:', error)
+    message.error('Export failed, please retry')
   }
 }
-
 
 const exportToImage = async () => {
   // 校验：确保DOM已正确绑定
@@ -866,7 +859,6 @@ onMounted(() => {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     transition: all var(--transition-normal);
     min-height: 200px;
-    min-width: 800px;
 
     &:hover {
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
@@ -952,14 +944,4 @@ onMounted(() => {
     background: currentColor;
   }
 }
-<<<<<<< HEAD
-=======
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: currentColor;
-}
->>>>>>> 65c681794a127ac69bab1b92c2113efa5d19cc80
 </style>

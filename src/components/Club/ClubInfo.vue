@@ -1,5 +1,5 @@
 <template>
-  <MyCard class="club-info" :statusClass="{ active: !!club }" style="min-width: 650px;">
+  <MyCard class="club-info" :statusClass="{ active: !!club }">
     <template #icon>
       <img src="/icons/1733492491706152.png" alt="俱乐部图标">
     </template>
@@ -24,7 +24,7 @@
           </n-space>
         </div>
 
-        <n-tabs v-model:value="activeTab" type="line" animated>
+        <n-tabs v-model:value="activeTab" type="line" animated :tab-style="tabStyle">
           <n-tab-pane name="overview" tab="概览" display-directive="show:lazy">
             <div class="overview">
               <div class="club-header">
@@ -97,7 +97,7 @@
             <ClubBattleRecords inline />
           </n-tab-pane>
 
-          <n-tab-pane name="history" tab="俱乐部历史战绩" display-directive="show:lazy">
+          <n-tab-pane name="history" tab="历史战绩" display-directive="show:lazy">
             <ClubHistoryRecords inline />
           </n-tab-pane>
 
@@ -138,6 +138,11 @@ const topMembers = computed(() => {
 })
 
 const activeTab = ref('overview')
+const tabStyle = {
+  flex: '1 1 80px',
+  minWidth: '0',
+  justifyContent: 'center'
+}
 
 // 今日是否已进行俱乐部签到
 const legionSignedIn = computed(() => {
@@ -208,6 +213,33 @@ const formatNumber = (num) => {
 
 <style scoped lang="scss">
 .club-info {
+  width: 100%;
+  min-width: 0;
+
+  :deep(.n-tabs) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  :deep(.n-tabs-nav-scroll-wrapper) {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+    margin-bottom: -4px;
+  }
+
+  :deep(.n-tabs-nav) {
+    flex-wrap: nowrap !important;
+    gap: var(--spacing-xs);
+    justify-content: flex-start;
+  }
+
+  :deep(.n-tabs-tab) {
+    flex: 0 0 auto;
+    justify-content: center;
+    min-width: fit-content;
+  }
+
   .toolbar {
     display: flex;
     justify-content: flex-end;
