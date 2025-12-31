@@ -315,26 +315,30 @@ const refreshHeroes = async () => {
 }
 
 // 解析队伍数据
-const parseTeamData = (presetTeamInfo) => {
-  if (!presetTeamInfo) {
+const parseTeamData = (response) => {
+  if (!response) {
     return { useTeamId: 1, teams: {} }
   }
-  
-  const data = presetTeamInfo.presetTeamInfo || presetTeamInfo
-  const useTeamId = data.useTeamId || 1
+
+  // 处理嵌套结构: response.presetTeamInfo.presetTeamInfo[useTeamId].teamInfo
+  const outer = response.presetTeamInfo || response
+  const useTeamId = outer.useTeamId || 1
+
+  // 内层 presetTeamInfo 包含各个队伍数据
+  const inner = outer.presetTeamInfo || outer
   const teams = {}
-  
+
   // 获取所有数字键对应的队伍
-  const teamKeys = Object.keys(data).filter(key => /^\d+$/.test(key))
-  
+  const teamKeys = Object.keys(inner).filter(key => /^\d+$/.test(key))
+
   for (const key of teamKeys) {
     const teamId = Number(key)
-    const team = data[key]
+    const team = inner[key]
     if (!team) {
       teams[teamId] = { teamInfo: {} }
       continue
     }
-    
+
     if (team.teamInfo) {
       teams[teamId] = { teamInfo: team.teamInfo }
     } else if (team.heroes) {
@@ -345,7 +349,7 @@ const parseTeamData = (presetTeamInfo) => {
       })
       teams[teamId] = { teamInfo }
     } else if (typeof team === 'object') {
-      const hasHeroes = Object.values(team).some(item => 
+      const hasHeroes = Object.values(team).some(item =>
         item && typeof item === 'object' && 'heroId' in item
       )
       teams[teamId] = { teamInfo: hasHeroes ? team : {} }
@@ -353,7 +357,7 @@ const parseTeamData = (presetTeamInfo) => {
       teams[teamId] = { teamInfo: {} }
     }
   }
-  
+
   return { useTeamId, teams }
 }
 

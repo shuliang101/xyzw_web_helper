@@ -166,32 +166,51 @@ function getTypeColor(type) {
 // 提取默认队伍信息
 function extractDefaultInfoFromResponse(response) {
   try {
-    if (!response || !response.presetTeamInfo.presetTeamInfo) {
+    if (!response) {
       return false;
     }
-    
-    const useTeamId = response.presetTeamInfo.useTeamId.toString();
-    const battleTeam = response.presetTeamInfo.presetTeamInfo[useTeamId].teamInfo;
+
+    // 处理嵌套结构: response.presetTeamInfo.presetTeamInfo[useTeamId].teamInfo
+    const outer = response.presetTeamInfo || response;
+    if (!outer) {
+      return false;
+    }
+
+    const useTeamId = (outer.useTeamId || 1).toString();
+    const inner = outer.presetTeamInfo || outer;
+
+    // 获取当前队伍
+    const currentTeam = inner[useTeamId];
+    if (!currentTeam) {
+      console.error('未找到队伍:', useTeamId);
+      return false;
+    }
+
+    const battleTeam = currentTeam.teamInfo || currentTeam;
+    if (!battleTeam) {
+      return false;
+    }
+
     teamHeroes.value = [];
-    
-    for (let i = 0; i < 5; i++) {
-      const heroKey = i.toString();
-      if (battleTeam[heroKey]) {
-        const heroInfo = battleTeam[heroKey];
-        const heroId = heroInfo.heroId || heroInfo;
-        if (heroId !== 0 && heroData[heroId]) {
-          teamHeroes.value.push({
-            id: heroId,
-            name: heroData[heroId].name,
-            type: heroData[heroId].type,
-            position: i
-          });
-        }
+
+    // 遍历队伍成员（key 可能是 "0"-"4" 或 "1"-"5"）
+    for (const heroKey of Object.keys(battleTeam)) {
+      const heroInfo = battleTeam[heroKey];
+      if (!heroInfo) continue;
+
+      const heroId = heroInfo.heroId || heroInfo;
+      if (heroId !== 0 && heroData[heroId]) {
+        teamHeroes.value.push({
+          id: heroId,
+          name: heroData[heroId].name,
+          type: heroData[heroId].type,
+          position: parseInt(heroKey)
+        });
       }
     }
-    
-    hasDefaultInfo.value = true;
-    return true;
+
+    hasDefaultInfo.value = teamHeroes.value.length > 0;
+    return hasDefaultInfo.value;
   } catch (error) {
     console.error('提取默认信息出错:', error);
     return false;
@@ -202,12 +221,12 @@ function extractDefaultInfoFromResponse(response) {
 async function getDefaultTeam() {
   if (!isDungeonOpen()) {
     message.warning('当前不是梦境开放时间（周三/周四/周日/周一）');
-    return;
+    return false;
   }
 
   if (!tokenStore.selectedToken) {
     message.warning('请先选择Token');
-    return;
+    return false;
   }
 
   isLoading.value = true;
@@ -215,17 +234,21 @@ async function getDefaultTeam() {
 
   try {
     const roleInfo = await tokenStore.sendMessageWithPromise(tokenId, 'presetteam_getinfo', {}, 15000);
-    
+
     if (roleInfo) {
       const extracted = extractDefaultInfoFromResponse(roleInfo);
       if (extracted) {
         message.success('队伍信息获取成功');
+        return true;
       } else {
         message.error('无法提取队伍数据');
+        return false;
       }
     }
+    return false;
   } catch (error) {
     message.error(`获取默认队伍信息出错: ${error.message}`);
+    return false;
   } finally {
     isLoading.value = false;
   }
@@ -608,7 +631,7 @@ async function buyAllGoldFishItems() {
   isRunning.value = false;
 }
 
-// 获取商品列表（包含自动获取阵容）
+// 获取商品列表（直接获取，不强制选择阵容）
 async function refreshMerchantList() {
   if (!isDungeonOpen()) {
     message.warning('当前不是梦境开放时间（周三/周四/周日/周一）');
@@ -621,18 +644,13 @@ async function refreshMerchantList() {
   }
 
   try {
-    message.info('开始自动获取商品列表流程...');
-    
-    // 第一步：获取默认队伍信息
-    const teamSuccess = await getDefaultTeam();
-    
-    // 第二步：选择梦境阵容
-    await selectDreamTeam();
-    
-    // 第三步：获取商品列表
+    message.info('获取商品列表...');
+
+    // 直接获取商品列表，不强制选择阵容
+    // 如果已经在梦境中，可以直接获取
     await getRoleInfo();
     merchantDataLoaded.value = true;
-    
+
     message.success('商品列表获取完成');
   } catch (error) {
     message.error(`获取商品列表失败: ${error.message}`);
