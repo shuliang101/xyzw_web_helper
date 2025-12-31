@@ -72,12 +72,12 @@ jspm_packages/
 tmp/
 temp/
 
+.server/
 server/data/
 
 .vscode/
-.claude/
 
 .github
-*.bat
 *.exe
+*.zip
 node_modules/
