@@ -115,6 +115,17 @@ onSome(['bosstower_getinforesp', 'bosstower_getinfo'], (data: Session) => {
   data.gameData.value.lastUpdated = new Date().toISOString()
 });
 
+onSome(['evotowerinforesp', 'evotower_getinfo', 'evotower_getinforesp'], (data: Session) => {
+  gameLogger.verbose(`收到怪异塔信息事件: ${data.tokenId}`, data);
+  const { body } = data;
+  if (!body) {
+    gameLogger.debug('怪异塔信息响应为空');
+    return;
+  }
+  data.gameData.value.weirdTowerInfo = body;
+  data.gameData.value.lastUpdated = new Date().toISOString();
+});
+
 onSome([
   'team_getteaminfo',
   'team_getteaminforesp',
@@ -174,8 +185,9 @@ onSome(['tower_getinfo', 'tower_getinforesp'], (data: Session) => {
     gameLogger.warn('爬塔战斗开始响应为空');
     return;
   }
+  gameData.value.towerInfo = body?.tower || body
+  gameData.value.lastUpdated = new Date().toISOString()
 });
-
 onSome(['fight_starttower', 'fight_starttowerresp'], (data: Session) => {
   gameLogger.verbose(`收到爬塔战斗开始事件: ${data.tokenId}`, data);
   const { body, gameData, client } = data;

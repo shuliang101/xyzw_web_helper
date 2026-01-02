@@ -78,17 +78,17 @@
               <div
                 v-for="slot in slots"
                 :key="slot.id"
-                class="slot"
-                :class="{ locked: slot.isLocked }"
-              >
+              class="slot"
+              :class="[slot.attrQualityClass, { locked: slot.isLocked }]"
+            >
                 <n-checkbox
                   v-model:checked="slot.isLocked"
                   @change="handleSlotLock(slot.id, slot.isLocked)"
                 ></n-checkbox>
                 <span class="slot-label">孔{{ slot.id }}</span>
-                <div v-if="slot.attrId" class="slot-attr">
-                  <span>{{ getAttrName(slot.attrId) }}</span>
-                  <span>+{{ slot.attrNum }}</span>
+                <div v-if="slot.attrId" class="slot-attr" :class="slot.attrQualityClass">
+                  <span class="attr-name">{{ getAttrName(slot.attrId) }}</span>
+                  <span class="attr-value">+{{ slot.attrNum }}%</span>
                 </div>
                 <div v-else class="slot-empty">未淬炼</div>
               </div>
@@ -138,24 +138,66 @@
           <div class="auto-section">
             <h4>自动淬炼设置</h4>
             <div class="auto-form">
-              <div class="form-item">
-                <span class="form-label">属性</span>
-                <n-select
-                  v-model:value="targetAttrId"
-                  :options="attrOptions"
-                  placeholder="选择属性"
+              <div class="auto-options">
+                <n-checkbox v-model:checked="autoIgnoreTargets" size="small">
+                  不限制属性（仅按次数或手动停止）
+                </n-checkbox>
+              </div>
+              <div class="auto-targets" :class="{ disabled: autoIgnoreTargets }">
+                <div
+                  v-for="target in autoTargets"
+                  :key="target.key"
+                  class="auto-target-row"
+                >
+                  <div class="form-item">
+                    <span class="form-label">属性</span>
+                    <n-select
+                      v-model:value="target.attrId"
+                      :options="attrOptions"
+                      placeholder="选择属性"
+                      size="small"
+                      style="width: 140px"
+                      :disabled="autoIgnoreTargets"
+                    ></n-select>
+                  </div>
+                  <div class="form-item">
+                    <span class="form-label">≥</span>
+                    <n-input-number
+                      v-model:value="target.value"
+                      :min="1"
+                      :max="100"
+                      size="small"
+                      style="width: 90px"
+                      :disabled="autoIgnoreTargets"
+                    ></n-input-number>
+                  </div>
+                  <n-button
+                    v-if="autoTargets.length > 1"
+                    quaternary
+                    size="tiny"
+                    @click="removeAutoTarget(target.key)"
+                    :disabled="autoIgnoreTargets"
+                  >
+                    删除
+                  </n-button>
+                </div>
+                <n-button
+                  text
                   size="small"
-                  style="width: 120px"
-                ></n-select>
+                  @click="addAutoTarget"
+                  :disabled="autoIgnoreTargets"
+                >
+                  + 添加属性条件
+                </n-button>
               </div>
               <div class="form-item">
-                <span class="form-label">≥</span>
+                <span class="form-label">最大次数</span>
                 <n-input-number
-                  v-model:value="targetAttrValue"
+                  v-model:value="autoMaxQuenchCount"
                   :min="1"
-                  :max="100"
                   size="small"
-                  style="width: 80px"
+                  placeholder="不限"
+                  style="width: 120px"
                 ></n-input-number>
               </div>
               <div class="form-item">
@@ -165,7 +207,7 @@
                   :min="0"
                   :step="100"
                   size="small"
-                  style="width: 100px"
+                  style="width: 120px"
                 ></n-input-number>
               </div>
             </div>
@@ -192,10 +234,51 @@ const selectedHeroId = ref(null)
 const selectedPart = ref(null)
 const quenchCount = ref(0)
 const delay = ref(350)
-const targetAttrId = ref(null)
-const targetAttrValue = ref(null)
+const autoTargets = ref([])
+const autoMaxQuenchCount = ref(null)
+const autoIgnoreTargets = ref(false)
 const jadeCount = ref(0)
 const colorJadeCount = ref(0)
+let autoTargetSeed = 0
+
+const createAutoTarget = () => ({
+  key: Date.now() + autoTargetSeed++,
+  attrId: null,
+  value: null
+})
+
+const initializeAutoTargets = () => {
+  if (!autoTargets.value.length) {
+    autoTargets.value = [createAutoTarget()]
+  }
+}
+
+initializeAutoTargets()
+
+const addAutoTarget = () => {
+  autoTargets.value.push(createAutoTarget())
+}
+
+const removeAutoTarget = (key) => {
+  if (autoTargets.value.length <= 1) return
+  autoTargets.value = autoTargets.value.filter((item) => item.key !== key)
+}
+
+const getConfiguredAutoTargets = () => {
+  return autoTargets.value
+    .map((target) => ({
+      attrId: target.attrId !== null ? Number(target.attrId) : null,
+      value: target.value !== null ? Number(target.value) : null
+    }))
+    .filter(
+      (target) =>
+        target.attrId !== null &&
+        !Number.isNaN(target.attrId) &&
+        target.value !== null &&
+        !Number.isNaN(target.value) &&
+        target.value > 0
+    )
+}
 
 // 状态
 const state = ref({
@@ -233,6 +316,14 @@ const attrMap = {
   20: '中毒免疫',
   21: '灼烧免疫'
 }
+const attrQualitySteps = [
+  { max: 5, className: 'quality-white' },
+  { max: 10, className: 'quality-green' },
+  { max: 20, className: 'quality-blue' },
+  { max: 50, className: 'quality-purple' },
+  { max: 80, className: 'quality-orange' },
+  { max: Infinity, className: 'quality-red' }
+]
 
 // 装备部位映射
 const partMap = {
@@ -257,6 +348,17 @@ const attrOptions = computed(() => {
     value: Number(id)
   }))
 })
+const getAttrQualityClass = (attrNum) => {
+  const numericValue = Number(attrNum)
+  if (Number.isNaN(numericValue)) {
+    return ''
+  }
+  const normalizedValue = Math.min(100, Math.max(0, numericValue))
+  const step =
+    attrQualitySteps.find(({ max }) => normalizedValue <= max) ||
+    attrQualitySteps[attrQualitySteps.length - 1]
+  return step.className
+}
 
 // 装备部位列表
 const equipParts = computed(() => {
@@ -464,18 +566,68 @@ const selectPart = (partId) => {
 }
 
 // 更新孔位信息
-const updateSlots = (quenches) => {
+const normalizeLockSource = (lockInfo) => {
+  if (!lockInfo) return []
+  if (Array.isArray(lockInfo)) return lockInfo
+  if (typeof lockInfo === 'string') {
+    return lockInfo
+      .split(',')
+      .map((value) => Number(value.trim()))
+      .filter((value) => !Number.isNaN(value))
+  }
+  if (typeof lockInfo === 'object') {
+    return Object.values(lockInfo)
+      .map((value) => Number(value))
+      .filter((value) => !Number.isNaN(value))
+  }
+  if (typeof lockInfo === 'number') return [lockInfo]
+  return []
+}
+
+const getEquipLockInfo = () => {
+  const equip = heroEquipment.value?.[selectedPart.value]
+  if (!equip) return null
+  return (
+    equip.lockSlot ||
+    equip.lockSlots ||
+    equip.lockedSlot ||
+    equip.lockedSlots ||
+    equip.quenchLockSlot ||
+    equip.quenchLockSlots ||
+    equip.lockedSlotsList ||
+    null
+  )
+}
+
+const updateSlots = (quenches, lockInfo = null) => {
   const slotList = []
   const slotKeys = Object.keys(quenches).sort((a, b) => Number(a) - Number(b))
+  const lockSource = lockInfo ?? getEquipLockInfo()
+  const lockSet = new Set(
+    normalizeLockSource(lockSource).map((value) => Number(value)).filter((value) => !Number.isNaN(value))
+  )
   
   for (const key of slotKeys) {
     const slotId = Number(key)
     const slot = quenches[key]
+    const rawAttrId = slot?.attrId ?? slot?.attr_id
+    const parsedAttrId =
+      rawAttrId !== undefined && rawAttrId !== null ? parseInt(rawAttrId, 10) : null
+    const normalizedAttrId =
+      typeof parsedAttrId === 'number' && !Number.isNaN(parsedAttrId) ? parsedAttrId : null
+    const rawAttrNum = slot?.attrNum ?? slot?.attr_num
+    const parsedAttrNum =
+      rawAttrNum !== undefined && rawAttrNum !== null ? parseFloat(rawAttrNum) : 0
+    const normalizedAttrNum = Number.isNaN(parsedAttrNum) ? 0 : parsedAttrNum
+    const slotLockState =
+      slot?.isLocked ?? slot?.locked ?? lockSet.has(slotId)
+    const attrQualityClass = normalizedAttrId !== null ? getAttrQualityClass(normalizedAttrNum) : ''
     slotList.push({
       id: slotId,
-      attrId: slot.attrId || null,
-      attrNum: slot.attrNum || 0,
-      isLocked: slot.isLocked || slot.locked || false
+      attrId: normalizedAttrId,
+      attrNum: normalizedAttrNum,
+      attrQualityClass,
+      isLocked: Boolean(slotLockState)
     })
   }
   
@@ -484,7 +636,11 @@ const updateSlots = (quenches) => {
 
 // 获取属性名称
 const getAttrName = (attrId) => {
-  return attrMap[attrId] || `属性${attrId}`
+  const normalizedId = Number(attrId)
+  if (Number.isNaN(normalizedId)) {
+    return `属性${attrId}`
+  }
+  return attrMap[normalizedId] || `属性${normalizedId}`
 }
 
 // 处理孔位锁定
@@ -501,7 +657,7 @@ const handleSlotLock = async (slotId, isLocked) => {
       heroId: selectedHeroId.value,
       part: selectedPart.value,
       slot: slotId,
-      isLocked
+      isLocked: isLocked ? 1 : 0
     })
     
     // 更新孔位状态
@@ -564,8 +720,11 @@ const quenchContinuous = () => {
 
 // 自动淬炼
 const startAutoQuench = () => {
-  if (!targetAttrId.value || !targetAttrValue.value) {
-    message.warning('请设置目标属性和数值')
+  const configuredTargets = autoIgnoreTargets.value ? [] : getConfiguredAutoTargets()
+  const usesTargets = configuredTargets.length > 0
+  
+  if (!autoIgnoreTargets.value && !usesTargets) {
+    message.warning('请至少设置一条属性条件或勾选“不限制属性”')
     return
   }
   
@@ -573,20 +732,45 @@ const startAutoQuench = () => {
     message.warning('请先选择武将和装备部位')
     return
   }
+
+  const maxAttempts = Number(autoMaxQuenchCount.value)
+  const hasMaxAttempts = !Number.isNaN(maxAttempts) && maxAttempts > 0
+  let attemptCount = 0
+  const targetDesc = usesTargets
+    ? configuredTargets.map((target) => `${getAttrName(target.attrId)} ≥ ${target.value}%`).join('，')
+    : '不限制属性'
   
   state.value.autoQuenching = true
   state.value.isRunning = true
-  message.info(`开始自动淬炼，目标：${getAttrName(targetAttrId.value)} ≥ ${targetAttrValue.value}`)
+  message.info(
+    `开始自动淬炼，目标：${targetDesc}${hasMaxAttempts ? `，最多${maxAttempts}次` : ''}`
+  )
+  if (!usesTargets && !hasMaxAttempts) {
+    message.info('当前未设置属性和次数，淬炼将持续运行直到手动停止')
+  }
   
   const autoQuench = async () => {
     if (!state.value.autoQuenching) return
     
     try {
       const result = await executeQuench()
-      if (result && checkTargetAttr(result)) {
-        message.success(`已达到目标：${getAttrName(targetAttrId.value)} ≥ ${targetAttrValue.value}`)
+      attemptCount++
+
+      if (hasMaxAttempts && attemptCount >= maxAttempts) {
+        message.success(`已达到最大淬炼次数 ${maxAttempts} 次，自动停止`)
         stopQuench()
         return
+      }
+
+      if (usesTargets && result) {
+        const matchedTarget = checkTargetAttr(result, configuredTargets)
+        if (matchedTarget) {
+          message.success(
+            `已达到目标：${getAttrName(matchedTarget.attrId)} ≥ ${matchedTarget.value}%`
+          )
+          stopQuench()
+          return
+        }
       }
       
       // 随机延迟
@@ -629,7 +813,8 @@ const executeQuench = async () => {
     // 获取当前锁定的孔位
     const lockedSlots = slots.value
       .filter(slot => slot.isLocked)
-      .map(slot => slot.id)
+      .map(slot => Number(slot.id))
+      .filter(id => !Number.isNaN(id))
     
     // 发送淬炼请求（设置更长的超时时间，淬炼操作可能较慢）
     const result = await tokenStore.sendMessageWithPromise(tokenId, 'equipment_quench', {
@@ -645,12 +830,13 @@ const executeQuench = async () => {
     if (result?.role?.heroes) {
       const updatedHero = result.role.heroes[String(selectedHeroId.value)]
       if (updatedHero?.equipment) {
-        // 更新英雄装备数据
         const updatedEquip = updatedHero.equipment[selectedPart.value]
         if (updatedEquip) {
-          // 更新装备对象
-          heroEquipment.value[selectedPart.value] = updatedEquip
-          
+          heroEquipment.value = {
+            ...heroEquipment.value,
+            ...updatedHero.equipment,
+            [selectedPart.value]: updatedEquip
+          }
           // 更新淬炼次数和加成
           quenchTimes.value = updatedEquip.quenchTimes || 0
           const bonusType = selectedPart.value === 1 ? 'quenchAttackExt' : 
@@ -700,23 +886,43 @@ const checkHighQualityAttr = (result) => {
 }
 
 // 检查目标属性
-const checkTargetAttr = (result) => {
-  if (!result?.role?.heroes || !targetAttrId.value || !targetAttrValue.value) return false
+const checkTargetAttr = (result, targets = []) => {
+  if (!result?.role?.heroes || !Array.isArray(targets) || !targets.length) return null
   
   const hero = result.role.heroes[String(selectedHeroId.value)]
-  if (!hero?.equipment) return false
+  if (!hero?.equipment) return null
   
   const equip = hero.equipment[String(selectedPart.value)]
-  if (!equip?.quenches) return false
+  if (!equip?.quenches) return null
+
+  const normalizedTargets = targets
+    .map((target) => ({
+      attrId: Number(target.attrId),
+      value: Number(target.value)
+    }))
+    .filter(
+      (target) =>
+        !Number.isNaN(target.attrId) && !Number.isNaN(target.value) && target.value > 0
+    )
+  
+  if (!normalizedTargets.length) return null
   
   // 检查是否达到目标属性
   for (const slot of Object.values(equip.quenches)) {
-    if (slot.attrId === targetAttrId.value && slot.attrNum >= targetAttrValue.value) {
-      return true
+    const normalizedAttrId = Number(slot?.attrId ?? slot?.attr_id)
+    const normalizedAttrNum = Number(slot?.attrNum ?? slot?.attr_num)
+    if (Number.isNaN(normalizedAttrId) || Number.isNaN(normalizedAttrNum)) continue
+
+    const matchedTarget = normalizedTargets.find(
+      (target) =>
+        target.attrId === normalizedAttrId && normalizedAttrNum >= target.value
+    )
+    if (matchedTarget) {
+      return matchedTarget
     }
   }
   
-  return false
+  return null
 }
 
 // 停止淬炼
@@ -935,6 +1141,60 @@ h4 {
   font-size: var(--font-size-sm);
 }
 
+.slot.quality-white {
+  background: var(--bg-tertiary);
+  border-left-color: var(--border-light);
+}
+
+.slot.quality-green {
+  background: #e6f7f1;
+  border-left-color: #41b883;
+}
+
+.slot.quality-blue {
+  background: #e8f3ff;
+  border-left-color: #409eff;
+}
+
+.slot.quality-purple {
+  background: #f4e9ff;
+  border-left-color: #a855f7;
+}
+
+.slot.quality-orange {
+  background: #fef3e6;
+  border-left-color: #e6a23c;
+}
+
+.slot.quality-red {
+  background: #ffecec;
+  border-left-color: #f56c6c;
+}
+
+.slot.quality-white .attr-value {
+  color: var(--text-secondary);
+}
+
+.slot.quality-green .attr-value {
+  color: #2f9d71;
+}
+
+.slot.quality-blue .attr-value {
+  color: #2f6ebb;
+}
+
+.slot.quality-purple .attr-value {
+  color: #7a35c5;
+}
+
+.slot.quality-orange .attr-value {
+  color: #c97a1e;
+}
+
+.slot.quality-red .attr-value {
+  color: #d54848;
+}
+
 .actions {
   display: flex;
   gap: var(--spacing-sm);
@@ -964,9 +1224,13 @@ h4 {
 
 .auto-form {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: var(--spacing-sm);
-  flex-wrap: wrap;
+}
+
+.auto-options {
+  width: 100%;
 }
 
 .form-item {
@@ -978,5 +1242,32 @@ h4 {
 .form-label {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
+}
+
+.auto-targets {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.auto-targets.disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.auto-target-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  padding-bottom: var(--spacing-xs);
+  border-bottom: 1px dashed var(--border-light);
+}
+
+.auto-target-row:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 </style>

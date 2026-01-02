@@ -72,31 +72,72 @@ const roleInfo = computed(() => {
   const data = tokenStore.gameData?.roleInfo || null
   return data
 })
-
+const towerInfo = computed(() => tokenStore.gameData?.towerInfo || null)
+const normalizeTowerData = (payload) => {
+  if (!payload || typeof payload !== 'object') {
+    return null
+  }
+  if (payload.tower && typeof payload.tower === 'object') {
+    return payload.tower
+  }
+  if (payload.info && typeof payload.info === 'object' && payload.info.tower) {
+    return payload.info.tower
+  }
+  if (payload.data && typeof payload.data === 'object' && payload.data.tower) {
+    return payload.data.tower
+  }
+  if ('id' in payload || 'towerId' in payload || 'energy' in payload) {
+    return payload
+  }
+  return null
+}
+const resolvedTowerData = computed(() => {
+  return (
+    normalizeTowerData(towerInfo.value) ||
+    normalizeTowerData(roleInfo.value?.role?.tower) ||
+    null
+  )
+})
+const resolveTowerId = (tower) => {
+  if (!tower || typeof tower !== 'object') {
+    return 0
+  }
+  if (typeof tower.towerId === 'number') {
+    return tower.towerId
+  }
+  if (typeof tower.id === 'number') {
+    return tower.id
+  }
+  if (typeof tower.level === 'number') {
+    return tower.level
+  }
+  return 0
+}
+const resolveTowerEnergy = (tower) => {
+  if (!tower || typeof tower !== 'object') {
+    return 0
+  }
+  const candidates = ['energy', 'power', 'fish', 'stamina']
+  for (const key of candidates) {
+    if (typeof tower[key] === 'number') {
+      return tower[key]
+    }
+  }
+  return 0
+}
 const currentFloor = computed(() => {
-  const tower = roleInfo.value?.role?.tower
-
-
-  if (!tower) {
+  const towerId = resolveTowerId(resolvedTowerData.value)
+  if (towerId <= 0 && towerId !== 0) {
     return "0 - 0"
   }
 
-  if (!tower.id && tower.id !== 0) {
-    return "0 - 0"
-  }
-
-  const towerId = tower.id
   const floor = Math.floor(towerId / 10) + 1
   const layer = towerId % 10 + 1
   return `${floor} - ${layer}`
 })
 
 const towerEnergy = computed(() => {
-  const tower = roleInfo.value?.role?.tower
-
-
-  const energy = tower?.energy || 0
-  return energy
+  return resolveTowerEnergy(resolvedTowerData.value)
 })
 
 const canClimb = computed(() => {

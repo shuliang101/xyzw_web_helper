@@ -170,7 +170,9 @@ export function registerDefaultCommands(reg) {
 
     // 怪异咸将塔
     .register("evotower_getinfo")
+    .register("evotower_readyfight")
     .register("evotower_fight")
+    .register("evotower_claimreward")
 
     // 瓶子机器人
     .register("bottlehelper_claim")
@@ -235,6 +237,11 @@ export function registerDefaultCommands(reg) {
     .register("car_claim", { carId: 0 })
     .register("car_send", { carId: 0, helperId: 0, text: "" })
     .register("car_getmemberhelpingcnt")
+
+    // 装备洗练
+    .register("equipment_quench", { heroId: 0, part: 0, lockedSlot: [] })
+    .register("equipment_updatequenchlock", { heroId: 0, part: 0, slot: 0, isLocked: false })
+    .register("equipment_getquenchlog", { heroId: 0, part: 0, pageIndex: 1, pageSize: 20 })
 
     // 咸王宝库
     .register("matchteam_getroleteaminfo")
@@ -840,8 +847,13 @@ export class XyzwWebSocketClient {
       'tower_claimrewardresp': 'tower_claimreward',
       'fight_starttowerresp': 'fight_starttower',
       'evotowerinforesp': 'evotower_getinfo',
+      'evotower_readyfightresp': 'evotower_readyfight',
       'evotower_fightresp': 'evotower_fight',
+      'evotower_claimrewardresp': 'evotower_claimreward',
 	  'item_openpackresp': 'item_openpack',
+      'equipment_quenchresp': 'equipment_quench',
+      'equipment_updatequenchlockresp': 'equipment_updatequenchlock',
+      'equipment_getquenchlogresp': 'equipment_getquenchlog',
       // 咸王宝库
       'matchteam_getroleteaminforesp': 'matchteam_getroleteaminfo',
       'bosstower_getinforesp': 'bosstower_getinfo',

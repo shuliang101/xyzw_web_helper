@@ -64,17 +64,66 @@ const climbTimeout = ref(null) // 用于超时重置状态
 const lastClimbResult = ref(null) // 最后一次爬塔结果
 
 // 计算属性 - 从gameData中获取塔相关信息
-const roleInfo = computed(() => {
-  const data = tokenStore.gameData?.roleInfo || null
-  return data
-})
+const roleInfo = computed(() => tokenStore.gameData?.roleInfo || null)
+const weirdTowerInfo = computed(() => tokenStore.gameData?.weirdTowerInfo || null)
+const normalizeWeirdTowerData = (payload) => {
+  if (!payload || typeof payload !== 'object') {
+    return null
+  }
+  if (payload.evoTower && typeof payload.evoTower === 'object') {
+    return payload.evoTower
+  }
+  if (payload.info && typeof payload.info === 'object') {
+    const candidate = payload.info
+    if (candidate && typeof candidate === 'object') {
+      return candidate
+    }
+  }
+  if (payload.data && typeof payload.data === 'object') {
+    return payload.data
+  }
+  if ('towerId' in payload || 'energy' in payload) {
+    return payload
+  }
+  return null
+}
 
 const weirdTowerData = computed(() => {
-  return roleInfo.value?.role?.evoTower || null
+  return (
+    normalizeWeirdTowerData(weirdTowerInfo.value) ||
+    normalizeWeirdTowerData(roleInfo.value?.role?.evoTower) ||
+    null
+  )
 })
 
+const resolveWeirdTowerId = (payload) => {
+  if (!payload || typeof payload !== 'object') {
+    return 0
+  }
+  if (typeof payload.towerId === 'number') {
+    return payload.towerId
+  }
+  if (typeof payload.id === 'number') {
+    return payload.id
+  }
+  return 0
+}
+
+const resolveWeirdEnergy = (payload) => {
+  if (!payload || typeof payload !== 'object') {
+    return 0
+  }
+  const candidates = ['energy', 'fish', 'fishCount', 'stamina']
+  for (const key of candidates) {
+    if (typeof payload[key] === 'number') {
+      return payload[key]
+    }
+  }
+  return 0
+}
+
 const currentTowerId = computed(() => {
-  return weirdTowerData.value?.towerId || 0
+  return resolveWeirdTowerId(weirdTowerData.value)
 })
 
 const displayFloor = computed(() => {
@@ -92,7 +141,7 @@ const displayFloor = computed(() => {
 })
 
 const towerEnergy = computed(() => {
-  return weirdTowerData.value?.energy || 0
+  return resolveWeirdEnergy(weirdTowerData.value)
 })
 
 const canClimb = computed(() => {
@@ -131,30 +180,131 @@ const startTowerClimb = async () => {
     message.info('批量爬塔已超时自动停止')
   }, 60000)
 
+const KNOWN_REWARD_ERRORS = [
+  '奖励未领取',
+  '奖励没有领取',
+  'reward is not claim',
+  '未领取奖励'
+]
+
+const isRewardNotClaimedError = (error) => {
+  if (!error) return false
+  const raw = error.raw || error.body
+  const text = String(error?.message || raw?.message || raw?.hint || raw || error).toLowerCase()
+  return KNOWN_REWARD_ERRORS.some((signature) => text.includes(signature.toLowerCase()))
+}
+
+const claimMissingReward = async (tokenId, options = {}) => {
+  const { silent = false, swallowError = false } = options
+  try {
+    await tokenStore.sendMessageWithPromise(tokenId, 'evotower_claimreward', {}, 5000)
+    if (!silent) {
+      message.success('检测到未领取奖励，已自动领取')
+    }
+    return true
+  } catch (claimError) {
+    const reason = claimError?.message || claimError?.hint || claimError
+    if (!silent) {
+      message.error(`自动领取怪异塔奖励失败：${reason}`)
+    }
+    if (swallowError) {
+      return false
+    }
+    throw claimError
+  }
+}
+
+const RATE_LIMIT_ERRORS = ['操作太快', 'too fast', '频率过快', 'rate limit']
+
+const isRateLimitError = (error) => {
+  if (!error) return false
+  const raw = error.raw || error.body
+  const text = String(error?.message || raw?.message || raw?.hint || raw || error).toLowerCase()
+  return RATE_LIMIT_ERRORS.some((signature) => text.includes(signature.toLowerCase()))
+}
+
+const ACTION_INTERVAL_MS = 600
+const POST_INFO_DELAY_MS = 300
+const RATE_LIMIT_DELAY_MS = 1200
+const RATE_LIMIT_NOTICE_GAP = 2000
+
+const wait = (ms = ACTION_INTERVAL_MS) => new Promise((resolve) => setTimeout(resolve, ms))
+
+let lastRateLimitToastAt = 0
+const handleRateLimitPause = async () => {
+  const now = Date.now()
+  if (now - lastRateLimitToastAt > RATE_LIMIT_NOTICE_GAP) {
+    message.warning('操作过快，正在延迟重试...')
+    lastRateLimitToastAt = now
+  }
+  await wait(RATE_LIMIT_DELAY_MS)
+}
+
   try {
     const tokenId = tokenStore.selectedToken.id
     for (let i = 0; i < maxClimb; i++) {
       if (stopFlag) break
+
+      // 预先尝试领取遗留奖励（忽略失败）
+      await claimMissingReward(tokenId, { silent: true, swallowError: true })
+      await wait(POST_INFO_DELAY_MS)
       
       // 检查当前能量
       await getTowerInfo()
+      await wait(POST_INFO_DELAY_MS)
       const currentEnergy = towerEnergy.value
       if (currentEnergy <= 0) break
       
       // 准备战斗
-      await tokenStore.sendMessageWithPromise(tokenId, 'evotower_readyfight', {}, 5000)
+      let readyResult = null
+      try {
+        readyResult = await tokenStore.sendMessageWithPromise(tokenId, 'evotower_readyfight', {}, 5000)
+      } catch (error) {
+        if (!isRewardNotClaimedError(error)) {
+          if (isRateLimitError(error)) {
+            await handleRateLimitPause()
+            i--
+            continue
+          }
+          throw error
+        }
+        await claimMissingReward(tokenId)
+        await getTowerInfo()
+        await wait(POST_INFO_DELAY_MS)
+        readyResult = await tokenStore.sendMessageWithPromise(tokenId, 'evotower_readyfight', {}, 5000)
+      }
       
       // 执行战斗
-      const fightResult = await tokenStore.sendMessageWithPromise(tokenId, 'evotower_fight', {
+      let fightResult = null
+      try {
+        fightResult = await tokenStore.sendMessageWithPromise(tokenId, 'evotower_fight', {
         "battleNum": 1,
         "winNum": 1
       }, 10000)
+      } catch (error) {
+        if (!isRewardNotClaimedError(error)) {
+          if (isRateLimitError(error)) {
+            await handleRateLimitPause()
+            i--
+            continue
+          }
+          throw error
+        }
+        await claimMissingReward(tokenId)
+        await getTowerInfo()
+        await wait(POST_INFO_DELAY_MS)
+        fightResult = await tokenStore.sendMessageWithPromise(tokenId, 'evotower_fight', {
+          "battleNum": 1,
+          "winNum": 1
+        }, 10000)
+      }
       
       climbCount++
       message.success(`第${climbCount}次爬塔命令已发送`)
       
       // 更新爬塔信息
       await getTowerInfo()
+      await wait(POST_INFO_DELAY_MS)
       
       // 检查是否刚通关10层（即当前层是1-1, 2-1, 3-1等）
       const towerId = currentTowerId.value
@@ -165,7 +315,7 @@ const startTowerClimb = async () => {
         message.success(`成功领取第${Math.floor(towerId / 10)}章通关奖励！`)
       }
       
-      await new Promise(res => setTimeout(res, 400)) // 每次间隔400毫秒
+      await wait(ACTION_INTERVAL_MS) // 每次间隔
     }
     message.success(`已自动爬塔${climbCount}次，体力已耗尽或达到上限。`)
   } catch (error) {
