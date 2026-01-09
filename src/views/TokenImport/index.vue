@@ -365,6 +365,7 @@ const refreshToken = async (token) => {
   refreshingTokens.value.add(token.id)
 
   try {
+    let refreshed = false
     if (token.sourceUrl) {
       // 有源URL的token - 从URL重新获取
       let response
@@ -408,45 +409,54 @@ const refreshToken = async (token) => {
       })
 
       message.success('Token刷新成功')
+      refreshed = true
     } else {
-      // 没有源URL的token - 提示用户手动处理
-      dialog.info({
-        title: '重新获取Token',
-        content: `Token "${token.name}" 是手动导入的，没有配置自动刷新地址。
-
+      const binRefreshResult = await tokenStore.refreshTokenFromSavedBin(token.id)
+      if (binRefreshResult.success) {
+        message.success('Token已从保存的bin重新获取')
+        refreshed = true
+      } else if (binRefreshResult.reason === 'missing-bin') {
+        dialog.info({
+          title: '重新获取Token',
+          content: `Token "${token.name}" 为手动导入，未找到历史bin备份。
 请选择以下操作：
 1. 重新手动导入新的Token
 2. 尝试重新连接现有Token`,
-        positiveText: '重新导入',
-        negativeText: '重新连接',
-        onPositiveClick: () => {
-          showImportForm.value = true
-          importMethod.value = 'manual'
-          importForm.name = token.name
-          importForm.server = token.server
-          importForm.wsUrl = token.wsUrl
-        },
-        onNegativeClick: () => {
-          // 断开现有连接
-          if (tokenStore.getWebSocketStatus(token.id) === 'connected') {
-            tokenStore.closeWebSocketConnection(token.id)
+          positiveText: '重新导入',
+          negativeText: '重新连接',
+          onPositiveClick: () => {
+            showImportForm.value = true
+            importMethod.value = 'manual'
+            importForm.name = token.name
+            importForm.server = token.server
+            importForm.wsUrl = token.wsUrl
+          },
+          onNegativeClick: () => {
+            if (tokenStore.getWebSocketStatus(token.id) === 'connected') {
+              tokenStore.closeWebSocketConnection(token.id)
+            }
+            setTimeout(() => {
+              tokenStore.createWebSocketConnection(token.id, token.token, token.wsUrl)
+              message.info('正在尝试重新连接...')
+            }, 500)
           }
-
-          // 尝试重新连接
-          setTimeout(() => {
-            tokenStore.createWebSocketConnection(token.id, token.token, token.wsUrl)
-            message.info('正在尝试重新连接...')
-          }, 500)
-        }
-      })
-      return
+        })
+        return
+      } else if (binRefreshResult.reason === 'token-not-found') {
+        message.error('未找到Token记录，请刷新页面后重试')
+        return
+      } else {
+        message.error(binRefreshResult.reason ? `Token重新获取失败：${binRefreshResult.reason}` : 'Token重新获取失败')
+        return
+      }
     }
 
     // 如果当前token有连接，需要重新连接
-    if (tokenStore.getWebSocketStatus(token.id) === 'connected') {
+    const latestToken = tokenStore.gameTokens.find(t => t.id === token.id) || token
+    if (refreshed && tokenStore.getWebSocketStatus(token.id) === 'connected') {
       tokenStore.closeWebSocketConnection(token.id)
       setTimeout(() => {
-        tokenStore.createWebSocketConnection(token.id, token.token, token.wsUrl)
+        tokenStore.createWebSocketConnection(token.id, latestToken.token, latestToken.wsUrl)
       }, 500)
     }
 

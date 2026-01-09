@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nMerge branch ''main'' into server\n\n解决合并冲突:\n- ClubInfo.vue: 保留简洁的标签格式\n- ClubWarrank.vue: 合并新增的红淬排序和积分排序按钮\n- ClubCarKing.vue: 保留简洁的标签格式\n- package-lock.json: 使用main分支版本\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+    ]
+  }
+}

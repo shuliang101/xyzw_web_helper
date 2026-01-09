@@ -17,6 +17,12 @@ const {
 
 const TOKEN_REFRESH_THRESHOLD = 12 * 60 * 60 * 1000 // 12 hours
 
+type TokenRefreshResult = {
+  success: boolean;
+  reason?: string;
+  token?: string;
+}
+
 declare interface TokenData {
   id: string;
   name: string;
@@ -272,12 +278,12 @@ export const useTokenStore = defineStore('tokens', () => {
     return new Date(token.lastUsed || (token as any).updatedAt || token.createdAt || new Date().toISOString()).getTime()
   }
 
-  const refreshTokenFromBin = async (token: TokenData) => {
+  const refreshTokenFromBin = async (token: TokenData): Promise<TokenRefreshResult> => {
     try {
       const buffer = await getArrayBuffer(token.name)
       if (!buffer) {
         wsLogger.warn(`[TokenRefresh] 未找到 bin 数据: ${token.name}`)
-        return false
+        return { success: false, reason: 'missing-bin' }
       }
       const refreshedToken = await transformToken(buffer)
       updateToken(token.id, {
@@ -287,11 +293,21 @@ export const useTokenStore = defineStore('tokens', () => {
         refreshSource: 'bin'
       } as any)
       wsLogger.info(`[TokenRefresh] Token 已自动刷新: ${token.name}`)
-      return true
+      return { success: true, token: refreshedToken }
     } catch (error) {
       wsLogger.error(`[TokenRefresh] 刷新失败 ${token.name}`, error)
-      return false
+      return {
+        success: false,
+        reason: error instanceof Error ? error.message : 'unknown-error'
+      }
     }
+  }
+  const refreshTokenFromSavedBin = async (tokenId: string): Promise<TokenRefreshResult> => {
+    const token = gameTokens.value.find(t => t.id === tokenId)
+    if (!token) {
+      return { success: false, reason: 'token-not-found' }
+    }
+    return refreshTokenFromBin(token)
   }
   const refreshTokensIfNeeded = async () => {
     for (const token of gameTokens.value) {
@@ -699,7 +715,7 @@ export const useTokenStore = defineStore('tokens', () => {
     const targetToken = gameTokens.value.find(t => t.id === tokenId)
     if (targetToken && Date.now() - getTokenTimestamp(targetToken) >= TOKEN_REFRESH_THRESHOLD) {
       const refreshed = await refreshTokenFromBin(targetToken)
-      if (refreshed) {
+      if (refreshed.success) {
         const latest = gameTokens.value.find(t => t.id === tokenId)
         if (latest) {
           base64Token = latest.token
@@ -1392,6 +1408,7 @@ export const useTokenStore = defineStore('tokens', () => {
     clearAllTokens,
     restoreTokensFromRemoteBins,
     cleanExpiredTokens,
+    refreshTokenFromSavedBin,
     upgradeTokenToPermanent,
     initTokenStore,
 
