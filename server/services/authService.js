@@ -50,6 +50,13 @@ export const registerUser = async (username, password, nickname) => {
   return mapUser({ id: result.lastInsertRowid, username, nickname: safeNickname, created_at: createdAt, role: 'user' })
 }
 
+const signAuthToken = (payload) => {
+  if (config.tokenExpiresIn) {
+    return jwt.sign(payload, config.jwtSecret, { expiresIn: config.tokenExpiresIn })
+  }
+  return jwt.sign(payload, config.jwtSecret)
+}
+
 export const authenticateUser = async (username, password) => {
   if (username === config.admin.username) {
     if (password !== config.admin.password) {
@@ -59,7 +66,7 @@ export const authenticateUser = async (username, password) => {
     }
     const adminUser = buildAdminUser()
     const payload = { id: adminUser.id, username: adminUser.username, nickname: adminUser.nickname, role: adminUser.role }
-    const token = jwt.sign(payload, config.jwtSecret, { expiresIn: config.tokenExpiresIn })
+    const token = signAuthToken(payload)
     return {
       token,
       user: mapUser(adminUser)
@@ -81,7 +88,7 @@ export const authenticateUser = async (username, password) => {
   }
 
   const payload = { id: user.id, username: user.username, nickname: user.nickname, role: 'user' }
-  const token = jwt.sign(payload, config.jwtSecret, { expiresIn: config.tokenExpiresIn })
+  const token = signAuthToken(payload)
   return {
     token,
     user: mapUser({ ...user, role: 'user' })

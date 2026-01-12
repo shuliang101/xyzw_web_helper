@@ -6,8 +6,15 @@
         <div class="header-content">
           <div class="header-top">
             <img src="/icons/logo.png" alt="XYZW" class="brand-logo">
-            <!-- 主题切换按钮 -->
-            <ThemeToggle />
+            <div class="header-controls">
+              <!-- 主题切换按钮 -->
+              <div class="theme-toggle-wrapper">
+                <ThemeToggle />
+              </div>
+              <n-button size="small" type="warning" ghost class="logout-button" @click="handleLogout">
+                退出账号
+              </n-button>
+            </div>
           </div>
           <h1>游戏Token管理</h1>
         </div>
@@ -282,6 +289,7 @@ import UrlTokenForm from './url.vue'
 import BinTokenForm from './bin.vue'
 
 import { useTokenStore, selectedTokenId } from '@/stores/tokenStore'
+import { useAuthStore } from '@/stores/auth'
 import {
   Add,
   Copy,
@@ -313,6 +321,7 @@ const router = useRouter()
 const message = useMessage()
 const dialog = useDialog()
 const tokenStore = useTokenStore()
+const authStore = useAuthStore()
 
 // 响应式数据
 const showImportForm = ref(false)
@@ -358,6 +367,12 @@ const bulkOptions = [
  */
 const openshowImportForm = () => {
   showImportForm.value = true
+}
+
+const handleLogout = () => {
+  authStore.logout()
+  message.success('账号已退出')
+  router.push('/login')
 }
 
 // 刷新Token
@@ -942,12 +957,28 @@ onMounted(async () => {
   justify-content: center;
 }
 
-.theme-toggle {
+.header-controls {
   position: absolute;
   right: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.theme-toggle-wrapper {
   background: rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+  padding: 4px;
+}
+
+.logout-button {
+  color: #fff;
+}
+
+.logout-button:hover {
+  color: #fff;
 }
 
 .brand-logo {
