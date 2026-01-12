@@ -23,7 +23,7 @@
               <Refresh />
             </n-icon>
           </template>查询</n-button>
-        <n-button type="primary" size="small" :disabled="!battleRecords1 || loading1" @click="handleExport1">
+        <n-button type="primary" size="small" :disabled="!battleRecords1 || loading1 || exporting" :loading="exporting" @click="handleExport1">
           <template #icon>
             <n-icon>
               <Copy />
@@ -87,6 +87,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useMessage, NDatePicker } from 'naive-ui'
+import api from '@/api'
 import { useTokenStore } from '@/stores/tokenStore'
 import html2canvas from "html2canvas"
 import {
@@ -106,7 +107,7 @@ import {
   formatBattleRecordsForExport,
   copyToClipboard
 } from '@/utils/clubBattleUtils'
-import { gettoday, formatWarrankRecordsForExport, allianceincludes } from '@/utils/clubWarrankUtils'
+import { gettoday, allianceincludes } from '@/utils/clubWarrankUtils'
 
 const props = defineProps({
   visible: {
@@ -128,11 +129,13 @@ const showModal = computed({
   get: () => props.visible,
   set: (val) => emit('update:visible', val)
 })
-const exportmethod = ref(['1']);
+const exportmethod = ref(['1'])
 const loading1 = ref(false)
+const exporting = ref(false)
 const battleRecords1 = ref(null)
 const expandedMembers = ref(new Set())
 const queryDate = ref('')
+const dataLoadedDate = ref('')
 const exportDom = ref(null)
 const inputDate1 = ref(getLastSaturday())
 
@@ -189,6 +192,8 @@ const fetchBattleRecords1 = async () => {
   }
 
   loading1.value = true
+  battleRecords1.value = null
+  dataLoadedDate.value = ''
   queryDate.value = formatTimestamp1(inputDate1.value)
 
 
@@ -196,6 +201,7 @@ const fetchBattleRecords1 = async () => {
     const getbattlefield = await tokenStore.sendMessageWithPromise(tokenId, 'legion_getbattlefield', {}, 10000)
     if (!getbattlefield.info) {
       battleRecords1.value = null;
+      dataLoadedDate.value = ''
       message.warning('未查询到盐场匹配数据');
       return;
     }
@@ -212,6 +218,7 @@ const fetchBattleRecords1 = async () => {
 
       if (!result?.opponentList) {
         battleRecords1.value = null;
+        dataLoadedDate.value = ''
         message.warning('未查询到盐场匹配数据');
         return;
       }
@@ -294,11 +301,13 @@ const fetchBattleRecords1 = async () => {
         ...result,
         legionRankList: processedClubs
       };
+      dataLoadedDate.value = queryDate.value
       message.success('盐场匹配数据加载成功');
     } catch (error) {
       console.error('查询失败:', error);
       message.error(`查询失败: ${error.message}`);
       battleRecords1.value = null;
+      dataLoadedDate.value = ''
     } finally {
       loading1.value = false;
     }
@@ -315,6 +324,7 @@ const fetchBattleRecords1 = async () => {
 
       if (!result?.legionRankList) {
         battleRecords1.value = null;
+        dataLoadedDate.value = ''
         message.warning('未查询到盐场匹配数据');
         return;
       }
@@ -399,11 +409,13 @@ const fetchBattleRecords1 = async () => {
         ...result,
         legionRankList: processedClubs
       };
+      dataLoadedDate.value = queryDate.value
       message.success('盐场匹配数据加载成功');
     } catch (error) {
       console.error('查询失败:', error);
       message.error(`查询失败: ${error.message}`);
       battleRecords1.value = null;
+      dataLoadedDate.value = ''
     } finally {
       loading1.value = false;
     }
@@ -426,6 +438,10 @@ const scoreSort = async () => {
 }
 // 导出战绩
 const handleExport1 = async () => {
+  if (loading1.value) {
+    message.warning('数据加载中，请稍候再导出')
+    return
+  }
   if (!battleRecords1.value || !battleRecords1.value.legionRankList) {
     message.warning('No data to export')
     return
@@ -435,14 +451,23 @@ const handleExport1 = async () => {
     return
   }
 
+  const selectedDate = formatTimestamp1(inputDate1.value)
+  if (dataLoadedDate.value !== selectedDate) {
+    message.info('正在为当前日期自动拉取数据，请稍候...')
+    await fetchBattleRecords1()
+  }
+
+  if (!battleRecords1.value || dataLoadedDate.value !== formatTimestamp1(inputDate1.value)) {
+    message.warning('请先查询当前日期的盐场数据再导出')
+    return
+  }
+
   try {
     let exported = false
 
     if (exportmethod.value.includes('1')) {
-      formatWarrankRecordsForExport(
-        battleRecords1.value.legionRankList,
-        queryDate.value
-      )
+      exporting.value = true
+      await exportMatchExcel()
       exported = true
     }
 
@@ -457,7 +482,50 @@ const handleExport1 = async () => {
   } catch (error) {
     console.error('Export failed:', error)
     message.error('Export failed, please retry')
+  } finally {
+    exporting.value = false
   }
+}
+
+const exportMatchExcel = async () => {
+  const records = battleRecords1.value?.legionRankList || []
+  if (!records.length) {
+    throw new Error('缺少可导出的盐场数据')
+  }
+
+  const exportDate = queryDate.value || formatTimestamp1(inputDate1.value)
+  const payload = {
+    queryDate: exportDate,
+    records: records.map((member, index) => ({
+      id: member.id,
+      rank: member.rank ?? index + 1,
+      serverId: member.serverId ?? member.ServerId,
+      name: member.name ?? member.Clubname,
+      redQuench: member.redQuench,
+      redno1: member.redno1,
+      redno2: member.redno2,
+      redno3: member.redno3,
+      sRScore: member.sRScore,
+      alliance: member.alliance,
+      announcement: member.announcement
+    }))
+  }
+
+  const blob = await api.warrank.exportMatchDetails(payload)
+  const fileSuffix = (exportDate || gettoday()).replace(/\//g, '-')
+  triggerDownload(blob, `盐场匹配详情_${fileSuffix}.xlsx`)
+}
+
+const triggerDownload = (data, filename) => {
+  const blob = data instanceof Blob ? data : new Blob([data])
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(url)
 }
 
 const exportToImage = async () => {

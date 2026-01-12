@@ -116,6 +116,11 @@ const api = {
     list: (limit = 10) => request.get('/activity', { params: { limit } })
   },
 
+  warrank: {
+    exportMatchDetails: (payload) =>
+      request.post('/warrank/export', payload, { responseType: 'blob' })
+  },
+
   admin: {
     listUsers: () => request.get('/admin/users'),
     getUser: (id) => request.get(`/admin/users/${id}`),
