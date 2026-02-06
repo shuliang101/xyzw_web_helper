@@ -67,7 +67,7 @@ import { NForm, NFormItem, NInput, NButton, NIcon, NCollapse, NCollapseItem, use
 import PQueue from 'p-queue';
 // import { useI18n } from 'vue-i18n';
 import useIndexedDB from '@/hooks/useIndexedDB';
-import { transformToken } from '@/utils/token';
+import { getTokenId, transformToken } from '@/utils/token';
 import api from '@/api';
 
 const $emit = defineEmits(['cancel', 'ok']);
@@ -89,7 +89,7 @@ const importForm = reactive({
   server: '',
   wsUrl: ''
 });
-const roleList = ref<Array<{ name: string; token: string; server: string; wsUrl: string }>>([]);
+const roleList = ref<Array<{ id: string; name: string; token: string; server: string; wsUrl: string; importMethod: string }>>([]);
 
 const tQueue = new PQueue({ concurrency: 1, interval: 1000, });
 
@@ -124,6 +124,7 @@ const uploadBin = (binFile: File) => {
     reader.onload = async (e) => {
       try {
         const userToken = e.target?.result as ArrayBuffer;
+        const tokenId = getTokenId(userToken); // 使用MD5生成唯一tokenId
         const roleToken = await transformToken(userToken);
         const roleName = roleMeta.roleName || binFile.name.split('.')?.[0] || '';
         storeArrayBuffer(roleName, userToken);
@@ -131,7 +132,7 @@ const uploadBin = (binFile: File) => {
           message.error('上传列表中已存在同名角色!');
           return;
         }
-        const existingToken = tokenStore.gameTokens.find(t => t.name === roleName);
+        const existingToken = tokenStore.gameTokens.find(t => t.id === tokenId);
         if (existingToken) {
           message.warning(`角色"${roleName}"已存在，将更新该角色的Token`);
         }
@@ -142,10 +143,12 @@ const uploadBin = (binFile: File) => {
 
         message.success('bin文件上传成功，请检查角色信息后提交');
         roleList.value.push({
+          id: tokenId,
           name: roleName,
           token: roleToken,
           server: roleMeta.server + '' + roleMeta.roleIndex || '',
-          wsUrl: importForm.wsUrl || ''
+          wsUrl: importForm.wsUrl || '',
+          importMethod: 'bin'
         });
       } catch (error: any) {
         message.error(error?.message || '读取或上传文件失败，请重试');
@@ -165,11 +168,10 @@ const handleImport = async () => {
     return;
   }
   roleList.value.forEach(role => {
-    // tokenStore.gameTokens中发现已存在的重复名称，则移出token后重新添加
-    const gameToken = tokenStore.gameTokens.find(t => t.name === role.name);
+    // 使用tokenId查找已存在的token，避免重复导入
+    const gameToken = tokenStore.gameTokens.find(t => t.id === role.id);
     if(gameToken) {
-      console.log('移除同名token:', gameToken);
-      // tokenStore.removeToken(gameToken.id);
+      console.log('更新已存在的token:', gameToken);
       tokenStore.updateToken(gameToken.id, {
         ...role
       });
