@@ -80,6 +80,9 @@
         </a-form>
       </a-card>
 
+      <h2>Token管理</h2>
+      <TokenManager />
+
       <h2>账户安全</h2>
       <a-card>
         <div class="security-items">
