@@ -23,6 +23,7 @@
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^9.4.0",
     "cors": "^2.8.5",
+    "crypto-js": "^4.2.0",
     "event-emitter3": "^1.0.4",
     "exceljs": "^4.4.0",
     "express": "^4.19.2",
