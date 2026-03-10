@@ -23,6 +23,7 @@
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^9.4.0",
     "cors": "^2.8.5",
+    "crypto-js": "^4.2.0",
     "event-emitter3": "^1.0.4",
     "exceljs": "^4.4.0",
     "express": "^4.19.2",
@@ -45,6 +46,7 @@
     "@antfu/eslint-config": "^6.7.3",
     "@iconify-json/mdi": "^1.2.3",
     "@intlify/unplugin-vue-i18n": "^6.0.8",
+    "@types/crypto-js": "^4.2.2",
     "@types/node": "^20.19.21",
     "@vitejs/plugin-vue": "^5.2.4",
     "@vue/tsconfig": "^0.8.1",
@@ -67,6 +69,5 @@
     "frontend"
   ],
   "author": "XYZW Team",
-  "license": "CC-BY-NC-SA-4.0",
-  "packageManager": "pnpm@10.19.0"
+  "license": "CC-BY-NC-SA-4.0"
 }

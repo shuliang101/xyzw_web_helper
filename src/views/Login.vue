@@ -1,25 +1,30 @@
-<template>
+﻿<template>
   <div class="login-page">
     <div class="login-container">
-      <!-- 登录表单卡片 -->
+      <!-- 鐧诲綍琛ㄥ崟鍗＄墖 -->
       <div class="login-card glass">
         <div class="card-header">
           <div class="brand">
-            <img src="/icons/logo.png" alt="隐♥月" class="brand-logo">
-            <h1 class="brand-title">
-              隐♥月管理系统
-            </h1>
+            <img src="/icons/logo.png" alt="logo" class="brand-logo" />
+            <h1 class="brand-title">隐月管理系统</h1>
           </div>
-          <p class="welcome-text">
-            欢迎回来，请登录您的账户
-          </p>
+          <p class="welcome-text">欢迎回来，请登录您的账户</p>
         </div>
 
         <div class="card-body">
-          <n-form ref="loginFormRef" :model="loginForm" :rules="loginRules" size="large" :show-label="false">
+          <n-form
+            ref="loginFormRef"
+            :model="loginForm"
+            :rules="loginRules"
+            size="large"
+            :show-label="false"
+          >
             <n-form-item path="username">
-              <n-input v-model:value="loginForm.username" placeholder="用户名"
-                :input-props="{ autocomplete: 'username' }">
+              <n-input
+                v-model:value="loginForm.username"
+                placeholder="用户名"
+                :input-props="{ autocomplete: 'username' }"
+              >
                 <template #prefix>
                   <n-icon>
                     <PersonCircle />
@@ -29,8 +34,13 @@
             </n-form-item>
 
             <n-form-item path="password">
-              <n-input v-model:value="loginForm.password" type="password" placeholder="密码"
-                :input-props="{ autocomplete: 'current-password' }" @keydown.enter="handleLogin">
+              <n-input
+                v-model:value="loginForm.password"
+                type="password"
+                placeholder="密码"
+                :input-props="{ autocomplete: 'current-password' }"
+                @keydown.enter="handleLogin"
+              >
                 <template #prefix>
                   <n-icon>
                     <Lock />
@@ -43,13 +53,17 @@
               <n-checkbox v-model:checked="loginForm.rememberMe">
                 记住我
               </n-checkbox>
-              <n-button text type="primary" @click="router.push('/forgot-password')">
-                忘记密码？
-              </n-button>
+              <span style="font-size: var(--font-size-sm); color: var(--text-secondary)">忘记密码？请联系管理员重置</span>
             </div>
 
-            <n-button type="primary" size="large" block :loading="authStore.isLoading" class="login-button"
-              @click="handleLogin">
+            <n-button
+              type="primary"
+              size="large"
+              block
+              :loading="authStore.isLoading"
+              class="login-button"
+              @click="handleLogin"
+            >
               登录
             </n-button>
           </n-form>
@@ -62,7 +76,6 @@
           </div>
         </div>
       </div>
-
     </div>
 
     <!-- 背景装饰 -->
@@ -75,99 +88,100 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useMessage } from 'naive-ui'
-import { useAuthStore } from '@/stores/auth'
-import { useTokenStore } from '@/stores/tokenStore'
-import { PersonCircle } from '@vicons/ionicons5'
+import { ref, reactive, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import { useMessage } from "naive-ui";
+import { useAuthStore } from "@/stores/auth";
+import { useTokenStore } from "@/stores/tokenStore";
+import { PersonCircle } from "@vicons/ionicons5";
 
-const router = useRouter()
-const message = useMessage()
-const authStore = useAuthStore()
-const tokenStore = useTokenStore()
-const loginFormRef = ref(null)
+const router = useRouter();
+const message = useMessage();
+const authStore = useAuthStore();
+const tokenStore = useTokenStore();
+const loginFormRef = ref(null);
 
 // 登录表单数据
 const loginForm = reactive({
-  username: '',
-  password: '',
-  rememberMe: false
-})
+  username: "",
+  password: "",
+  rememberMe: false,
+});
 
 // 表单验证规则
 const loginRules = {
   username: [
     {
       required: true,
-      message: '请输入用户名',
-      trigger: ['input', 'blur']
-    }
+      message: "请输入用户名",
+      trigger: ["input", "blur"],
+    },
   ],
   password: [
     {
       required: true,
-      message: '请输入密码',
-      trigger: ['input', 'blur']
+      message: "请输入密码",
+      trigger: ["input", "blur"],
     },
     {
       min: 6,
-      message: '密码长度不能少于6位',
-      trigger: ['input', 'blur']
-    }
-  ]
-}
+      message: "密码长度不能少于6位",
+      trigger: ["input", "blur"],
+    },
+  ],
+};
 
-// 处理登录
+// 功能特性数据
 const handleLogin = async () => {
-  if (!loginFormRef.value) return
+  if (!loginFormRef.value) return;
 
   try {
-    await loginFormRef.value.validate()
+    await loginFormRef.value.validate();
 
     const result = await authStore.login({
       username: loginForm.username,
       password: loginForm.password,
-      rememberMe: loginForm.rememberMe
-    })
+      rememberMe: loginForm.rememberMe,
+    });
 
     if (result.success) {
-      message.success('登录成功')
+      message.success("登录成功");
 
-      const redirect = router.currentRoute.value.query.redirect
+      const redirect = router.currentRoute.value.query.redirect;
       if (authStore.isAdmin) {
-        router.push('/admin/users')
-      } else if (redirect) {
-        router.push(redirect)
-      } else if (tokenStore.hasTokens) {
-        router.push('/admin/dashboard')
+        router.push("/admin/users");
+      } else if (
+        redirect &&
+        redirect !== "/login" &&
+        redirect !== "/register"
+      ) {
+        router.push(redirect);
       } else {
-        router.push('/tokens')
+        router.push("/admin/dashboard");
       }
     } else {
-      message.error(result.message)
+      message.error(result.message);
     }
   } catch (error) {
-    // 表单验证失败
-    console.error('Login validation failed:', error)
+    console.error("Login validation failed:", error);
   }
-}
+};
 
 const redirectToHome = () => {
   if (authStore.isAdmin) {
-    router.push('/admin/users')
+    router.push("/admin/users");
   } else if (tokenStore.hasTokens) {
-    router.push('/admin/dashboard')
+    router.push("/admin/dashboard");
   } else {
-    router.push('/tokens')
+    router.push("/tokens");
   }
-}
+};
 
 onMounted(() => {
   if (authStore.isAuthenticated) {
-    redirectToHome()
+    redirectToHome();
   }
-})
+});
 </script>
 
 <style scoped lang="scss">
@@ -189,10 +203,12 @@ onMounted(() => {
 
 .login-container {
   display: flex;
+  align-items: center;
   justify-content: center;
+  max-width: 500px;
   width: 100%;
-  max-width: 520px;
   padding: var(--spacing-lg);
+  margin: 0 auto;
 }
 
 .login-card {
@@ -226,8 +242,7 @@ onMounted(() => {
 .brand-logo {
   width: 64px;
   height: 64px;
-  border-radius: 50%;
-  object-fit: cover;
+  border-radius: var(--border-radius-large);
 }
 
 .brand-title {
@@ -274,7 +289,7 @@ onMounted(() => {
   }
 }
 
-// 背景装饰
+// 功能展示区域
 .background-decoration {
   position: absolute;
   top: 0;
@@ -317,7 +332,6 @@ onMounted(() => {
 }
 
 @keyframes float {
-
   0%,
   100% {
     transform: translateY(0) rotate(0deg);
@@ -340,10 +354,6 @@ onMounted(() => {
 
   .brand-title {
     font-size: var(--font-size-xl);
-  }
-
-  .social-login {
-    grid-template-columns: 1fr;
   }
 
   .feature-item {

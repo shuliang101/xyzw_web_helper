@@ -82,3 +82,4 @@ backup/
 *.exe
 *.zip
 node_modules/
+dist.zip

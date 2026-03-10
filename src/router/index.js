@@ -1,13 +1,19 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { watch } from 'vue'
 import * as autoRoutes from 'vue-router/auto-routes'
 import { useTokenStore } from '@/stores/tokenStore'
 import { useAuthStore } from '@/stores/auth'
+import { isNowInLegionWarTime } from "@/utils/clubBattleUtils"
 
 const generatedRoutes = autoRoutes.routes ?? []
 
 const my_routes = [
   {
     path: '/',
+    redirect: '/login'
+  },
+  {
+    path: '/home',
     name: 'Home',
     component: () => import('@/views/Home.vue'),
     meta: {
@@ -66,6 +72,15 @@ const my_routes = [
           title: '消息测试',
           requiresToken: true,
           requiresAuth: true
+        }
+      },
+      {
+        path: 'legion-war',
+        name: 'LegionWar',
+        component: () => import('@/views/LegionWar.vue'),
+        meta: {
+          title: '实时盐场',
+          requiresToken: true
         }
       },
       {
@@ -167,20 +182,27 @@ const router = createRouter({
 
 autoRoutes.handleHotUpdate?.(router)
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const tokenStore = useTokenStore()
   const authStore = useAuthStore()
   const isAdminUser = authStore.user?.role === 'admin'
 
+  // 设置页面标题
   document.title = to.meta.title
     ? `${to.meta.title} - 隐♥月管理系统`
     : '隐♥月管理系统'
 
-  if (to.path === '/' && !authStore.isAuthenticated) {
-    next('/login')
-    return
+  // 等待远程 bin 恢复完成（登录后异步拉取）
+  if (tokenStore.remoteBinSyncing?.value) {
+    await new Promise(resolve => {
+      const stop = watch(
+        () => tokenStore.remoteBinSyncing?.value,
+        (syncing) => { if (!syncing) { stop(); resolve() } }
+      )
+    })
   }
 
+  // 1. 检查认证（server分支逻辑）
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next({ path: '/login', query: { redirect: to.fullPath } })
     return
@@ -194,17 +216,21 @@ router.beforeEach((to, from, next) => {
   if ((to.path === '/login' || to.path === '/register') && authStore.isAuthenticated) {
     if (isAdminUser) {
       next('/admin/users')
-    } else {
+    } else if (tokenStore.hasTokens) {
       next('/admin/dashboard')
+    } else {
+      next('/tokens')
     }
     return
   }
 
+  // 2. 检查token（原有逻辑）
   if (to.meta.requiresToken && !tokenStore.hasTokens && !isAdminUser) {
     next('/tokens')
     return
   }
 
+  // 3. 根路径智能跳转
   if (to.path === '/') {
     if (isAdminUser) {
       next('/admin/users')
@@ -217,6 +243,12 @@ router.beforeEach((to, from, next) => {
     } else {
       next('/tokens')
     }
+    return
+  }
+
+  // 4. 军团战时间自动跳转（main分支）
+  if (to.name !== 'LegionWar' && isNowInLegionWarTime()) {
+    next('/admin/legion-war')
     return
   }
 

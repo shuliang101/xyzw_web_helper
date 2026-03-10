@@ -1,13 +1,13 @@
+import { isInCurrentWeek, sleep } from "@/utils/base";
 import { gameLogger } from "@/utils/logger";
-import type { EVM, Session } from ".";
 import { findAnswer } from "@/utils/studyQuestionsFromJSON";
-import { isInCurrentWeek } from "@/utils/base";
+import type { EVM, XyzwSession } from ".";
 
 export const StudyPlugin = ({
   onSome,
   $emit
 }: EVM) => {
-  onSome(['study', 'studyresp', 'study_startgame', 'study_startgameresp'], async (data: Session) => {
+  onSome(['study', 'studyresp', 'study_startgame', 'study_startgameresp'], async (data: XyzwSession) => {
     gameLogger.verbose(`收到学习答题事件: ${data.tokenId}`, data);
     const { body, gameData, client } = data;
     if (!body) {
@@ -73,18 +73,18 @@ export const StudyPlugin = ({
 
         // 添加短暂延迟，避免请求过快
         if (i < questionList.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 200))
+          await sleep(300)
         }
       }
-      // 延迟5000ms后领取奖励
-      await new Promise(resolve => setTimeout(resolve, 500))
+      // 延迟1500ms后领取奖励
+      await sleep(1500)
       $emit.emit('I-study-week-forward', data)
     } catch (error) {
       gameLogger.error('处理学习答题响应失败:', error)
     }
   });
   //
-  onSome(['I-study'], (data: Session) => {
+  onSome(['I-study'], (data: XyzwSession) => {
     const { body, gameData } = data;
     const maxCorrectNum = body.role.study.maxCorrectNum
     const beginTime = body.role.study.beginTime
@@ -101,7 +101,7 @@ export const StudyPlugin = ({
     gameLogger.info(`答题状态更新: maxCorrectNum=${maxCorrectNum}, 完成状态=${isStudyCompleted}`)
   });
   // 
-  onSome(['I-study-week-forward'], async (data: Session) => {
+  onSome(['I-study-week-forward'], async (data: XyzwSession) => {
     gameLogger.info('开始领取答题奖励')
     const { gameData, client } = data;
     // 更新状态为正在领取奖励
@@ -125,7 +125,7 @@ export const StudyPlugin = ({
     gameData.value.studyStatus.status = 'completed'
 
     // 3秒后重置状态
-    await new Promise(resolve => setTimeout(resolve, 3000))
+    await new Promise(resolve => setTimeout(resolve, 1000))
     gameData.value.studyStatus = {
       isAnswering: false,
       questionCount: 0,
@@ -135,9 +135,9 @@ export const StudyPlugin = ({
     }
 
     // 1秒后更新游戏数据
-    await new Promise(resolve => setTimeout(resolve, 1000))
     try {
-      client?.send('role_getroleinfo', {})
+      // client?.send('role_getroleinfo', {})
+      client?.debounceSend('role_getroleinfo', {})
       gameLogger.debug('已请求更新角色信息')
     } catch (error) {
       gameLogger.error('请求角色信息更新失败:', error)

@@ -26,6 +26,7 @@ declare module 'vue-router/auto-routes' {
     '/GameFeatures': RouteRecordInfo<'/GameFeatures', '/GameFeatures', Record<never, never>, Record<never, never>>,
     '/GameRoles': RouteRecordInfo<'/GameRoles', '/GameRoles', Record<never, never>, Record<never, never>>,
     '/Home': RouteRecordInfo<'/Home', '/Home', Record<never, never>, Record<never, never>>,
+    '/LegionWar': RouteRecordInfo<'/LegionWar', '/LegionWar', Record<never, never>, Record<never, never>>,
     '/Login': RouteRecordInfo<'/Login', '/Login', Record<never, never>, Record<never, never>>,
     '/NotFound': RouteRecordInfo<'/NotFound', '/NotFound', Record<never, never>, Record<never, never>>,
     '/Profile': RouteRecordInfo<'/Profile', '/Profile', Record<never, never>, Record<never, never>>,
@@ -33,6 +34,8 @@ declare module 'vue-router/auto-routes' {
     '/TokenImport/': RouteRecordInfo<'/TokenImport/', '/TokenImport', Record<never, never>, Record<never, never>>,
     '/TokenImport/bin': RouteRecordInfo<'/TokenImport/bin', '/TokenImport/bin', Record<never, never>, Record<never, never>>,
     '/TokenImport/manual': RouteRecordInfo<'/TokenImport/manual', '/TokenImport/manual', Record<never, never>, Record<never, never>>,
+    '/TokenImport/singlebin': RouteRecordInfo<'/TokenImport/singlebin', '/TokenImport/singlebin', Record<never, never>, Record<never, never>>,
     '/TokenImport/url': RouteRecordInfo<'/TokenImport/url', '/TokenImport/url', Record<never, never>, Record<never, never>>,
+    '/TokenImport/wxqrcode': RouteRecordInfo<'/TokenImport/wxqrcode', '/TokenImport/wxqrcode', Record<never, never>, Record<never, never>>,
   }
 }

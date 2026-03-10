@@ -7,7 +7,9 @@
         <section class="welcome-section">
           <div class="welcome-content">
             <div class="welcome-text">
-              <h1>欢迎回来，{{ tokenStore.selectedToken?.name || '游戏玩家' }}！</h1>
+              <h1>
+                欢迎回来，{{ tokenStore.selectedToken?.name || "游戏玩家" }}！
+              </h1>
               <p>今天是 {{ currentDate }}，继续您的游戏管理之旅吧</p>
             </div>
             <div class="welcome-actions">
@@ -18,10 +20,7 @@
               >
                 进入游戏功能
               </n-button>
-              <n-button
-                size="large"
-                @click="handleManageTokens"
-              >
+              <n-button size="large" @click="handleManageTokens">
                 管理Token
               </n-button>
             </div>
@@ -30,9 +29,7 @@
 
         <!-- 快速操作 -->
         <section class="quick-actions-section">
-          <h2 class="section-title">
-            快速操作
-          </h2>
+          <h2 class="section-title">快速操作</h2>
           <div class="actions-grid">
             <div
               v-for="action in quickActions"
@@ -50,157 +47,74 @@
             </div>
           </div>
         </section>
-
-        <!-- 最近活动 -->
-        <section
-          v-if="showRecentActivity"
-          class="recent-activity-section"
-        >
-          <div class="activity-header">
-            <h2 class="section-title">
-              最近活动
-            </h2>
-            <n-button
-              text
-              type="primary"
-              @click="refreshActivity(true)"
-            >
-              刷新
-            </n-button>
-          </div>
-
-          <n-spin :show="activityLoading">
-            <div
-              v-if="recentActivities.length"
-              class="activity-list"
-            >
-              <div
-                v-for="activity in recentActivities"
-                :key="activity.id"
-                class="activity-item"
-              >
-                <div
-                  class="activity-icon"
-                  :class="activity.type"
-                >
-                  <component :is="getActivityIcon(activity.type)" />
-                </div>
-                <div class="activity-content">
-                  <div class="activity-text">
-                    {{ activity.message }}
-                  </div>
-                  <div class="activity-time">
-                    {{ formatTime(activity.createdAt) }}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div
-              v-else
-              class="empty-activity"
-            >
-              <n-empty description="暂无活动记录" />
-            </div>
-          </n-spin>
-        </section>
       </div>
     </main>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { useMessage } from 'naive-ui'
-import { useTokenStore } from '@/stores/tokenStore'
-import api from '@/api'
+import { ref, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import { useMessage } from "naive-ui";
+import { useTokenStore } from "@/stores/tokenStore";
 import {
+  PersonCircle,
   Cube,
   Settings,
   CheckmarkCircle,
   Time,
+  TrendingUp,
   Add,
-  Cloud
-} from '@vicons/ionicons5'
+  Cloud,
+} from "@vicons/ionicons5";
 
-const router = useRouter()
-const message = useMessage()
-const tokenStore = useTokenStore()
+const router = useRouter();
+const message = useMessage();
+const tokenStore = useTokenStore();
 
 // 响应式数据
-const recentActivities = ref([])
-const activityLoading = ref(false)
+// const recentActivities = ref([]);
 
 // 计算属性
 const currentDate = computed(() => {
-  return new Date().toLocaleDateString('zh-CN', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    weekday: 'long'
-  })
-})
-
+  return new Date().toLocaleDateString("zh-CN", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  });
+});
 
 const quickActions = ref([
   {
     id: 1,
     icon: Cube,
-    title: '游戏功能',
-    description: '访问所有游戏功能模块',
-    action: 'game-features'
+    title: "游戏功能",
+    description: "访问所有游戏功能模块",
+    action: "game-features",
   },
   {
     id: 2,
     icon: Add,
-    title: '添加Token',
-    description: '快速添加新的游戏Token',
-    action: 'add-token'
+    title: "添加Token",
+    description: "快速添加新的游戏Token",
+    action: "add-token",
   },
   {
     id: 3,
     icon: CheckmarkCircle,
-    title: '执行任务',
-    description: '一键执行所有待完成任务',
-    action: 'execute-tasks'
+    title: "批量任务",
+    description: "批量执行任务",
+    action: "batch-daily-tasks",
   },
   {
     id: 4,
     icon: Cloud,
-    title: 'WebSocket测试',
-    description: '测试WebSocket连接和游戏命令',
-    action: 'websocket-test'
+    title: "WebSocket测试",
+    description: "测试WebSocket连接和游戏命令",
+    action: "websocket-test",
   },
-  {
-    id: 5,
-    icon: Settings,
-    title: '系统设置',
-    description: '配置个人偏好和系统选项',
-    action: 'open-settings'
-  }
-])
-
-const showRecentActivity = false
-
-const activityTypeMap = {
-  bin_upload: 'success',
-  bin_delete: 'warning',
-  bin_download: 'info',
-  bin_removed_by_admin: 'warning',
-  auth_login: 'info',
-  account_register: 'success'
-}
-
-const normalizeActivity = (activity) => ({
-  id: activity.id,
-  type: activityTypeMap[activity.type] || 'info',
-  message: activity.message || activity.description,
-  createdAt: activity.createdAt,
-  metadata: activity.metadata || null
-})
-
-
+]);
 
 const handleManageTokens = () => {
   // 降噪
@@ -211,105 +125,79 @@ const handleManageTokens = () => {
   */
 
   try {
-    router.push('/tokens')
+    router.push("/tokens");
     // 降噪
   } catch (error) {
-    console.error('❌ 导航失败:', error)
-    message.error('导航到Token管理页面失败')
+    console.error("❌ 导航失败:", error);
+    message.error("导航到Token管理页面失败");
   }
-}
+};
 
 const handleQuickAction = (action) => {
   switch (action.action) {
-    case 'game-features':
-      router.push('/admin/game-features')
-      break
-    case 'add-token':
-      handleManageTokens()
-      break
-    case 'execute-tasks':
-      router.push('/admin/game-features')
-      break
-    case 'websocket-test':
-      router.push('/websocket-test')
-      break
-    case 'open-settings':
-      router.push('/admin/profile')
-      break
+    case "game-features":
+      router.push("/admin/game-features");
+      break;
+    case "add-token":
+      handleManageTokens();
+      break;
+    case "execute-tasks":
+      router.push("/admin/game-features");
+      break;
+    case "websocket-test":
+      router.push("/websocket-test");
+      break;
+    case "open-settings":
+      router.push("/admin/profile");
+      break;
+    case "batch-daily-tasks":
+      router.push("/admin/batch-daily-tasks");
+      break;
   }
-}
+};
 
-const refreshActivity = async (showToast = false) => {
-  activityLoading.value = true
-  try {
-    const { activities } = await api.activity.list(6)
-    recentActivities.value = Array.isArray(activities) ? activities.map(normalizeActivity) : []
-    if (showToast) {
-      if (recentActivities.value.length) {
-        message.success('活动数据已刷新')
-      } else {
-        message.info('暂无活动记录')
-      }
-    }
-  } catch (error) {
-    if (showToast) {
-      message.error(error.message || '刷新活动数据失败')
-    } else {
-      console.error('加载最近活动失败', error)
-    }
-    recentActivities.value = []
-  } finally {
-    activityLoading.value = false
-  }
-}
-
+/*
 const getActivityIcon = (type) => {
   switch (type) {
-    case 'success':
-      return CheckmarkCircle
-    case 'warning':
-      return Time
-    case 'info':
+    case "success":
+      return CheckmarkCircle;
+    case "warning":
+      return Time;
+    case "info":
     default:
-      return Cube
+      return Cube;
   }
-}
+};
 
-const formatTime = (value) => {
-  const parsed = typeof value === 'number' ? value : Date.parse(value)
-  if (Number.isNaN(parsed)) {
-    return '-'
-  }
-  const diff = Date.now() - parsed
-  const minutes = Math.floor(diff / (1000 * 60))
-  const hours = Math.floor(diff / (1000 * 60 * 60))
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+const formatTime = (timestamp) => {
+  const diff = Date.now() - timestamp;
+  const minutes = Math.floor(diff / (1000 * 60));
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
   if (days > 0) {
-    return `${days}天前`
+    return `${days}天前`;
   } else if (hours > 0) {
-    return `${hours}小时前`
+    return `${hours}小时前`;
   } else if (minutes > 0) {
-    return `${minutes}分钟前`
+    return `${minutes}分钟前`;
   } else {
-    return '刚刚'
+    return "刚刚";
   }
-}
+};
+*/
 
 // 生命周期
 onMounted(async () => {
   // 确保有Token
   if (!tokenStore.hasTokens) {
-    router.push('/tokens')
-    return
+    router.push("/tokens");
+    return;
   }
 
   // 初始化Token数据
-  tokenStore.initTokenStore()
-  if (showRecentActivity) {
-    await refreshActivity()
-  }
-})
+  tokenStore.initTokenStore();
+});
 </script>
 
 <style scoped lang="scss">
@@ -330,7 +218,11 @@ onMounted(async () => {
 
 // 欢迎区域
 .welcome-section {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--primary-color) 0%,
+    var(--secondary-color) 100%
+  );
   border-radius: var(--border-radius-xl);
   padding: var(--spacing-2xl);
   margin-bottom: var(--spacing-xl);
@@ -363,6 +255,66 @@ onMounted(async () => {
   gap: var(--spacing-md);
 }
 
+// 统计区域
+.stats-section {
+  margin-bottom: var(--spacing-xl);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.stat-card {
+  background: var(--bg-primary);
+  border-radius: var(--border-radius-large);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-light);
+  transition: all var(--transition-normal);
+
+  &:hover {
+    box-shadow: var(--shadow-medium);
+    transform: translateY(-2px);
+  }
+}
+
+.stat-icon {
+  width: 48px;
+  height: 48px;
+  margin-bottom: var(--spacing-md);
+
+  :deep(svg) {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.stat-number {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-xs);
+}
+
+.stat-label {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--spacing-xs);
+}
+
+.stat-change {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+
+  &.positive {
+    color: var(--success-color);
+  }
+
+  &.negative {
+    color: var(--error-color);
+  }
+}
 
 // 快速操作区域
 .quick-actions-section {
@@ -513,6 +465,9 @@ onMounted(async () => {
     text-align: center;
   }
 
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
 }
 
 @media (max-width: 768px) {
@@ -535,6 +490,10 @@ onMounted(async () => {
   .welcome-actions {
     flex-direction: column;
     width: 100%;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
   }
 
   .actions-grid {

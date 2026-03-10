@@ -1,21 +1,39 @@
 <template>
   <div class="status-card daily-task">
     <div class="card-header">
-      <img src="/icons/174023274867420.png" alt="每日任务" class="status-icon">
+      <img
+        src="/icons/174023274867420.png"
+        alt="每日任务"
+        class="status-icon"
+      />
       <div class="status-info">
         <h3>每日任务</h3>
         <p>当前进度</p>
       </div>
       <div class="header-right">
-        <div class="status-badge" :class="{ completed: isFull }" @click="showTaskDetails = true">
+        <div
+          class="status-badge"
+          :class="{ completed: isFull }"
+          @click="showTaskDetails = true"
+        >
           <div class="status-dot" :class="{ completed: isFull }" />
           <span>任务详情</span>
         </div>
 
-        <button class="settings-gear" @click="showSettings = true" title="任务设置">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <button
+          class="settings-gear"
+          @click="showSettings = true"
+          title="任务设置"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
             <path
-              d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.240.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+              d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.240.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"
+            />
             <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
         </button>
@@ -26,23 +44,33 @@
     <div class="card-content">
       <!-- 进度条 -->
       <div class="progress-container">
-        <n-progress type="line" :percentage="dailyPoint" :height="8" :border-radius="4" :color="progressColor"
-          rail-color="#f3f4f6" />
+        <n-progress
+          type="line"
+          :percentage="dailyPoint"
+          :height="8"
+          :border-radius="4"
+          :color="progressColor"
+          rail-color="#f3f4f6"
+        />
       </div>
 
       <!-- 提示信息 -->
-      <div class="info-container">
-        右上角小齿轮有惊喜
-      </div>
+      <div class="info-container">右上角小齿轮有惊喜</div>
     </div>
 
     <!-- 一键执行按钮 -->
     <div class="card-actions">
-      <button class="action-button" :disabled="busy || !isConnected" @click="runDailyFix">
+      <button
+        class="action-button"
+        :disabled="busy || !isConnected"
+        @click="runDailyFix"
+      >
         <span v-if="busy" class="loading-text">
           <svg class="loading-icon" viewBox="0 0 24 24">
-            <path fill="currentColor"
-              d="M12 22c5.421 0 10-4.579 10-10h-2c0 4.337-3.663 8-8 8s-8-3.663-8-8c0-4.336 3.663-8 8-8V2C6.579 2 2 6.58 2 12c0 5.421 4.579 10 10 10z" />
+            <path
+              fill="currentColor"
+              d="M12 22c5.421 0 10-4.579 10-10h-2c0 4.337-3.663 8-8 8s-8-3.663-8-8c0-4.336 3.663-8 8-8V2C6.579 2 2 6.58 2 12c0 5.421 4.579 10 10 10z"
+            />
           </svg>
           执行中...
         </span>
@@ -52,24 +80,18 @@
     </div>
 
     <!-- 任务设置模态框 -->
-    <n-modal v-model:show="showSettings" preset="card" title="任务设置" style="width: 90%; max-width: 400px">
+    <n-modal
+      v-model:show="showSettings"
+      preset="card"
+      title="任务设置"
+      style="width: 90%; max-width: 400px"
+    >
       <template #header>
-        <div class="modal-header settings-header">
-          <div class="header-left">
-            <n-icon>
-              <Settings />
-            </n-icon>
-            <span>任务设置</span>
-          </div>
-          <n-button
-            type="primary"
-            size="small"
-            :loading="settingsSaving"
-            :disabled="!settingsDirty"
-            @click="handleSaveSettings"
-          >
-            保存设置
-          </n-button>
+        <div class="modal-header">
+          <n-icon>
+            <Settings />
+          </n-icon>
+          <span>任务设置</span>
         </div>
       </template>
 
@@ -78,19 +100,54 @@
           <!-- 竞技场设置 -->
           <div class="setting-item">
             <label class="setting-label">竞技场阵容</label>
-            <n-select v-model:value="settings.arenaFormation" :options="formationOptions" size="small" />
+            <n-select
+              v-model:value="settings.arenaFormation"
+              :options="formationOptions"
+              size="small"
+            />
           </div>
 
           <!-- BOSS设置 -->
           <div class="setting-item">
             <label class="setting-label">BOSS阵容</label>
-            <n-select v-model:value="settings.bossFormation" :options="formationOptions" size="small" />
+            <n-select
+              v-model:value="settings.bossFormation"
+              :options="formationOptions"
+              size="small"
+            />
           </div>
 
           <!-- BOSS次数 -->
           <div class="setting-item">
             <label class="setting-label">BOSS次数</label>
-            <n-select v-model:value="settings.bossTimes" :options="bossTimesOptions" size="small" />
+            <n-select
+              v-model:value="settings.bossTimes"
+              :options="bossTimesOptions"
+              size="small"
+            />
+          </div>
+
+          <!-- 延迟设置 -->
+          <div class="setting-item">
+            <label class="setting-label">命令延迟 (毫秒)</label>
+            <n-input-number
+              v-model:value="settings.commandDelay"
+              :min="0"
+              :max="5000"
+              :step="100"
+              size="small"
+            />
+          </div>
+
+          <div class="setting-item">
+            <label class="setting-label">任务延迟 (毫秒)</label>
+            <n-input-number
+              v-model:value="settings.taskDelay"
+              :min="0"
+              :max="5000"
+              :step="100"
+              size="small"
+            />
           </div>
 
           <!-- 功能开关 -->
@@ -130,29 +187,27 @@
             </div>
           </div>
         </div>
-        <div class="settings-actions">
-          <n-button
-            type="primary"
-            block
-            :loading="settingsSaving"
-            :disabled="!settingsDirty"
-            @click="handleSaveSettings"
-          >
-            保存设置
-          </n-button>
-        </div>
       </div>
     </n-modal>
 
     <!-- 任务详情模态框 -->
-    <n-modal v-model:show="showTaskDetails" preset="card" title="每日任务详情" style="width: 90%; max-width: 400px">
+    <n-modal
+      v-model:show="showTaskDetails"
+      preset="card"
+      title="每日任务详情"
+      style="width: 90%; max-width: 400px"
+    >
       <template #header>
         <div class="modal-header">
           <n-icon>
             <Calendar />
           </n-icon>
           <span>每日任务详情</span>
-          <button class="refresh-button" :disabled="busy" @click="handleRefreshTaskStatus">
+          <button
+            class="refresh-button"
+            :disabled="busy"
+            @click="handleRefreshTaskStatus"
+          >
             <n-icon>
               <Refresh />
             </n-icon>
@@ -164,21 +219,29 @@
       <div class="task-list">
         <div v-for="task in tasks" :key="task.id" class="task-item">
           <div class="task-item-left">
-            <n-icon class="task-status-icon" :class="{ completed: task.completed }">
+            <n-icon
+              class="task-status-icon"
+              :class="{ completed: task.completed }"
+            >
               <CheckmarkCircle v-if="task.completed" />
               <EllipseOutline v-else />
             </n-icon>
             <span class="task-name">{{ task.name }}</span>
           </div>
           <n-tag :type="task.completed ? 'success' : 'default'" size="small">
-            {{ task.completed ? '已完成' : '未完成' }}
+            {{ task.completed ? "已完成" : "未完成" }}
           </n-tag>
         </div>
       </div>
     </n-modal>
 
     <!-- 执行日志模态框 -->
-    <n-modal v-model:show="showLog" preset="card" title="任务执行日志" style="width: 90%; max-width: 500px">
+    <n-modal
+      v-model:show="showLog"
+      preset="card"
+      title="任务执行日志"
+      style="width: 90%; max-width: 500px"
+    >
       <template #header>
         <div class="modal-header">
           <n-icon>
@@ -189,13 +252,20 @@
       </template>
 
       <div ref="logContainer" class="log-container">
-        <div v-for="logItem in logList" :key="logItem.time + logItem.message" class="log-item">
+        <div
+          v-for="logItem in logList"
+          :key="logItem.time + logItem.message"
+          class="log-item"
+        >
           <span class="log-time">{{ logItem.time }}</span>
-          <span class="log-message" :class="{
-            error: logItem.type === 'error',
-            success: logItem.type === 'success',
-            warning: logItem.type === 'warning'
-          }">
+          <span
+            class="log-message"
+            :class="{
+              error: logItem.type === 'error',
+              success: logItem.type === 'success',
+              warning: logItem.type === 'warning',
+            }"
+          >
             {{ logItem.message }}
           </span>
         </div>
@@ -205,429 +275,389 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { useTokenStore } from '@/stores/tokenStore'
-import { useAuthStore } from '@/stores/auth'
-import { DailyTaskRunner } from '@/utils/dailyTaskRunner'
-import { useMessage } from 'naive-ui'
+import {
+  ref,
+  reactive,
+  computed,
+  watch,
+  onMounted,
+  onBeforeUnmount,
+  nextTick,
+} from "vue";
+import { useTokenStore } from "@/stores/tokenStore";
+import { useAuthStore } from "@/stores/auth";
+import { DailyTaskRunner } from "@/utils/dailyTaskRunner";
 import {
   buildDailySettingsKeySets,
   createDefaultDailySettings,
   loadDailySettings as loadDailySettingsRecord,
-  saveDailySettings as saveDailySettingsRecord
-} from '@/utils/dailySettingsStorage'
+  saveDailySettings as saveDailySettingsRecord,
+} from "@/utils/dailySettingsStorage";
+import { useMessage } from "naive-ui";
 import {
   Settings,
   Calendar,
   CheckmarkCircle,
   EllipseOutline,
   DocumentText,
-  Refresh
-} from '@vicons/ionicons5'
+  Refresh,
+} from "@vicons/ionicons5";
 
-const tokenStore = useTokenStore()
-const authStore = useAuthStore()
-const message = useMessage()
-const runner = new DailyTaskRunner(tokenStore)
+const tokenStore = useTokenStore();
+const authStore = useAuthStore();
+const message = useMessage();
 
 // 响应式数据
-const showSettings = ref(false)
-const showTaskDetails = ref(false)
-const showLog = ref(false)
-const busy = ref(false)
-const logContainer = ref(null)
-const currentSettingsKey = ref(null)
-const settingsDirty = ref(false)
-const settingsSaving = ref(false)
+const showSettings = ref(false);
+const showTaskDetails = ref(false);
+const showLog = ref(false);
+const busy = ref(false);
+const logContainer = ref(null);
 
 // 任务设置
-const settings = reactive(createDefaultDailySettings())
+const createTaskSettingsDefaults = () => ({
+  ...createDefaultDailySettings(),
+  commandDelay: 500,
+  taskDelay: 500,
+});
+
+const settings = reactive(createTaskSettingsDefaults());
 
 // 每日任务列表
 const tasks = ref([
-  { id: 1, name: '登录一次游戏', completed: false, loading: false },
-  { id: 2, name: '分享一次游戏', completed: false, loading: false },
-  { id: 3, name: '赠送好友3次金币', completed: false, loading: false },
-  { id: 4, name: '进行2次招募', completed: false, loading: false },
-  { id: 5, name: '领取5次挂机奖励', completed: false, loading: false },
-  { id: 6, name: '进行3次点金', completed: false, loading: false },
-  { id: 7, name: '开启3次宝箱', completed: false, loading: false },
-  { id: 12, name: '黑市购买1次物品（请设置采购清单）', completed: false, loading: false },
-  { id: 13, name: '进行1场竞技场战斗', completed: false, loading: false },
-  { id: 14, name: '收获1个任意盐罐', completed: false, loading: false }
-])
+  { id: 1, name: "登录一次游戏", completed: false, loading: false },
+  { id: 2, name: "分享一次游戏", completed: false, loading: false },
+  { id: 3, name: "赠送好友3次金币", completed: false, loading: false },
+  { id: 4, name: "进行2次招募", completed: false, loading: false },
+  { id: 5, name: "领取5次挂机奖励", completed: false, loading: false },
+  { id: 6, name: "进行3次点金", completed: false, loading: false },
+  { id: 7, name: "开启3次宝箱", completed: false, loading: false },
+  {
+    id: 12,
+    name: "黑市购买1次物品（请设置采购清单）",
+    completed: false,
+    loading: false,
+  },
+  { id: 13, name: "进行1场竞技场战斗", completed: false, loading: false },
+  { id: 14, name: "收获1个任意盐罐", completed: false, loading: false },
+]);
 
 // 选项配置
-const formationOptions = [1, 2, 3, 4].map(v => ({ label: `阵容${v}`, value: v }))
-const bossTimesOptions = [0, 1, 2, 3, 4].map(v => ({ label: `${v}次`, value: v }))
+const formationOptions = [1, 2, 3, 4, 5, 6].map((v) => ({
+  label: `阵容${v}`,
+  value: v,
+}));
+const bossTimesOptions = [0, 1, 2, 3, 4].map((v) => ({
+  label: `${v}次`,
+  value: v,
+}));
 
 // 计算属性
 const roleInfo = computed(() => {
-  return tokenStore.selectedTokenRoleInfo
-})
+  return tokenStore.selectedTokenRoleInfo;
+});
 
 const roleDailyPoint = computed(() => {
-  return roleInfo.value?.role?.dailyTask?.dailyPoint ?? 0
-})
+  return roleInfo.value?.role?.dailyTask?.dailyPoint ?? 0;
+});
 
-const dailyPoint = computed(() => Math.min(roleDailyPoint.value, 100))
-const isFull = computed(() => dailyPoint.value >= 100)
-const progressColor = computed(() => isFull.value ? '#10b981' : '#3b82f6')
+const dailyPoint = computed(() => Math.min(roleDailyPoint.value, 100));
+const isFull = computed(() => dailyPoint.value >= 100);
+const progressColor = computed(() => (isFull.value ? "#10b981" : "#3b82f6"));
 
 // WebSocket连接状态
 const isConnected = computed(() => {
-  if (!tokenStore.selectedToken) return false
-  const status = tokenStore.getWebSocketStatus(tokenStore.selectedToken.id)
-  return status === 'connected'
-})
+  if (!tokenStore.selectedToken) return false;
+  const status = tokenStore.getWebSocketStatus(tokenStore.selectedToken.id);
+  return status === "connected";
+});
 
 // 日志系统
-const logList = ref([])
-const LOG_MAX = 500
+const logList = ref([]);
+const LOG_MAX = 500;
 
-const log = (message, type = 'info') => {
-  const time = new Date().toLocaleTimeString()
-  logList.value.push({ time, message, type })
+const log = (message, type = "info") => {
+  const time = new Date().toLocaleTimeString();
+  logList.value.push({ time, message, type });
 
   if (logList.value.length > LOG_MAX) {
-    logList.value.splice(0, logList.value.length - LOG_MAX)
+    logList.value.splice(0, logList.value.length - LOG_MAX);
   }
 
   nextTick(() => {
     if (logContainer.value) {
-      logContainer.value.scrollTop = logContainer.value.scrollHeight
+      logContainer.value.scrollTop = logContainer.value.scrollHeight;
     }
-  })
-}
-
-let saveSettingsTimer = null
-let isApplyingSettings = false
+  });
+};
 
 // 同步服务器任务完成状态
 const syncCompleteFromServer = (resp) => {
   if (!resp?.role?.dailyTask?.complete) {
-    log('角色信息中无任务完成数据', 'warning')
-    return
+    log("角色信息中无任务完成数据", "warning");
+    return;
   }
 
-  const complete = resp.role.dailyTask.complete
-  const isDone = (v) => v === -1
+  const complete = resp.role.dailyTask.complete;
+  const isDone = (v) => v === -1;
 
-  log('开始同步任务完成状态...')
-  log(`服务器返回的任务完成数据: ${JSON.stringify(complete)}`)
+  log("开始同步任务完成状态...");
+  log(`服务器返回的任务完成数据: ${JSON.stringify(complete)}`);
 
-  let syncedCount = 0
-  let completedCount = 0
+  let syncedCount = 0;
+  let completedCount = 0;
 
   // 先重置所有任务为未完成，然后根据服务器数据更新
-  tasks.value.forEach(task => {
-    task.completed = false
-  })
+  tasks.value.forEach((task) => {
+    task.completed = false;
+  });
 
   // 同步服务器返回的完成状态
-  Object.keys(complete).forEach(k => {
-    const id = Number(k)
-    const idx = tasks.value.findIndex(t => t.id === id)
+  Object.keys(complete).forEach((k) => {
+    const id = Number(k);
+    const idx = tasks.value.findIndex((t) => t.id === id);
 
     if (idx >= 0) {
-      const isCompleted = isDone(complete[k])
-      tasks.value[idx].completed = isCompleted
-      syncedCount++
+      const isCompleted = isDone(complete[k]);
+      tasks.value[idx].completed = isCompleted;
+      syncedCount++;
 
       if (isCompleted) {
-        completedCount++
+        completedCount++;
       }
 
-      log(`任务${id} "${tasks.value[idx].name}": ${isCompleted ? '已完成' : '未完成'}`,
-        isCompleted ? 'success' : 'info')
+      log(
+        `任务${id} "${tasks.value[idx].name}": ${isCompleted ? "已完成" : "未完成"}`,
+        isCompleted ? "success" : "info",
+      );
     } else {
-      log(`服务器返回未知任务ID: ${id} (完成值: ${complete[k]})`, 'warning')
+      log(`服务器返回未知任务ID: ${id} (完成值: ${complete[k]})`, "warning");
     }
-  })
+  });
 
-
-
-  log(`任务状态同步完成: ${completedCount}/${syncedCount} 已完成`)
-  log(`当前进度: ${roleDailyPoint.value}/100`)
-}
+  log(`任务状态同步完成: ${completedCount}/${syncedCount} 已完成`);
+  log(`当前进度: ${roleDailyPoint.value}/100`);
+};
 
 // 刷新角色信息
 const refreshRoleInfo = async () => {
   if (!tokenStore.selectedToken) {
-    throw new Error('没有选中的Token')
+    throw new Error("没有选中的Token");
   }
 
-  const tokenId = tokenStore.selectedToken.id
-  log('正在获取角色信息...')
+  const tokenId = tokenStore.selectedToken.id;
+  log("正在获取角色信息...");
 
   try {
-    const response = await tokenStore.sendGetRoleInfo(tokenId)
-    log('角色信息获取成功', 'success')
+    const response = await tokenStore.sendGetRoleInfo(tokenId);
+    log("角色信息获取成功", "success");
 
     // 同步任务状态
     if (response) {
-      syncCompleteFromServer(response)
+      syncCompleteFromServer(response);
     }
 
-    return response
+    return response;
   } catch (error) {
-    log(`获取角色信息失败: ${error.message}`, 'error')
-    throw error
+    log(`获取角色信息失败: ${error.message}`, "error");
+    throw error;
   }
-}
-
-
+};
 
 // 一键补差主函数
 const runDailyFix = async () => {
   if (!tokenStore.selectedToken || busy.value) {
-    message.warning('没有选中Token或正在执行中')
-    return
+    message.warning("没有选中Token或正在执行中");
+    return;
   }
 
   if (!isConnected.value) {
-    message.error('WebSocket连接未建立，请检查连接状态')
-    return
+    message.error("WebSocket连接未建立，请检查连接状态");
+    return;
   }
 
-  busy.value = true
-  showLog.value = true
-  logList.value = []
+  busy.value = true;
+  showLog.value = true;
+  logList.value = [];
 
   try {
-    log('=== 开始执行一键补差任务 ===')
+    log("=== 开始执行一键补差任务 ===");
 
     // 使用 DailyTaskRunner 执行任务
-    await runner.run(tokenStore.selectedToken.id, {
-      onLog: (logItem) => log(logItem.message, logItem.type),
-      onProgress: (progress) => {
-        log(`任务进度: ${progress}%`)
-      }
-    }, settings) // 传入当前组件的响应式 settings
+    const runner = new DailyTaskRunner(tokenStore, {
+      commandDelay: settings.commandDelay,
+      taskDelay: settings.taskDelay,
+    });
 
-    log('=== 任务执行完成 ===', 'success')
-    message.success('每日任务补差执行完成')
+    await runner.run(
+      tokenStore.selectedToken.id,
+      {
+        onLog: (logItem) => log(logItem.message, logItem.type),
+        onProgress: (progress) => {
+          log(`任务进度: ${progress}%`);
+        },
+      },
+      settings,
+    ); // 传入当前组件的响应式 settings
+
+    log("=== 任务执行完成 ===", "success");
+    message.success("每日任务补差执行完成");
 
     // 最终刷新角色信息
     setTimeout(async () => {
       try {
-        await refreshRoleInfo()
-        log('最终角色信息刷新完成', 'success')
+        await refreshRoleInfo();
+        log("最终角色信息刷新完成", "success");
       } catch (error) {
-        log(`最终刷新失败: ${error.message}`, 'warning')
+        log(`最终刷新失败: ${error.message}`, "warning");
       }
-    }, 3000)
-
+    }, 3000);
   } catch (error) {
-    log(`任务执行失败: ${error.message}`, 'error')
-    console.error('详细错误信息:', error)
-    message.error(`任务执行失败: ${error.message}`)
+    log(`任务执行失败: ${error.message}`, "error");
+    console.error("详细错误信息:", error);
+    message.error(`任务执行失败: ${error.message}`);
   } finally {
-    busy.value = false
+    busy.value = false;
   }
-}
+};
 
 // 刷新任务状态
 const handleRefreshTaskStatus = async () => {
   if (!isConnected.value) {
-    message.warning('WebSocket未连接，无法刷新任务状态')
-    return
+    message.warning("WebSocket未连接，无法刷新任务状态");
+    return;
   }
 
   try {
-    log('手动刷新任务状态...')
-    await refreshRoleInfo()
-    message.success('任务状态刷新成功')
+    log("手动刷新任务状态...");
+    await refreshRoleInfo();
+    message.success("任务状态刷新成功");
   } catch (error) {
-    log(`刷新失败: ${error.message}`, 'error')
-    message.error(`刷新失败: ${error.message}`)
+    log(`刷新失败: ${error.message}`, "error");
+    message.error(`刷新失败: ${error.message}`);
   }
-}
+};
 
 // 辅助函数
-const getSettingsStorageKeys = (token = tokenStore.selectedToken, role = roleInfo.value?.role) => {
-  return buildDailySettingsKeySets({
-    authUser: authStore.user,
-    token,
-    role
-  })
-}
+const getCurrentRole = () => {
+  return tokenStore.selectedToken
+    ? { roleId: tokenStore.selectedToken.id }
+    : null;
+};
 
-const getSettingsSnapshot = () => JSON.parse(JSON.stringify(settings))
-
-const applySettings = (data) => {
-  if (!data) return
-  isApplyingSettings = true
-  Object.entries(data).forEach(([key, value]) => {
-    if (Object.prototype.hasOwnProperty.call(settings, key)) {
-      settings[key] = value
-    }
-  })
-  nextTick(() => {
-    isApplyingSettings = false
-  })
-}
-
-const loadSettingsFromStorage = async (keySets = getSettingsStorageKeys()) => {
-  if (!keySets.primaryKeys.length && !keySets.legacyKeys.length) {
-    return null
-  }
-  return loadDailySettingsRecord({
-    keySets,
-    hasAuth: !!authStore.token
-  })
-}
-
-const saveSettingsToStorage = async (
-  data = getSettingsSnapshot(),
-  keySets = getSettingsStorageKeys(),
-  { remote = true, local = true, throwOnRemoteError = false } = {}
-) => {
-  const result = await saveDailySettingsRecord({
-    keySets,
-    data,
-    hasAuth: !!authStore.token,
-    remote,
-    local,
-    throwOnRemoteError
-  })
-  if (!currentSettingsKey.value && keySets.primaryKeys?.length) {
-    currentSettingsKey.value = keySets.primaryKeys[0]
-  }
-  return result
-}
-
-const ensureSettingsLoaded = async (force = false) => {
-  const keySets = getSettingsStorageKeys()
-  const { primaryKeys = [] } = keySets
-  const primaryKey = primaryKeys[0]
-
-  if (!primaryKey && !primaryKeys.length) {
-    return
-  }
-
-  if (!force && currentSettingsKey.value && primaryKeys.includes(currentSettingsKey.value)) {
-    return
-  }
-
-  if (!force && currentSettingsKey.value && !primaryKeys.includes(currentSettingsKey.value)) {
-    await saveSettingsToStorage(getSettingsSnapshot(), keySets)
-    return
-  }
-
-  const result = await loadSettingsFromStorage(keySets)
-  if (result?.data) {
-    applySettings(result.data)
-    currentSettingsKey.value = primaryKey || result.key
-
-    if (result.isLegacy || (primaryKey && result.key !== primaryKey)) {
-      await saveSettingsToStorage(result.data, keySets)
-    }
-  } else if (!currentSettingsKey.value && primaryKey) {
-    currentSettingsKey.value = primaryKey
-    await saveSettingsToStorage(getSettingsSnapshot(), keySets)
-  }
-}
-
-const handleSaveSettings = async () => {
-  if (settingsSaving.value || !settingsDirty.value) return
-  settingsSaving.value = true
-  log('正在保存任务设置...', 'info')
+const loadSettings = async (roleId) => {
   try {
-    const { remoteSaved } = await saveSettingsToStorage(
-      getSettingsSnapshot(),
-      getSettingsStorageKeys(),
-      {
-        remote: true,
-        local: true,
-        throwOnRemoteError: true
-      }
-    )
-    settingsDirty.value = false
-    showSettings.value = false
-    const successMsg = remoteSaved
-      ? '任务设置已保存，并同步到服务器'
-      : '任务设置已保存（仅本地）'
-    log(successMsg, remoteSaved ? 'success' : 'warning')
-    message.success(successMsg)
+    const token =
+      tokenStore.gameTokens.find((t) => t.id === roleId) ||
+      tokenStore.selectedToken;
+    const keySets = buildDailySettingsKeySets({
+      authUser: authStore.user,
+      token,
+    });
+    const result = await loadDailySettingsRecord({
+      keySets,
+      hasAuth: !!authStore.isAuthenticated,
+    });
+    return result
+      ? { ...createTaskSettingsDefaults(), ...result.data }
+      : createTaskSettingsDefaults();
   } catch (error) {
-    console.error('Failed to save settings manually:', error)
-    const errorMessage = error?.response?.data?.message || error?.message || '保存设置失败，请稍后重试'
-    message.error(errorMessage)
-    log(`保存任务设置失败：${errorMessage}`, 'error')
-  } finally {
-    settingsSaving.value = false
+    console.error("Failed to load settings:", error);
+    return createTaskSettingsDefaults();
   }
-}
+};
+
+const saveSettings = async (roleId, s) => {
+  try {
+    const token =
+      tokenStore.gameTokens.find((t) => t.id === roleId) ||
+      tokenStore.selectedToken;
+    if (!token) return;
+    const keySets = buildDailySettingsKeySets({
+      authUser: authStore.user,
+      token,
+    });
+    await saveDailySettingsRecord({
+      keySets,
+      data: s,
+      hasAuth: !!authStore.isAuthenticated,
+    });
+  } catch (error) {
+    console.error("Failed to save settings:", error);
+  }
+};
 
 // 监听设置变化
-watch(settings, () => {
-  if (isApplyingSettings) return
-  settingsDirty.value = true
-  const keySets = getSettingsStorageKeys()
-  if (!keySets.primaryKeys.length) return
-  if (saveSettingsTimer) clearTimeout(saveSettingsTimer)
-  const snapshot = getSettingsSnapshot()
-  saveSettingsTimer = setTimeout(() => {
-    saveSettingsToStorage(snapshot, keySets, { remote: false, local: true })
-  }, 300)
-}, { deep: true })
+watch(
+  settings,
+  (cur) => {
+    const role = getCurrentRole();
+    if (role) void saveSettings(role.roleId, cur);
+  },
+  { deep: true },
+);
 
 // 监听token选择变化
-watch(() => tokenStore.selectedToken, async (newToken, oldToken) => {
-  if (newToken && newToken !== oldToken) {
-    log(`切换到Token: ${newToken.name}`)
+watch(
+  () => tokenStore.selectedToken,
+  async (newToken, oldToken) => {
+    if (newToken && newToken !== oldToken) {
+      log(`切换到Token: ${newToken.name}`);
 
-    currentSettingsKey.value = null
-    await ensureSettingsLoaded(true)
+      // 加载新token的设置
+      const saved = await loadSettings(newToken.id);
+      if (saved) Object.assign(settings, saved);
 
-    // 如果WebSocket已连接，尝试获取最新角色信息
-    if (isConnected.value) {
-      try {
-        await refreshRoleInfo()
-      } catch (error) {
-        console.warn('切换token后获取角色信息失败:', error.message)
+      // 如果WebSocket已连接，尝试获取最新角色信息
+      if (isConnected.value) {
+        try {
+          await refreshRoleInfo();
+        } catch (error) {
+          console.warn("切换token后获取角色信息失败:", error.message);
+        }
       }
     }
-  } else if (!newToken) {
-    currentSettingsKey.value = null
-  }
-}, { immediate: true })
+  },
+  { immediate: true },
+);
 
 // 监听角色信息变化，自动同步任务状态
-watch(() => tokenStore.selectedTokenRoleInfo, async (newRoleInfo) => {
-  await ensureSettingsLoaded()
-  if (newRoleInfo?.role?.dailyTask?.complete) {
-    log('角色信息更新，同步任务状态')
-    syncCompleteFromServer(newRoleInfo)
-  }
-}, { immediate: true, deep: true })
+watch(
+  () => tokenStore.selectedTokenRoleInfo,
+  (newRoleInfo) => {
+    if (newRoleInfo?.role?.dailyTask?.complete) {
+      log("角色信息更新，同步任务状态");
+      syncCompleteFromServer(newRoleInfo);
+    }
+  },
+  { immediate: true, deep: true },
+);
 
 // 生命周期
 onMounted(async () => {
-  log('组件初始化完成')
+  log("组件初始化完成");
 
   // 首次拉取角色信息（如果有选中的token且已连接）
   if (tokenStore.selectedToken && isConnected.value) {
     try {
-      await refreshRoleInfo()
+      await refreshRoleInfo();
     } catch (error) {
-      console.warn('初始化时获取角色信息失败:', error.message)
+      console.warn("初始化时获取角色信息失败:", error.message);
     }
   }
 
-  await ensureSettingsLoaded(true)
+  const role = getCurrentRole();
+  if (role) {
+    const saved = await loadSettings(role.roleId);
+    if (saved) Object.assign(settings, saved);
+  }
 
   // 初始化时的任务状态同步会通过 watch selectedTokenRoleInfo 自动处理
-})
+});
 
 onBeforeUnmount(() => {
-  log('组件即将卸载')
-  if (saveSettingsTimer) {
-    clearTimeout(saveSettingsTimer)
-    saveSettingsTimer = null
-  }
-})
+  log("组件即将卸载");
+});
 </script>
 
 <style scoped lang="scss">
@@ -777,16 +807,6 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
-.settings-header {
-  justify-content: space-between;
-
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-  }
-}
-
 .refresh-button {
   display: flex;
   align-items: center;
@@ -814,10 +834,6 @@ onBeforeUnmount(() => {
 
 .settings-content {
   padding: var(--spacing-sm) 0;
-}
-
-.settings-actions {
-  margin-top: var(--spacing-md);
 }
 
 .settings-grid {

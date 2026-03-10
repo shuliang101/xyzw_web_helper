@@ -3,7 +3,22 @@
     "allow": [
       "Bash(git checkout:*)",
       "Bash(git add:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nMerge branch ''main'' into server\n\n解决合并冲突:\n- ClubInfo.vue: 保留简洁的标签格式\n- ClubWarrank.vue: 合并新增的红淬排序和积分排序按钮\n- ClubCarKing.vue: 保留简洁的标签格式\n- package-lock.json: 使用main分支版本\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nMerge branch ''main'' into server\n\n解决合并冲突:\n- ClubInfo.vue: 保留简洁的标签格式\n- ClubWarrank.vue: 合并新增的红淬排序和积分排序按钮\n- ClubCarKing.vue: 保留简洁的标签格式\n- package-lock.json: 使用main分支版本\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(e:/workspace/xyzw_web_helper/CONFLICTS_SUMMARY.md:*)",
+      "Bash(for file in src/components/Club/CarScoreInfo.vue src/components/Club/ClubInfo.vue src/components/Club/ClubWeirdTowerInfo.vue src/components/Club/PeachInfo.vue src/components/Tower/TowerStatus.vue src/components/Tower/WeirdTowerStatus.vue)",
+      "Bash(do sed -i 's|/icons/xiaoyugan\\\\.png|/icons/logo.png|g' \"$file\")",
+      "Bash(done)",
+      "Bash(grep -r \"from.*auth\" src/stores/*.js src/stores/*.ts)",
+      "Bash(grep -r \"upload.*bin\\\\|POST.*bins\\\\|FormData\" src/views/TokenImport/*.vue --include=\"*.vue\" -n)",
+      "Bash(grep -o '\"\"[^\"\"]*vite[^\"\"]*\"\"' node_modules/.bin/vite)",
+      "Bash(python3 -c \" with open\\(''src/stores/tokenStore.ts'', ''rb''\\) as f: content = f.read\\(\\) # Find lines with non-UTF8 or mojibake patterns lines = content.split\\(b''\\\\n''\\) for i, line in enumerate\\(lines, 1\\): try: decoded = line.decode\\(''utf-8''\\) # Check for common mojibake patterns \\(GBK read as latin1\\) if any\\(ord\\(c\\) > 127 for c in decoded\\): print\\(f''{i}: {decoded[:100]}''\\) except: print\\(f''{i}: [decode error]''\\) \")",
+      "Bash(python3 -c \" with open\\(''src/stores/tokenStore.ts'', ''rb''\\) as f: content = f.read\\(\\) lines = content.split\\(b''\\\\n''\\) for i, line in enumerate\\(lines, 1\\): try: decoded = line.decode\\(''utf-8''\\) if any\\(ord\\(c\\) > 127 for c in decoded\\): print\\(f''{i}: {repr\\(decoded[:120]\\)}''\\) except Exception as e: print\\(f''{i}: [decode error: {e}]''\\) \")",
+      "Bash(node -e \" const fs = require\\(''fs''\\); const content = fs.readFileSync\\(''src/stores/tokenStore.ts'', ''utf8''\\); const lines = content.split\\(''\\\\n''\\); lines.forEach\\(\\(line, i\\) => { if \\(/[^\\\\x00-\\\\x7F]/.test\\(line\\)\\) { console.log\\(\\(i+1\\) + '': '' + line.substring\\(0, 120\\)\\); } }\\); \")",
+      "Bash(node -e \":*)",
+      "Bash(where python)",
+      "Bash(where python3)",
+      "Bash(where node)",
+      "Bash(npx prettier --check src/components/GameStatus.vue)"
     ]
   }
 }

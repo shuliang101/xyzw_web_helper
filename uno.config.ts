@@ -38,7 +38,7 @@ export default defineConfig({
     presetAttributify({ /* preset options */ }),
     presetIcons({
       scale: 1.25,
-      autoInstall: true,
+      autoInstall: false,
       extraProperties: {
         "display": "inline-block",
         "vertical-align": "text-bottom",

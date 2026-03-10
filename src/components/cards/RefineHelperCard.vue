@@ -8,13 +8,15 @@
       <p>装备洗练、锁定孔位、自动洗练</p>
     </template>
     <template #badge>
-      <span>{{ state.isRunning ? '运行中' : '已停止' }}</span>
+      <span>{{ state.isRunning ? "运行中" : "已停止" }}</span>
     </template>
     <template #default>
       <div class="refine-container">
         <!-- 工具栏 -->
         <div class="toolbar">
-          <n-button type="primary" size="small" @click="refreshHeroes">刷新阵容</n-button>
+          <n-button type="primary" size="small" @click="refreshHeroes"
+            >刷新阵容</n-button
+          >
           <n-button size="small" @click="resetCount">清零</n-button>
           <div class="jade-info">
             <span>白玉: {{ jadeCount }}</span>
@@ -27,7 +29,9 @@
           <h4>选择武将</h4>
           <div class="hero-list">
             <div v-if="loading" class="loading">加载中...</div>
-            <div v-else-if="heroes.length === 0" class="empty">暂无武将数据</div>
+            <div v-else-if="heroes.length === 0" class="empty">
+              暂无武将数据
+            </div>
             <div
               v-for="hero in heroes"
               :key="hero.id"
@@ -35,7 +39,14 @@
               :class="{ active: selectedHeroId === hero.id }"
               @click="selectHero(hero.id)"
             >
-              {{ hero.name }} Lv.{{ hero.level }}
+              <div class="hero-avatar">
+                <img v-if="HERO_DICT[hero.id]?.avatar" :src="HERO_DICT[hero.id]?.avatar" :alt="hero.name" />
+                <div v-else class="hero-placeholder">{{ hero.name?.substring(0, 2) || "?" }}</div>
+              </div>
+              <div class="hero-info">
+                <div class="hero-name">{{ hero.name }}</div>
+                <div class="hero-level">Lv.{{ hero.level }}</div>
+              </div>
             </div>
           </div>
         </div>
@@ -78,20 +89,57 @@
               <div
                 v-for="slot in slots"
                 :key="slot.id"
-              class="slot"
-              :class="[slot.attrQualityClass, { locked: slot.isLocked }]"
-            >
+                class="slot"
+                :class="{
+                  locked: slot.isLocked,
+                  [`color-${slot.colorId}`]: slot.colorId > 0
+                }"
+              >
                 <n-checkbox
                   v-model:checked="slot.isLocked"
                   @change="handleSlotLock(slot.id, slot.isLocked)"
                 ></n-checkbox>
                 <span class="slot-label">孔{{ slot.id }}</span>
-                <div v-if="slot.attrId" class="slot-attr" :class="slot.attrQualityClass">
-                  <span class="attr-name">{{ getAttrName(slot.attrId) }}</span>
-                  <span class="attr-value">+{{ slot.attrNum }}%</span>
+                <div v-if="slot.attrId" class="slot-attr">
+                  <span>{{ getAttrName(slot.attrId) }}</span>
+                  <span>+{{ slot.attrNum }}%</span>
                 </div>
                 <div v-else class="slot-empty">未淬炼</div>
               </div>
+            </div>
+          </div>
+
+          <!-- 密码验证区域 -->
+          <div class="password-section">
+            <div class="password-info" v-if="!isPasswordValidated">
+              <span class="password-label">解锁二级密码：</span>
+              <n-input
+                v-model:value="password"
+                type="password"
+                placeholder="请输入二级密码"
+                size="small"
+                style="width: 150px"
+                @input="passwordError = ''"
+              ></n-input>
+              <n-button
+                type="primary"
+                size="small"
+                @click="verifyPassword"
+                :loading="isVerifying"
+              >
+                验证
+              </n-button>
+              <span v-if="passwordError" class="password-error">{{ passwordError }}</span>
+            </div>
+            <div class="password-validated" v-else>
+              <n-tag type="success" size="small">密码已验证</n-tag>
+              <n-button
+                type="warning"
+                size="small"
+                @click="resetPasswordValidation"
+              >
+                重新验证
+              </n-button>
             </div>
           </div>
 
@@ -137,69 +185,59 @@
           <!-- 自动淬炼设置 -->
           <div class="auto-section">
             <h4>自动淬炼设置</h4>
-            <div class="auto-form">
-              <div class="auto-options">
-                <n-checkbox v-model:checked="autoIgnoreTargets" size="small">
-                  不限制属性（仅按次数或手动停止）
-                </n-checkbox>
-              </div>
-              <div class="auto-targets" :class="{ disabled: autoIgnoreTargets }">
-                <div
-                  v-for="target in autoTargets"
-                  :key="target.key"
-                  class="auto-target-row"
-                >
+            <!-- 条件列表 -->
+            <div class="conditions-list">
+              <div 
+                v-for="(condition, index) in targetConditions" 
+                :key="index" 
+                class="condition-item"
+              >
+                <div class="auto-form">
                   <div class="form-item">
                     <span class="form-label">属性</span>
                     <n-select
-                      v-model:value="target.attrId"
+                      v-model:value="condition.attrId"
                       :options="attrOptions"
                       placeholder="选择属性"
                       size="small"
-                      style="width: 140px"
-                      :disabled="autoIgnoreTargets"
+                      style="width: 120px"
                     ></n-select>
                   </div>
                   <div class="form-item">
                     <span class="form-label">≥</span>
                     <n-input-number
-                      v-model:value="target.value"
+                      v-model:value="condition.attrValue"
                       :min="1"
                       :max="100"
                       size="small"
-                      style="width: 90px"
-                      :disabled="autoIgnoreTargets"
+                      style="width: 80px"
                     ></n-input-number>
                   </div>
-                  <n-button
-                    v-if="autoTargets.length > 1"
-                    quaternary
-                    size="tiny"
-                    @click="removeAutoTarget(target.key)"
-                    :disabled="autoIgnoreTargets"
-                  >
-                    删除
-                  </n-button>
+                  <div class="form-item">
+                    <n-button 
+                      type="error" 
+                      size="small" 
+                      @click="removeCondition(index)"
+                      :disabled="targetConditions.length <= 1"
+                    >
+                      删除
+                    </n-button>
+                  </div>
                 </div>
-                <n-button
-                  text
-                  size="small"
-                  @click="addAutoTarget"
-                  :disabled="autoIgnoreTargets"
-                >
-                  + 添加属性条件
-                </n-button>
               </div>
-              <div class="form-item">
-                <span class="form-label">最大次数</span>
-                <n-input-number
-                  v-model:value="autoMaxQuenchCount"
-                  :min="1"
-                  size="small"
-                  placeholder="不限"
-                  style="width: 120px"
-                ></n-input-number>
-              </div>
+            </div>
+            <!-- 添加条件按钮 -->
+            <div class="add-condition">
+              <n-button 
+                type="primary" 
+                size="small" 
+                @click="addCondition"
+              >
+                + 添加条件
+              </n-button>
+            </div>
+            <!-- 延迟设置 -->
+            <div class="auto-form delay-setting">
               <div class="form-item">
                 <span class="form-label">延迟(ms)</span>
                 <n-input-number
@@ -207,7 +245,18 @@
                   :min="0"
                   :step="100"
                   size="small"
-                  style="width: 120px"
+                  style="width: 100px"
+                ></n-input-number>
+              </div>
+              <div class="form-item">
+                <span class="form-label">最多次数</span>
+                <n-input-number
+                  v-model:value="maxQuenchCount"
+                  :min="0"
+                  :step="10"
+                  size="small"
+                  style="width: 100px"
+                  placeholder="0=不限"
                 ></n-input-number>
               </div>
             </div>
@@ -219,736 +268,780 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { useMessage } from 'naive-ui'
-import { useTokenStore } from '@/stores/tokenStore'
-import MyCard from '../Common/MyCard.vue'
+import { ref, computed } from "vue";
+import { useMessage } from "naive-ui";
+import { useTokenStore } from "@/stores/tokenStore";
+import MyCard from "../Common/MyCard.vue";
+import { HERO_DICT } from "@/utils/HeroList.js";
 
-const tokenStore = useTokenStore()
-const message = useMessage()
+const tokenStore = useTokenStore();
+const message = useMessage();
 
 // 响应式数据
-const loading = ref(false)
-const heroes = ref([])
-const selectedHeroId = ref(null)
-const selectedPart = ref(null)
-const quenchCount = ref(0)
-const delay = ref(350)
-const autoTargets = ref([])
-const autoMaxQuenchCount = ref(null)
-const autoIgnoreTargets = ref(false)
-const jadeCount = ref(0)
-const colorJadeCount = ref(0)
-let autoTargetSeed = 0
-
-const createAutoTarget = () => ({
-  key: Date.now() + autoTargetSeed++,
+const loading = ref(false);
+const heroes = ref([]);
+const selectedHeroId = ref(null);
+const selectedPart = ref(null);
+const quenchCount = ref(0);
+const delay = ref(350);
+// 将单个条件改为数组形式，支持多个条件
+const targetConditions = ref([{
   attrId: null,
-  value: null
-})
-
-const initializeAutoTargets = () => {
-  if (!autoTargets.value.length) {
-    autoTargets.value = [createAutoTarget()]
-  }
-}
-
-initializeAutoTargets()
-
-const addAutoTarget = () => {
-  autoTargets.value.push(createAutoTarget())
-}
-
-const removeAutoTarget = (key) => {
-  if (autoTargets.value.length <= 1) return
-  autoTargets.value = autoTargets.value.filter((item) => item.key !== key)
-}
-
-const getConfiguredAutoTargets = () => {
-  return autoTargets.value
-    .map((target) => ({
-      attrId: target.attrId !== null ? Number(target.attrId) : null,
-      value: target.value !== null ? Number(target.value) : null
-    }))
-    .filter(
-      (target) =>
-        target.attrId !== null &&
-        !Number.isNaN(target.attrId) &&
-        target.value !== null &&
-        !Number.isNaN(target.value) &&
-        target.value > 0
-    )
-}
+  attrValue: null
+}]);
+const maxQuenchCount = ref(0); // 0 表示不限制
+const jadeCount = ref(0);
+const colorJadeCount = ref(0);
+// 密码验证相关
+const password = ref('');
+const isPasswordValidated = ref(false);
+const passwordError = ref('');
+const isVerifying = ref(false);
 
 // 状态
 const state = ref({
   isRunning: false,
   continuousQuenching: false,
   autoQuenching: false,
-  stopRequested: false
-})
+  stopRequested: false,
+});
 
 // WebSocket相关
-let continuousTimer = null
-let autoTimer = null
+let continuousTimer = null;
+let autoTimer = null;
 
 // 属性映射
 const attrMap = {
-  1: '攻击',
-  2: '血量',
-  3: '防御',
-  4: '速度',
-  5: '破甲',
-  6: '破甲抵抗',
-  7: '精准',
-  8: '格挡',
-  9: '减伤',
-  10: '暴击',
-  11: '暴击抵抗',
-  12: '爆伤',
-  13: '爆伤抵抗',
-  14: '技能伤害',
-  15: '免控',
-  16: '眩晕免疫',
-  17: '冰冻免疫',
-  18: '沉默免疫',
-  19: '流血免疫',
-  20: '中毒免疫',
-  21: '灼烧免疫'
-}
-const attrQualitySteps = [
-  { max: 5, className: 'quality-white' },
-  { max: 10, className: 'quality-green' },
-  { max: 20, className: 'quality-blue' },
-  { max: 50, className: 'quality-purple' },
-  { max: 80, className: 'quality-orange' },
-  { max: Infinity, className: 'quality-red' }
-]
+  1: "攻击",
+  2: "血量",
+  3: "防御",
+  4: "速度",
+  5: "破甲",
+  6: "破甲抵抗",
+  7: "精准",
+  8: "格挡",
+  9: "减伤",
+  10: "暴击",
+  11: "暴击抵抗",
+  12: "爆伤",
+  13: "爆伤抵抗",
+  14: "技能伤害",
+  15: "免控",
+  16: "眩晕免疫",
+  17: "冰冻免疫",
+  18: "沉默免疫",
+  19: "流血免疫",
+  20: "中毒免疫",
+  21: "灼烧免疫",
+};
 
 // 装备部位映射
 const partMap = {
-  1: '武器',
-  2: '铠甲',
-  3: '头冠',
-  4: '坐骑'
-}
+  1: "武器",
+  2: "铠甲",
+  3: "头冠",
+  4: "坐骑",
+};
 
 // 英雄数据
-const allHeroesData = ref({})
-const heroEquipment = ref({})
-const slots = ref([])
-const quenchTimes = ref(0)
-const equipBonusName = ref('攻击')
-const equipBonusValue = ref(0)
+const allHeroesData = ref({});
+const heroEquipment = ref({});
+const slots = ref([]);
+const quenchTimes = ref(0);
+const equipBonusName = ref("攻击");
+const equipBonusValue = ref(0);
 
 // 属性选项
 const attrOptions = computed(() => {
   return Object.entries(attrMap).map(([id, name]) => ({
     label: name,
-    value: Number(id)
-  }))
-})
-const getAttrQualityClass = (attrNum) => {
-  const numericValue = Number(attrNum)
-  if (Number.isNaN(numericValue)) {
-    return ''
-  }
-  const normalizedValue = Math.min(100, Math.max(0, numericValue))
-  const step =
-    attrQualitySteps.find(({ max }) => normalizedValue <= max) ||
-    attrQualitySteps[attrQualitySteps.length - 1]
-  return step.className
-}
+    value: Number(id),
+  }));
+});
 
 // 装备部位列表
 const equipParts = computed(() => {
-  if (!heroEquipment.value) return []
+  if (!heroEquipment.value) return [];
   return Object.entries(heroEquipment.value).map(([id, equip]) => ({
     id: Number(id),
     name: partMap[Number(id)] || `装备${id}`,
-    level: equip?.level || 1
-  }))
-})
+    level: equip?.level || 1,
+  }));
+});
 
 // 刷新阵容
 const refreshHeroes = async () => {
-  const token = tokenStore.selectedToken
+  const token = tokenStore.selectedToken;
   if (!token) {
-    message.warning('请先选择Token')
-    return
+    message.warning("请先选择Token");
+    return;
   }
-  
-  const tokenId = token.id
-  const status = tokenStore.getWebSocketStatus(tokenId)
-  if (status !== 'connected') {
-    message.error('WebSocket未连接，无法刷新阵容')
-    return
+
+  const tokenId = token.id;
+  const status = tokenStore.getWebSocketStatus(tokenId);
+  if (status !== "connected") {
+    message.error("WebSocket未连接，无法刷新阵容");
+    return;
   }
-  
-  loading.value = true
+
+  loading.value = true;
   try {
     // 获取预设队伍信息和角色信息
     const [presetTeamInfo, roleInfo] = await Promise.all([
-      tokenStore.sendMessageWithPromise(tokenId, 'presetteam_getinfo', {}),
-      tokenStore.sendMessageWithPromise(tokenId, 'role_getroleinfo', {})
-    ])
-    
+      tokenStore.sendMessageWithPromise(tokenId, "presetteam_getinfo", {}),
+      tokenStore.sendMessageWithPromise(tokenId, "role_getroleinfo", {}),
+    ]);
+
     // 解析队伍数据
-    const teamData = parseTeamData(presetTeamInfo)
-    const role = roleInfo?.role || roleInfo
-    const heroData = role?.heroes || {}
-    const items = role?.items || {}
-    
+    const teamData = parseTeamData(presetTeamInfo);
+    const role = roleInfo?.role || roleInfo;
+    const heroData = role?.heroes || {};
+    const items = role?.items || {};
+
     // 更新白玉和彩玉数量
-    jadeCount.value = items['1022']?.quantity || 0
-    colorJadeCount.value = items['1023']?.quantity || 0
-    
+    jadeCount.value = items["1022"]?.quantity || 0;
+    colorJadeCount.value = items["1023"]?.quantity || 0;
+
     // 构建英雄列表
-    const heroList = buildHeroList(teamData, heroData)
-    heroes.value = heroList
-    allHeroesData.value = heroData
-    
-    message.success('阵容刷新成功')
+    const heroList = buildHeroList(teamData, heroData);
+    heroes.value = heroList;
+    allHeroesData.value = heroData;
+
+    message.success("阵容刷新成功");
   } catch (error) {
-    message.error(`刷新阵容失败: ${error.message}`)
+    message.error(`刷新阵容失败: ${error.message}`);
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 // 解析队伍数据
-const parseTeamData = (response) => {
-  if (!response) {
-    return { useTeamId: 1, teams: {} }
+const parseTeamData = (presetTeamInfo) => {
+  if (!presetTeamInfo) {
+    return {
+      useTeamId: 1,
+      teams: {},
+    };
   }
-
-  // 处理嵌套结构: response.presetTeamInfo.presetTeamInfo[useTeamId].teamInfo
-  const outer = response.presetTeamInfo || response
-  const useTeamId = outer.useTeamId || 1
-
-  // 内层 presetTeamInfo 包含各个队伍数据
-  const inner = outer.presetTeamInfo || outer
-  const teams = {}
-
-  // 获取所有数字键对应的队伍
-  const teamKeys = Object.keys(inner).filter(key => /^\d+$/.test(key))
-
-  for (const key of teamKeys) {
-    const teamId = Number(key)
-    const team = inner[key]
-    if (!team) {
-      teams[teamId] = { teamInfo: {} }
-      continue
+  const root = presetTeamInfo.presetTeamInfo ?? presetTeamInfo;
+  const findUseIdRec = (obj) => {
+    if (!obj || typeof obj !== "object") return null;
+    if (typeof obj.useTeamId === "number") return obj.useTeamId;
+    for (const k of Object.keys(obj)) {
+      const v = findUseIdRec(obj[k]);
+      if (v) return v;
     }
+    return null;
+  };
+  const useTeamId = root.useTeamId ?? root.presetTeamInfo?.useTeamId ?? findUseIdRec(root) ?? 1;
 
-    if (team.teamInfo) {
-      teams[teamId] = { teamInfo: team.teamInfo }
-    } else if (team.heroes) {
-      // 将数组转换为对象
-      const teamInfo = {}
-      team.heroes.forEach((hero, index) => {
-        teamInfo[String(index + 1)] = hero
-      })
-      teams[teamId] = { teamInfo }
-    } else if (typeof team === 'object') {
-      const hasHeroes = Object.values(team).some(item =>
-        item && typeof item === 'object' && 'heroId' in item
-      )
-      teams[teamId] = { teamInfo: hasHeroes ? team : {} }
+  const dict = root.presetTeamInfo ?? root;
+  const teams = {};
+  const ids = Object.keys(dict || {}).filter((k) => /^\d+$/.test(k));
+  for (const idStr of ids) {
+    const id = Number(idStr);
+    const node = dict[idStr];
+    if (!node) {
+      teams[id] = { teamInfo: {} };
+      continue;
+    }
+    if (node.teamInfo) {
+      teams[id] = { teamInfo: node.teamInfo };
+    } else if (node.heroes) {
+      const ti = {};
+      node.heroes.forEach((h, idx) => {
+        ti[String(idx + 1)] = h;
+      });
+      teams[id] = { teamInfo: ti };
+    } else if (typeof node === "object") {
+      const hasHero = Object.values(node).some(
+        (v) => v && typeof v === "object" && "heroId" in v,
+      );
+      teams[id] = { teamInfo: hasHero ? node : {} };
     } else {
-      teams[teamId] = { teamInfo: {} }
+      teams[id] = { teamInfo: {} };
     }
   }
-
-  return { useTeamId, teams }
-}
+  return { useTeamId: Number(useTeamId) || 1, teams };
+};
 
 // 构建英雄列表
 const buildHeroList = (teamData, heroData) => {
-  const { useTeamId, teams } = teamData
-  const currentTeam = teams[useTeamId] || { teamInfo: {} }
-  const teamInfo = currentTeam.teamInfo
-  
-  const heroList = []
-  
+  const { useTeamId, teams } = teamData;
+  const currentTeam = teams[useTeamId] || { teamInfo: {} };
+  const teamInfo = currentTeam.teamInfo;
+
+  const heroList = [];
+
   // 从当前队伍中获取英雄
   for (const [position, hero] of Object.entries(teamInfo)) {
-    const heroId = hero?.heroId || hero?.id
-    if (!heroId) continue
-    
-    const heroDetail = heroData[String(heroId)] || {}
+    const heroId = hero?.heroId || hero?.id;
+    if (!heroId) continue;
+
+    const heroDetail = heroData[String(heroId)] || {};
     heroList.push({
       id: heroId,
-      name: getHeroName(heroId),
+      name: HERO_DICT[heroId]?.name || `武将${heroId}`,
       position: Number(position),
       level: hero?.level || heroDetail?.level || 1,
-      equipment: heroDetail?.equipment || {}
-    })
+      equipment: heroDetail?.equipment || {},
+    });
   }
-  
+
   // 如果队伍中没有英雄，从所有英雄中获取
   if (heroList.length === 0 && Object.keys(heroData).length > 0) {
     for (const [id, hero] of Object.entries(heroData)) {
       if (hero && hero.equipment) {
         heroList.push({
           id: Number(id),
-          name: getHeroName(Number(id)),
+          name: HERO_DICT[Number(id)]?.name || `武将${Number(id)}`,
           position: heroList.length + 1,
           level: hero?.level || 1,
-          equipment: hero?.equipment || {}
-        })
-        if (heroList.length >= 5) break
+          equipment: hero?.equipment || {},
+        });
+        if (heroList.length >= 5) break;
       }
     }
   }
-  
+
   // 按位置排序
-  return heroList.sort((a, b) => a.position - b.position)
-}
-
-// 获取英雄名称
-const heroNameMap = {
-  101: '司马懿', 102: '郭嘉', 103: '关羽', 104: '诸葛亮', 105: '周瑜',
-  106: '太史慈', 107: '吕布', 108: '华佗', 109: '甄姬', 110: '黄月英',
-  111: '孙策', 112: '贾诩', 113: '曹仁', 114: '姜维', 115: '孙坚',
-  116: '公孙瓒', 117: '典韦', 118: '赵云', 119: '大乔', 120: '张角',
-  201: '徐晃', 202: '荀彧', 203: '小典韦', 204: '张飞', 205: '小赵云',
-  206: '庞统', 207: '鲁肃', 208: '陆逊', 209: '甘宁', 210: '貂蝉',
-  211: '董卓', 212: '小张角', 213: '张辽', 214: '夏侯惇', 215: '许褚',
-  216: '夏侯渊', 217: '魏延', 218: '黄忠', 219: '马超', 220: '马岱',
-  221: '吕蒙', 222: '黄盖', 223: '蔡文姬', 224: '小乔', 225: '袁绍',
-  226: '华雄', 227: '颜良', 228: '文丑', 301: '周泰', 302: '许攸',
-  303: '于禁', 304: '张星彩', 305: '关银屏', 306: '关平', 307: '程普',
-  308: '张昭', 309: '陆绩', 310: '吕玲绮', 311: '潘凤', 312: '邢道荣',
-  313: '祝融夫人', 314: '孟获'
-}
-
-const getHeroName = (heroId) => {
-  return heroNameMap[heroId] || `武将${heroId}`
-}
+  return heroList.sort((a, b) => a.position - b.position);
+};
 
 // 选择英雄
 const selectHero = (heroId) => {
-  selectedHeroId.value = heroId
-  selectedPart.value = null
-  quenchCount.value = 0
-  
+  selectedHeroId.value = heroId;
+  selectedPart.value = null;
+  quenchCount.value = 0;
+
   // 获取英雄装备
-  const heroDetail = allHeroesData.value[String(heroId)] || {}
-  heroEquipment.value = heroDetail?.equipment || {}
-}
+  const heroDetail = allHeroesData.value[String(heroId)] || {};
+  heroEquipment.value = heroDetail?.equipment || {};
+};
 
 // 选择装备部位
 const selectPart = (partId) => {
-  selectedPart.value = partId
-  quenchCount.value = 0
-  
+  selectedPart.value = partId;
+  quenchCount.value = 0;
+
   // 获取装备详情
-  const equip = heroEquipment.value[partId]
+  const equip = heroEquipment.value[partId];
   if (equip) {
     // 更新洗练次数和加成
-    quenchTimes.value = equip.quenchTimes || 0
-    
+    quenchTimes.value = equip.quenchTimes || 0;
+
     // 根据部位类型更新加成名称
-    const bonusType = partId === 1 ? 'quenchAttackExt' : 
-                     partId === 3 ? 'quenchDefenseExt' : 'quenchHpExt'
-    equipBonusName.value = partId === 1 ? '攻击' : 
-                          partId === 3 ? '防御' : '血量'
-    equipBonusValue.value = equip[bonusType] || 0
-    
+    const bonusType =
+      partId === 1
+        ? "quenchAttackExt"
+        : partId === 3
+          ? "quenchDefenseExt"
+          : "quenchHpExt";
+    equipBonusName.value =
+      partId === 1 ? "攻击" : partId === 3 ? "防御" : "血量";
+    equipBonusValue.value = equip[bonusType] || 0;
+
     // 更新孔位信息
-    updateSlots(equip.quenches || {})
+    updateSlots(equip.quenches || {});
   } else {
-    quenchTimes.value = 0
-    equipBonusValue.value = 0
-    slots.value = []
+    quenchTimes.value = 0;
+    equipBonusValue.value = 0;
+    slots.value = [];
   }
-}
+};
 
 // 更新孔位信息
-const normalizeLockSource = (lockInfo) => {
-  if (!lockInfo) return []
-  if (Array.isArray(lockInfo)) return lockInfo
-  if (typeof lockInfo === 'string') {
-    return lockInfo
-      .split(',')
-      .map((value) => Number(value.trim()))
-      .filter((value) => !Number.isNaN(value))
-  }
-  if (typeof lockInfo === 'object') {
-    return Object.values(lockInfo)
-      .map((value) => Number(value))
-      .filter((value) => !Number.isNaN(value))
-  }
-  if (typeof lockInfo === 'number') return [lockInfo]
-  return []
-}
+const updateSlots = (quenches) => {
+  const slotList = [];
+  const slotKeys = Object.keys(quenches).sort((a, b) => Number(a) - Number(b));
 
-const getEquipLockInfo = () => {
-  const equip = heroEquipment.value?.[selectedPart.value]
-  if (!equip) return null
-  return (
-    equip.lockSlot ||
-    equip.lockSlots ||
-    equip.lockedSlot ||
-    equip.lockedSlots ||
-    equip.quenchLockSlot ||
-    equip.quenchLockSlots ||
-    equip.lockedSlotsList ||
-    null
-  )
-}
-
-const updateSlots = (quenches, lockInfo = null) => {
-  const slotList = []
-  const slotKeys = Object.keys(quenches).sort((a, b) => Number(a) - Number(b))
-  const lockSource = lockInfo ?? getEquipLockInfo()
-  const lockSet = new Set(
-    normalizeLockSource(lockSource).map((value) => Number(value)).filter((value) => !Number.isNaN(value))
-  )
-  
   for (const key of slotKeys) {
-    const slotId = Number(key)
-    const slot = quenches[key]
-    const rawAttrId = slot?.attrId ?? slot?.attr_id
-    const parsedAttrId =
-      rawAttrId !== undefined && rawAttrId !== null ? parseInt(rawAttrId, 10) : null
-    const normalizedAttrId =
-      typeof parsedAttrId === 'number' && !Number.isNaN(parsedAttrId) ? parsedAttrId : null
-    const rawAttrNum = slot?.attrNum ?? slot?.attr_num
-    const parsedAttrNum =
-      rawAttrNum !== undefined && rawAttrNum !== null ? parseFloat(rawAttrNum) : 0
-    const normalizedAttrNum = Number.isNaN(parsedAttrNum) ? 0 : parsedAttrNum
-    const slotLockState =
-      slot?.isLocked ?? slot?.locked ?? lockSet.has(slotId)
-    const attrQualityClass = normalizedAttrId !== null ? getAttrQualityClass(normalizedAttrNum) : ''
+    const slotId = Number(key);
+    const slot = quenches[key];
     slotList.push({
       id: slotId,
-      attrId: normalizedAttrId,
-      attrNum: normalizedAttrNum,
-      attrQualityClass,
-      isLocked: Boolean(slotLockState)
-    })
+      attrId: slot.attrId || null,
+      attrNum: slot.attrNum || 0,
+      isLocked: slot.isLocked || slot.locked || false,
+      colorId: slot.colorId || 0,
+    });
   }
-  
-  slots.value = slotList
-}
+
+  slots.value = slotList;
+};
 
 // 获取属性名称
 const getAttrName = (attrId) => {
-  const normalizedId = Number(attrId)
-  if (Number.isNaN(normalizedId)) {
-    return `属性${attrId}`
+  return attrMap[attrId] || `属性${attrId}`;
+};
+
+// 密码验证
+const verifyPassword = async () => {
+  if (!password.value) {
+    passwordError.value = "请输入密码";
+    return;
   }
-  return attrMap[normalizedId] || `属性${normalizedId}`
-}
+
+  const token = tokenStore.selectedToken;
+  if (!token) {
+    message.warning("请先选择Token");
+    return;
+  }
+
+  const tokenId = token.id;
+  const status = tokenStore.getWebSocketStatus(tokenId);
+  if (status !== "connected") {
+    message.error("WebSocket未连接，无法验证密码");
+    return;
+  }
+
+  isVerifying.value = true;
+  passwordError.value = '';
+
+  try {
+    await tokenStore.sendMessageWithPromise(
+      tokenId,
+      "role_commitpassword",
+      {
+        password: password.value,
+        passwordType: 1
+      }
+    );
+
+    isPasswordValidated.value = true;
+    message.success("密码验证成功");
+  } catch (error) {
+    passwordError.value = `验证失败: ${error.message}`;
+    message.error(`密码验证失败: ${error.message}`);
+  } finally {
+    isVerifying.value = false;
+  }
+};
+
+// 重置密码验证
+const resetPasswordValidation = () => {
+  isPasswordValidated.value = false;
+  password.value = '';
+  passwordError.value = '';
+};
 
 // 处理孔位锁定
 const handleSlotLock = async (slotId, isLocked) => {
-  const token = tokenStore.selectedToken
+  const token = tokenStore.selectedToken;
   if (!token || !selectedHeroId.value || !selectedPart.value) {
-    message.warning('请先选择武将和装备')
-    return
+    message.warning("请先选择武将和装备");
+    return;
   }
-  
-  const tokenId = token.id
-  try {
-    await tokenStore.sendMessageWithPromise(tokenId, 'equipment_updatequenchlock', {
-      heroId: selectedHeroId.value,
-      part: selectedPart.value,
-      slot: slotId,
-      isLocked: isLocked ? 1 : 0
-    })
-    
-    // 更新孔位状态
-    const slot = slots.value.find(s => s.id === slotId)
+
+  // 解锁时需要验证密码
+  if (!isLocked && !isPasswordValidated.value) {
+    message.warning("请先验证二级密码以解锁孔位");
+    // 恢复锁定状态
+    const slot = slots.value.find((s) => s.id === slotId);
     if (slot) {
-      slot.isLocked = isLocked
+      slot.isLocked = true;
     }
-    
-    message.success(isLocked ? '孔位已锁定' : '孔位已解锁')
-  } catch (error) {
-    message.error(`锁定孔位失败: ${error.message}`)
+    return;
   }
-}
+
+  const tokenId = token.id;
+  try {
+    await tokenStore.sendMessageWithPromise(
+      tokenId,
+      "equipment_updatequenchlock",
+      {
+        heroId: selectedHeroId.value,
+        part: selectedPart.value,
+        slot: slotId,
+        isLocked,
+      },
+    );
+
+    // 更新孔位状态
+    const slot = slots.value.find((s) => s.id === slotId);
+    if (slot) {
+      slot.isLocked = isLocked;
+    }
+
+    message.success(isLocked ? "孔位已锁定" : "孔位已解锁");
+  } catch (error) {
+    message.error(`锁定孔位失败: ${error.message}`);
+  }
+};
 
 // 淬炼一次
 const quenchOnce = async () => {
   if (!selectedHeroId.value || !selectedPart.value) {
-    message.warning('请先选择武将和装备部位')
-    return
+    message.warning("请先选择武将和装备部位");
+    return;
   }
-  
-  await executeQuench()
-}
+
+  await executeQuench();
+};
 
 // 连续淬炼
 const quenchContinuous = () => {
-  if (state.value.continuousQuenching) return
-  
+  if (state.value.continuousQuenching) return;
+
   if (!selectedHeroId.value || !selectedPart.value) {
-    message.warning('请先选择武将和装备部位')
-    return
+    message.warning("请先选择武将和装备部位");
+    return;
   }
-  
-  state.value.continuousQuenching = true
-  state.value.isRunning = true
-  message.info('开始连续淬炼，出现橙色或红色属性时自动暂停')
-  
+
+  state.value.continuousQuenching = true;
+  state.value.isRunning = true;
+  message.info("开始连续淬炼，出现橙色或红色属性时自动暂停");
+
   const continuousQuench = async () => {
-    if (!state.value.continuousQuenching) return
-    
+    if (!state.value.continuousQuenching) return;
+
     try {
-      const result = await executeQuench()
+      const result = await executeQuench();
       if (result && checkHighQualityAttr(result)) {
-        message.success('发现橙色或红色属性，已自动暂停')
-        stopQuench()
-        return
+        message.success("发现橙色或红色属性，已自动暂停");
+        stopQuench();
+        return;
       }
-      
+
       // 随机延迟
-      const randomDelay = Math.floor(Math.random() * 150) + delay.value
-      continuousTimer = setTimeout(continuousQuench, randomDelay)
+      const randomDelay = Math.floor(Math.random() * 150) + delay.value;
+      continuousTimer = setTimeout(continuousQuench, randomDelay);
     } catch (error) {
-      message.error(`连续淬炼失败: ${error.message}`)
-      stopQuench()
+      message.error(`连续淬炼失败: ${error.message}`);
+      stopQuench();
     }
+  };
+
+  continuousQuench();
+};
+
+// 添加条件
+const addCondition = () => {
+  targetConditions.value.push({
+    attrId: null,
+    attrValue: null
+  });
+};
+
+// 删除条件
+const removeCondition = (index) => {
+  if (targetConditions.value.length <= 1) {
+    message.warning("至少需要保留一个条件");
+    return;
   }
-  
-  continuousQuench()
-}
+  targetConditions.value.splice(index, 1);
+};
 
 // 自动淬炼
 const startAutoQuench = () => {
-  const configuredTargets = autoIgnoreTargets.value ? [] : getConfiguredAutoTargets()
-  const usesTargets = configuredTargets.length > 0
+  // 检查是否有有效的条件
+  const hasValidCondition = targetConditions.value.some(condition => 
+    condition.attrId !== null && condition.attrValue !== null
+  );
   
-  if (!autoIgnoreTargets.value && !usesTargets) {
-    message.warning('请至少设置一条属性条件或勾选“不限制属性”')
-    return
+  if (!hasValidCondition) {
+    message.warning("请至少设置一个有效的目标属性和数值");
+    return;
   }
-  
+
   if (!selectedHeroId.value || !selectedPart.value) {
-    message.warning('请先选择武将和装备部位')
-    return
+    message.warning("请先选择武将和装备部位");
+    return;
   }
 
-  const maxAttempts = Number(autoMaxQuenchCount.value)
-  const hasMaxAttempts = !Number.isNaN(maxAttempts) && maxAttempts > 0
-  let attemptCount = 0
-  const targetDesc = usesTargets
-    ? configuredTargets.map((target) => `${getAttrName(target.attrId)} ≥ ${target.value}%`).join('，')
-    : '不限制属性'
-  
-  state.value.autoQuenching = true
-  state.value.isRunning = true
+  state.value.autoQuenching = true;
+  state.value.isRunning = true;
+
+  // 生成条件描述
+  const conditionDescriptions = targetConditions.value
+    .filter(condition => condition.attrId && condition.attrValue)
+    .map(condition => `${getAttrName(condition.attrId)} ≥ ${condition.attrValue}`);
+
+  const limitDesc = maxQuenchCount.value > 0 ? `，最多 ${maxQuenchCount.value} 次` : '';
   message.info(
-    `开始自动淬炼，目标：${targetDesc}${hasMaxAttempts ? `，最多${maxAttempts}次` : ''}`
-  )
-  if (!usesTargets && !hasMaxAttempts) {
-    message.info('当前未设置属性和次数，淬炼将持续运行直到手动停止')
-  }
-  
+    `开始自动淬炼，目标：${conditionDescriptions.join(" 或 ")}${limitDesc}`,
+  );
+
   const autoQuench = async () => {
-    if (!state.value.autoQuenching) return
-    
-    try {
-      const result = await executeQuench()
-      attemptCount++
+    if (!state.value.autoQuenching) return;
 
-      if (hasMaxAttempts && attemptCount >= maxAttempts) {
-        message.success(`已达到最大淬炼次数 ${maxAttempts} 次，自动停止`)
-        stopQuench()
-        return
-      }
-
-      if (usesTargets && result) {
-        const matchedTarget = checkTargetAttr(result, configuredTargets)
-        if (matchedTarget) {
-          message.success(
-            `已达到目标：${getAttrName(matchedTarget.attrId)} ≥ ${matchedTarget.value}%`
-          )
-          stopQuench()
-          return
-        }
-      }
-      
-      // 随机延迟
-      const randomDelay = Math.floor(Math.random() * 150) + delay.value
-      autoTimer = setTimeout(autoQuench, randomDelay)
-    } catch (error) {
-      message.error(`自动淬炼失败: ${error.message}`)
-      stopQuench()
+    // 检查是否达到最大次数
+    if (maxQuenchCount.value > 0 && quenchCount.value >= maxQuenchCount.value) {
+      message.warning(`已达到最大淬炼次数 ${maxQuenchCount.value} 次，自动停止`);
+      stopQuench();
+      return;
     }
-  }
-  
-  autoQuench()
-}
+
+    try {
+      const result = await executeQuench();
+      if (result && checkTargetAttr(result)) {
+        message.success(
+          `已达到目标条件，自动淬炼已停止`,
+        );
+        stopQuench();
+        return;
+      }
+
+      // 随机延迟
+      const randomDelay = Math.floor(Math.random() * 150) + delay.value;
+      autoTimer = setTimeout(autoQuench, randomDelay);
+    } catch (error) {
+      message.error(`自动淬炼失败: ${error.message}`);
+      stopQuench();
+    }
+  };
+
+  autoQuench();
+};
 
 // 执行淬炼
 const executeQuench = async () => {
-  const token = tokenStore.selectedToken
+  const token = tokenStore.selectedToken;
   if (!token) {
-    message.warning('请先选择Token')
-    return null
+    message.warning("请先选择Token");
+    return null;
   }
-  
-  const tokenId = token.id
-  const status = tokenStore.getWebSocketStatus(tokenId)
-  if (status !== 'connected') {
-    message.error('WebSocket未连接，无法执行淬炼')
-    return null
+
+  const tokenId = token.id;
+  const status = tokenStore.getWebSocketStatus(tokenId);
+  if (status !== "connected") {
+    message.error("WebSocket未连接，无法执行淬炼");
+    return null;
   }
-  
+
   // 检查武器等级（如果是武器）
   if (selectedPart.value === 1) {
-    const equip = heroEquipment.value[selectedPart.value]
+    const equip = heroEquipment.value[selectedPart.value];
     if (equip?.level < 4000) {
-      message.warning(`武器等级不足，需要4000级以上（当前${equip?.level || 0}级）`)
-      return null
+      message.warning(
+        `武器等级不足，需要4000级以上（当前${equip?.level || 0}级）`,
+      );
+      return null;
     }
   }
-  
+
   try {
-    // 获取当前锁定的孔位
-    const lockedSlots = slots.value
-      .filter(slot => slot.isLocked)
-      .map(slot => Number(slot.id))
-      .filter(id => !Number.isNaN(id))
-    
-    // 发送淬炼请求（设置更长的超时时间，淬炼操作可能较慢）
-    const result = await tokenStore.sendMessageWithPromise(tokenId, 'equipment_quench', {
-      heroId: selectedHeroId.value,
-      part: selectedPart.value,
-      lockedSlot: lockedSlots
-    }, 15000)
-    
-    // 更新淬炼次数
-    quenchCount.value++
-    
-    // 更新装备信息
-    if (result?.role?.heroes) {
-      const updatedHero = result.role.heroes[String(selectedHeroId.value)]
-      if (updatedHero?.equipment) {
-        const updatedEquip = updatedHero.equipment[selectedPart.value]
-        if (updatedEquip) {
-          heroEquipment.value = {
-            ...heroEquipment.value,
-            ...updatedHero.equipment,
-            [selectedPart.value]: updatedEquip
-          }
-          // 更新淬炼次数和加成
-          quenchTimes.value = updatedEquip.quenchTimes || 0
-          const bonusType = selectedPart.value === 1 ? 'quenchAttackExt' : 
-                           selectedPart === 3 ? 'quenchDefenseExt' : 'quenchHpExt'
-          equipBonusValue.value = updatedEquip[bonusType] || 0
-          
-          // 更新孔位信息
-          if (updatedEquip.quenches) {
-            updateSlots(updatedEquip.quenches)
-          }
+    // 获取当前孔位信息
+    const currentEquip = heroEquipment.value[selectedPart.value];
+    if (!currentEquip?.quenches) {
+      message.error("未获取到装备孔位信息");
+      return null;
+    }
+
+    // 检查是否有孔位的attrNum值超过50且未被锁定
+    const highAttrSlots = Object.values(currentEquip.quenches).filter(slot => 
+      slot.attrNum > 50 && !slot.isLocked
+    );
+    const hasHighAttrSlot = highAttrSlots.length > 0;
+
+    // 如果有高属性孔位且未锁定，先发送equipment_confirm命令
+    let seedFromConfirm = 0;
+    if (hasHighAttrSlot) {
+      // 构建确认请求参数
+      const confirmParams = {
+        heroId: selectedHeroId.value,
+        part: selectedPart.value,
+        quenchId: 0,
+        quenches: currentEquip.quenches
+      };
+
+      // 发送确认请求并获取响应
+      const confirmResult = await tokenStore.sendMessageWithPromise(
+        tokenId,
+        "equipment_confirm",
+        confirmParams,
+        15000,
+      );
+
+      // 从确认响应中提取seed值 - WebSocket客户端已返回body部分
+      if (confirmResult?.role?.heroes) {
+        // 处理响应格式1: role.heroes[heroId].equipment[part].seed
+        const hero = confirmResult.role.heroes[String(selectedHeroId.value)];
+        if (hero?.equipment?.[selectedPart.value]?.seed) {
+          seedFromConfirm = hero.equipment[selectedPart.value].seed;
+          console.log('✅ 从Equipment_ConfirmResp中提取seed:', seedFromConfirm);
         }
+      } else if (confirmResult?.seed) {
+        // 处理响应格式2: seed直接在body中
+        seedFromConfirm = confirmResult.seed;
+        console.log('✅ 从Equipment_ConfirmResp的body中提取seed:', seedFromConfirm);
+      } else if (confirmResult?.equipment?.seed) {
+        // 处理响应格式3: equipment.seed
+        seedFromConfirm = confirmResult.equipment.seed;
+        console.log('✅ 从Equipment_ConfirmResp的equipment中提取seed:', seedFromConfirm);
+      } else {
+        // 所有格式都未匹配，记录完整响应以便调试
+        console.log('❌ 未能从Equipment_ConfirmResp中提取seed，响应内容:', JSON.stringify(confirmResult));
       }
     }
+
+    // 构建淬炼制请求参数
+    const quenchParams = {
+      heroId: selectedHeroId.value,
+      part: selectedPart.value,
+      quenchId: 0,
+      quenches: currentEquip.quenches,
+      seed: seedFromConfirm,
+      skipOrange: false,
+    };
+
+    // 发送淬炼请求（设置更长的超时时间，淬炼操作可能较慢）
+    const result = await tokenStore.sendMessageWithPromise(
+      tokenId,
+      "equipment_quench",
+      quenchParams,
+      15000,
+    );
+
+    // 更新淬炼次数
+    quenchCount.value++;
+
+    // 更新装备信息 - 处理不同格式的响应
+    let updatedEquip = null;
     
-    // 更新白玉和彩玉数量
-    if (result?.role?.items) {
-      const items = result.role.items
-      jadeCount.value = items['1022']?.quantity || jadeCount.value
-      colorJadeCount.value = items['1023']?.quantity || colorJadeCount.value
+    // 处理1: Equipment_QuenchResp响应直接包含装备数据
+    if (result?.equipment) {
+      updatedEquip = result.equipment;
+    }
+    // 处理2: 响应包含角色英雄数据
+    else if (result?.role?.heroes) {
+      const updatedHero = result.role.heroes[String(selectedHeroId.value)];
+      if (updatedHero?.equipment) {
+        updatedEquip = updatedHero.equipment[selectedPart.value];
+      }
+    }
+    // 处理3: 响应直接包含淬炼制结果
+    else if (result?.quenches) {
+      // 基于现有装备创建更新后的装备对象
+      updatedEquip = {
+        ...heroEquipment.value[selectedPart.value],
+        quenches: result.quenches,
+        quenchTimes: (heroEquipment.value[selectedPart.value].quenchTimes || 0) + 1
+      };
     }
     
-    return result
+    // 如果获取到了更新的装备数据，更新界面
+    if (updatedEquip) {
+      // 更新装备对象
+      heroEquipment.value[selectedPart.value] = updatedEquip;
+
+      // 更新淬炼次数和加成
+      quenchTimes.value = updatedEquip.quenchTimes || 0;
+      const bonusType =
+        selectedPart.value === 1
+          ? "quenchAttackExt"
+          : selectedPart.value === 3
+            ? "quenchDefenseExt"
+            : "quenchHpExt";
+      equipBonusValue.value = updatedEquip[bonusType] || 0;
+
+      // 更新孔位信息
+      if (updatedEquip.quenches) {
+        updateSlots(updatedEquip.quenches);
+      }
+    }
+
+    // 更新白玉和彩玉数量
+    if (result?.role?.items) {
+      const items = result.role.items;
+      jadeCount.value = items["1022"]?.quantity || jadeCount.value;
+      colorJadeCount.value = items["1023"]?.quantity || colorJadeCount.value;
+    }
+
+    return result;
   } catch (error) {
-    message.error(`淬炼失败: ${error.message}`)
-    return null
+    message.error(`淬炼失败: ${error.message}`);
+    return null;
   }
-}
+};
+
+// 从响应中获取最新的装备数据
+const getEquipFromResult = (result) => {
+  // 处理1: Equipment_QuenchResp响应直接包含装备数据
+  if (result?.equipment) {
+    return result.equipment;
+  }
+  // 处理2: 响应包含角色英雄数据
+  else if (result?.role?.heroes) {
+    const updatedHero = result.role.heroes[String(selectedHeroId.value)];
+    if (updatedHero?.equipment) {
+      return updatedHero.equipment[selectedPart.value];
+    }
+  }
+  // 处理3: 响应直接包含淬炼制结果
+  else if (result?.quenches) {
+    // 基于现有装备创建更新后的装备对象
+    return {
+      ...heroEquipment.value[selectedPart.value],
+      quenches: result.quenches,
+      quenchTimes: (heroEquipment.value[selectedPart.value].quenchTimes || 0) + 1
+    };
+  }
+  // 处理4: 使用当前界面的装备数据（兜底）
+  return heroEquipment.value[selectedPart.value];
+};
 
 // 检查高品质属性（橙色或红色）
 const checkHighQualityAttr = (result) => {
-  if (!result?.role?.heroes) return false
-  
-  const hero = result.role.heroes[String(selectedHeroId.value)]
-  if (!hero?.equipment) return false
-  
-  const equip = hero.equipment[String(selectedPart.value)]
-  if (!equip?.quenches) return false
-  
+  const equip = getEquipFromResult(result);
+  if (!equip?.quenches) return false;
+
   // 检查是否有高品质属性（colorId >= 5）
   for (const slot of Object.values(equip.quenches)) {
     if (slot.colorId && slot.colorId >= 5) {
-      return true
+      return true;
     }
   }
-  
-  return false
-}
+
+  return false;
+};
 
 // 检查目标属性
-const checkTargetAttr = (result, targets = []) => {
-  if (!result?.role?.heroes || !Array.isArray(targets) || !targets.length) return null
+const checkTargetAttr = (result) => {
+  // 获取有效的条件
+  const validConditions = targetConditions.value.filter(condition => 
+    condition.attrId && condition.attrValue
+  );
   
-  const hero = result.role.heroes[String(selectedHeroId.value)]
-  if (!hero?.equipment) return null
-  
-  const equip = hero.equipment[String(selectedPart.value)]
-  if (!equip?.quenches) return null
+  if (validConditions.length === 0) return false;
 
-  const normalizedTargets = targets
-    .map((target) => ({
-      attrId: Number(target.attrId),
-      value: Number(target.value)
-    }))
-    .filter(
-      (target) =>
-        !Number.isNaN(target.attrId) && !Number.isNaN(target.value) && target.value > 0
-    )
-  
-  if (!normalizedTargets.length) return null
-  
-  // 检查是否达到目标属性
-  for (const slot of Object.values(equip.quenches)) {
-    const normalizedAttrId = Number(slot?.attrId ?? slot?.attr_id)
-    const normalizedAttrNum = Number(slot?.attrNum ?? slot?.attr_num)
-    if (Number.isNaN(normalizedAttrId) || Number.isNaN(normalizedAttrNum)) continue
+  const equip = getEquipFromResult(result);
+  if (!equip?.quenches) return false;
 
-    const matchedTarget = normalizedTargets.find(
-      (target) =>
-        target.attrId === normalizedAttrId && normalizedAttrNum >= target.value
-    )
-    if (matchedTarget) {
-      return matchedTarget
-    }
-  }
+  const slots = Object.values(equip.quenches);
   
-  return null
-}
+  // 检查是否有任何一个条件满足（OR关系）
+  return validConditions.some(condition => {
+    return slots.some(slot => {
+      return slot.attrId === condition.attrId && slot.attrNum >= condition.attrValue;
+    });
+  });
+};
 
 // 停止淬炼
 const stopQuench = () => {
-  state.value.continuousQuenching = false
-  state.value.autoQuenching = false
-  state.value.isRunning = false
-  
+  state.value.continuousQuenching = false;
+  state.value.autoQuenching = false;
+  state.value.isRunning = false;
+
   if (continuousTimer) {
-    clearTimeout(continuousTimer)
-    continuousTimer = null
+    clearTimeout(continuousTimer);
+    continuousTimer = null;
   }
-  
+
   if (autoTimer) {
-    clearTimeout(autoTimer)
-    autoTimer = null
+    clearTimeout(autoTimer);
+    autoTimer = null;
   }
-  
-  message.success('淬炼已停止')
-}
+
+  message.success("淬炼已停止");
+};
 
 // 重置淬炼次数
 const resetCount = () => {
-  quenchCount.value = 0
-  message.success('已清零')
-}
+  quenchCount.value = 0;
+  message.success("已清零");
+};
 </script>
 
 <style scoped lang="scss">
@@ -988,7 +1081,7 @@ h4 {
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacing-sm);
-  max-height: 100px;
+  max-height: 220px;
   overflow-y: auto;
   padding: var(--spacing-sm);
   background: var(--bg-tertiary);
@@ -996,7 +1089,10 @@ h4 {
 }
 
 .hero-item {
-  padding: var(--spacing-sm) var(--spacing-md);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
   background: var(--bg-primary);
   border: 2px solid transparent;
   border-radius: var(--border-radius-medium);
@@ -1005,6 +1101,9 @@ h4 {
   transition: all 0.2s;
   color: var(--text-primary);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  min-width: 140px;
+  flex: 0 0 calc(25% - 8px);
+  box-sizing: border-box;
 }
 
 .hero-item:hover {
@@ -1016,6 +1115,52 @@ h4 {
   border-color: var(--primary-color);
   background: var(--primary-color-light);
   color: var(--primary-color);
+}
+
+.hero-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.hero-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hero-placeholder {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-secondary);
+}
+
+.hero-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.hero-name {
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hero-level {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
 }
 
 .loading,
@@ -1120,6 +1265,62 @@ h4 {
   background: var(--primary-color-light);
 }
 
+/* 孔位颜色样式 */
+.slot.color-1 {
+  background: rgba(255, 255, 255, 0.1);
+  border-left-color: #ffffff;
+}
+
+.slot.color-2 {
+  background: rgba(76, 175, 80, 0.1);
+  border-left-color: #4caf50;
+}
+
+.slot.color-3 {
+  background: rgba(33, 150, 243, 0.1);
+  border-left-color: #2196f3;
+}
+
+.slot.color-4 {
+  background: rgba(156, 39, 176, 0.1);
+  border-left-color: #9c27b0;
+}
+
+.slot.color-5 {
+  background: rgba(255, 152, 0, 0.1);
+  border-left-color: #ff9800;
+}
+
+.slot.color-6 {
+  background: rgba(244, 67, 54, 0.1);
+  border-left-color: #f44336;
+}
+
+/* 锁定状态下的颜色样式 */
+.slot.locked.color-1 {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.slot.locked.color-2 {
+  background: rgba(76, 175, 80, 0.2);
+}
+
+.slot.locked.color-3 {
+  background: rgba(33, 150, 243, 0.2);
+}
+
+.slot.locked.color-4 {
+  background: rgba(156, 39, 176, 0.2);
+}
+
+.slot.locked.color-5 {
+  background: rgba(255, 152, 0, 0.2);
+}
+
+.slot.locked.color-6 {
+  background: rgba(244, 67, 54, 0.2);
+}
+
 .slot-label {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
@@ -1139,60 +1340,6 @@ h4 {
   flex: 1;
   color: var(--text-tertiary);
   font-size: var(--font-size-sm);
-}
-
-.slot.quality-white {
-  background: var(--bg-tertiary);
-  border-left-color: var(--border-light);
-}
-
-.slot.quality-green {
-  background: #e6f7f1;
-  border-left-color: #41b883;
-}
-
-.slot.quality-blue {
-  background: #e8f3ff;
-  border-left-color: #409eff;
-}
-
-.slot.quality-purple {
-  background: #f4e9ff;
-  border-left-color: #a855f7;
-}
-
-.slot.quality-orange {
-  background: #fef3e6;
-  border-left-color: #e6a23c;
-}
-
-.slot.quality-red {
-  background: #ffecec;
-  border-left-color: #f56c6c;
-}
-
-.slot.quality-white .attr-value {
-  color: var(--text-secondary);
-}
-
-.slot.quality-green .attr-value {
-  color: #2f9d71;
-}
-
-.slot.quality-blue .attr-value {
-  color: #2f6ebb;
-}
-
-.slot.quality-purple .attr-value {
-  color: #7a35c5;
-}
-
-.slot.quality-orange .attr-value {
-  color: #c97a1e;
-}
-
-.slot.quality-red .attr-value {
-  color: #d54848;
 }
 
 .actions {
@@ -1224,13 +1371,69 @@ h4 {
 
 .auto-form {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--spacing-sm);
+  flex-wrap: wrap;
 }
 
-.auto-options {
-  width: 100%;
+/* 条件列表样式 */
+.conditions-list {
+  margin-bottom: var(--spacing-sm);
+}
+
+.condition-item {
+  padding: var(--spacing-sm);
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: var(--border-radius-medium);
+  margin-bottom: var(--spacing-sm);
+  border: 1px solid var(--border-light);
+}
+
+/* 添加条件按钮样式 */
+.add-condition {
+  margin-bottom: var(--spacing-sm);
+  display: flex;
+  justify-content: flex-start;
+}
+
+/* 延迟设置样式 */
+.delay-setting {
+  padding-top: var(--spacing-sm);
+  border-top: 1px dashed var(--border-light);
+}
+
+/* 密码验证区域样式 */
+.password-section {
+  margin-bottom: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: var(--border-radius-medium);
+  border: 1px solid var(--border-light);
+}
+
+.password-info,
+.password-validated {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.password-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.password-error {
+  color: var(--color-error);
+  font-size: var(--font-size-xs);
+  margin-left: var(--spacing-sm);
+}
+
+.password-validated {
+  justify-content: space-between;
+  align-items: center;
 }
 
 .form-item {
@@ -1242,32 +1445,5 @@ h4 {
 .form-label {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
-}
-
-.auto-targets {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-}
-
-.auto-targets.disabled {
-  opacity: 0.55;
-  pointer-events: none;
-}
-
-.auto-target-row {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  flex-wrap: wrap;
-  padding-bottom: var(--spacing-xs);
-  border-bottom: 1px dashed var(--border-light);
-}
-
-.auto-target-row:last-of-type {
-  border-bottom: none;
-  padding-bottom: 0;
 }
 </style>

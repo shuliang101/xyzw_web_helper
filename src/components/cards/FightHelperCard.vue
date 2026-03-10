@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <MyCard class="bottle-helper" :statusClass="{ active: state.isRunning }">
     <template #icon>
       <img src="/icons/1736425783912140.png" alt="竞技场" />

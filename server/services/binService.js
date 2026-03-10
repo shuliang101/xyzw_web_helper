@@ -21,14 +21,42 @@ const sanitizeFilename = (name = '') => {
   return decoded.replace(INVALID_FILENAME_CHARS, '_')
 }
 
+const resolveBinPath = (row) => {
+  if (!row) return ''
+
+  const savedPath = typeof row.file_path === 'string' ? row.file_path.trim() : ''
+  if (savedPath && fs.existsSync(savedPath)) {
+    return savedPath
+  }
+
+  const storedName = typeof row.stored_name === 'string' ? row.stored_name.trim() : ''
+  if (!storedName) {
+    return savedPath
+  }
+
+  const fallbackPath = path.join(config.uploadDir, storedName)
+  if (!fs.existsSync(fallbackPath)) {
+    return savedPath || fallbackPath
+  }
+
+  // Migrate stale absolute paths (e.g. moved deployment directory).
+  if (savedPath !== fallbackPath && row.id !== undefined) {
+    db.prepare('UPDATE bins SET file_path = ? WHERE id = ?').run(fallbackPath, row.id)
+    row.file_path = fallbackPath
+  }
+
+  return fallbackPath
+}
+
 const mapBin = (row) => {
   if (!row) return null
+  const filePath = resolveBinPath(row)
   return {
     id: row.id,
     userId: row.user_id,
     originalName: row.original_name,
     storedName: row.stored_name,
-    filePath: row.file_path,
+    filePath,
     size: row.size,
     createdAt: row.created_at
   }
@@ -75,7 +103,7 @@ export const deleteBin = (userId, binId) => {
     throw error
   }
 
-  removeFileIfExists(row.file_path)
+  removeFileIfExists(resolveBinPath(row))
   db.prepare('DELETE FROM bins WHERE id = ?').run(binId)
   return mapBin(row)
 }

@@ -7,6 +7,7 @@ import api from '@/api'
 const TOKEN_KEY = 'token'
 const USER_KEY = 'user'
 const DEFAULT_AVATAR = '/icons/logo.png'
+const INVALID_TOKEN_VALUES = new Set(['undefined', 'null', ''])
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -15,7 +16,13 @@ export const useAuthStore = defineStore('auth', () => {
 
   const localTokenStore = useLocalTokenStore()
 
-  const isAuthenticated = computed(() => !!token.value && !!user.value)
+  const isValidSessionToken = (value) => {
+    if (typeof value !== 'string') return false
+    const normalized = value.trim()
+    return !INVALID_TOKEN_VALUES.has(normalized)
+  }
+
+  const isAuthenticated = computed(() => isValidSessionToken(token.value) && !!user.value)
   const userInfo = computed(() => user.value)
   const isAdmin = computed(() => user.value?.role === 'admin')
 
@@ -27,6 +34,9 @@ export const useAuthStore = defineStore('auth', () => {
   })
 
   const persistSession = (sessionToken, profile) => {
+    if (!isValidSessionToken(sessionToken)) {
+      throw new Error('登录返回的 token 无效')
+    }
     token.value = sessionToken
     user.value = normalizeUser(profile)
     localStorage.setItem(TOKEN_KEY, sessionToken)
@@ -38,9 +48,11 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       isLoading.value = true
       const result = await api.auth.login(credentials)
-      persistSession(result.token, result.user)
+      const payload = result?.data ?? result
+
+      persistSession(payload?.token, payload?.user)
       const tokenStore = useTokenStore()
-      if (result.user?.role === 'admin') {
+      if (payload?.user?.role === 'admin') {
         tokenStore.clearAllTokens()
       } else if (!tokenStore.hasTokens) {
         await tokenStore.restoreTokensFromRemoteBins()
@@ -80,14 +92,15 @@ export const useAuthStore = defineStore('auth', () => {
 
   const fetchUserInfo = async () => {
     try {
-      if (!token.value) return false
+      if (!isValidSessionToken(token.value)) return false
 
-      const profile = await api.auth.profile()
-      user.value = normalizeUser(profile.user)
+      const profileResp = await api.auth.profile()
+      const profile = profileResp?.data ?? profileResp
+      user.value = normalizeUser(profile?.user ?? profile)
       localStorage.setItem(USER_KEY, JSON.stringify(user.value))
       return true
     } catch (error) {
-      console.error('获取用户信息失败:', error)
+      console.error("获取用户信息失败:", error)
       logout()
       return false
     }
@@ -96,8 +109,11 @@ export const useAuthStore = defineStore('auth', () => {
   const initAuth = async () => {
     const savedToken = localStorage.getItem(TOKEN_KEY)
     const savedUser = localStorage.getItem(USER_KEY)
-    if (savedToken) {
+    if (isValidSessionToken(savedToken)) {
       token.value = savedToken
+    } else {
+      token.value = null
+      localStorage.removeItem(TOKEN_KEY)
     }
     if (savedUser) {
       try {
@@ -106,10 +122,10 @@ export const useAuthStore = defineStore('auth', () => {
         localStorage.removeItem(USER_KEY)
       }
     }
-    if (token.value && !user.value) {
+    if (isValidSessionToken(token.value) && !user.value) {
       await fetchUserInfo()
     }
-    if (token.value) {
+    if (isValidSessionToken(token.value)) {
       localTokenStore.initTokenManager()
       const tokenStore = useTokenStore()
       if (user.value?.role === 'admin') {
