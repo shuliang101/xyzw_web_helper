@@ -44,6 +44,7 @@ const errorCodeMap = {
   12300080: "未达到解锁条件",
   200330: "无效的ID",
   1500040: "上座塔的奖励未领取",
+  1500010: "已经全部通关",
 };
 
 // 事件节流定义表，根据实际需要调整命令和节流时间
@@ -208,6 +209,8 @@ export function registerDefaultCommands(reg) {
     .register("legion_claimpayloadtaskprogress")
     .register("saltroad_getwartype")
     .register("saltroad_getsaltroadwargrouprank")
+    .register("league_getbattlefield")
+    .register("league_getgroupopponent")
 
     // 邮件
     .register("mail_getlist", { category: [0, 4, 5], lastId: 0, size: 60 })
@@ -299,6 +302,9 @@ export function registerDefaultCommands(reg) {
     .register("legion_getpayloadkillrecord")
     .register("legion_getpayloadbf")
     .register("legion_getpayloadrecord")
+    .register("warguess_getrank")
+    .register("warguess_startguess")
+    .register("warguess_getguesscoinreward")
 
     // 珍宝阁相关
     .register("collection_claimfreereward")
@@ -312,6 +318,7 @@ export function registerDefaultCommands(reg) {
     .register("car_getmemberhelpingcnt")
     .register("car_getmemberrank")
     .register("car_research")
+    .register("car_claimpartconsumereward")
 
     // 功法
     .register("legacy_getinfo")
@@ -1062,6 +1069,11 @@ export class XyzwWebSocketClient {
       legion_claimpayloadtaskprogressresp: "legion_claimpayloadtaskprogress",
       saltroad_getwartyperesp: "saltroad_getwartype",
       saltroad_getsaltroadwartotalrankresp: "saltroad_getsaltroadwartotalrank",
+      warguess_getrankresp: "warguess_getrank",
+      warguess_startguessresp: "warguess_startguess",
+      warguess_getguesscoinrewardresp: "warguess_getguesscoinreward",
+      league_getbattlefieldresp: "league_getbattlefield",
+      league_getgroupopponentresp: "league_getgroupopponent",
       // 咸王宝库
       matchteam_getroleteaminforesp: "matchteam_getroleteaminfo",
       bosstower_getinforesp: "bosstower_getinfo",
@@ -1082,6 +1094,8 @@ export class XyzwWebSocketClient {
       car_sendresp: "car_send",
       car_getmemberhelpingcntresp: "car_getmemberhelpingcnt",
       car_getmemberrankresp: "car_getmemberrank",
+      car_researchresp: "car_research",
+      car_claimpartconsumerewardresp: "car_claimpartconsumereward",
       role_gettargetteamresp: "role_gettargetteam",
       activity_warorderclaimresp: "activity_recyclewarorderrewardclaim",
       arena_getarearankresp: "arena_getarearank",

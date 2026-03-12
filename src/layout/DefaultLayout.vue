@@ -204,7 +204,7 @@ const userMenuOptions = [
 ]
 
 // 方法
-const handleUserAction = (key) => {
+const handleUserAction = async (key) => {
   switch (key) {
     case 'profile':
       router.push('/admin/profile')

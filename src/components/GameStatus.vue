@@ -185,6 +185,8 @@
           <n-tab-pane name="warrank" tab="盐场" />
           <n-tab-pane name="weekBattle" tab="本周盐场战绩" />
           <n-tab-pane name="monthBattle" tab="本月盐场战绩" />
+          <n-tab-pane name="legionWarMap" tab="盐场地图" />
+          <n-tab-pane name="legionWarStatistics" tab="盐场战况" />
         </n-tabs>
       </div>
 
@@ -204,6 +206,13 @@
         v-if="saltFieldSubTab === 'monthBattle'"
       >
         <ClubMonthBattleRecords />
+      </div>
+
+      <div class="warrank-full-container" v-if="saltFieldSubTab === 'legionWarMap'">
+        <LegionWarMap />
+      </div>
+      <div class="warrank-full-container" v-if="saltFieldSubTab === 'legionWarStatistics'">
+        <LegionWarStatistics />
       </div>
     </div>
 
@@ -322,6 +331,9 @@ import WeirdTowerStatus from "./Tower/WeirdTowerStatus.vue";
 import BossTower from "./Tower/BossTower.vue";
 import PeachInfo from "./Club/PeachInfo.vue";
 import ServerRankList from "./cards/ServerRankListPageCard.vue";
+import LegionWarMap from "./Club/LegionWarMap.vue";
+import LegionWarStatistics from "./Club/LegionWarStatistics.vue";
+
 const tokenStore = useTokenStore();
 const message = useMessage();
 
