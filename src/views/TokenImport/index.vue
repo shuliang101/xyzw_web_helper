@@ -36,10 +36,6 @@
             class="import-method-tabs"
             size="small"
           >
-            <n-radio-button value="manual"> 手动输入 </n-radio-button>
-            <n-radio-button value="url"> URL获取 </n-radio-button>
-            <n-radio-button value="wxQrcode"> 微信扫码获取 </n-radio-button>
-            <n-radio-button value="bin"> BIN多角色获取 </n-radio-button>
             <n-radio-button value="singlebin"> BIN单角色获取 </n-radio-button>
           </n-radio-group>
         </div>
@@ -543,9 +539,8 @@
           <i class="mdi:bed-empty"></i>
         </template>
         还没有导入任何Token
-        <a-button type="link" @click="openshowImportForm"
-          >打开Token管理</a-button
-        >
+        <a-button type="link" @click="openshowImportForm">打开Token管理</a-button>
+        <a-button type="link" @click="handleLogout">退出账号</a-button>
       </a-empty>
     </div>
 
@@ -645,6 +640,12 @@ const router = useRouter();
 const message = useMessage();
 const dialog = useDialog();
 const tokenStore = useTokenStore();
+
+const handleLogout = () => {
+  authStore.logout();
+  message.success('账号已退出');
+  router.push('/login');
+};
 const authStore = useAuthStore();
 
 // 响应式数据
@@ -655,7 +656,7 @@ const importFormRef = ref(null);
 const urlFormRef = ref(null);
 const editFormRef = ref(null);
 const editingToken = ref(null);
-const importMethod = ref("manual");
+const importMethod = ref("singlebin");
 const refreshingTokens = ref(new Set());
 const connectingTokens = ref(new Set());
 // 从localStorage读取上次的视图模式，默认为列表视图
