@@ -794,11 +794,24 @@ export const useTokenStore = defineStore("tokens", () => {
 
   const refreshTokensIfNeeded = async () => {
     for (const token of gameTokens.value) {
-      if (
-        (token.importMethod === "bin" || token.importMethod === "wxQrcode") &&
-        Date.now() - getTokenTimestamp(token) >= TOKEN_REFRESH_THRESHOLD
-      ) {
+      const isStale = Date.now() - getTokenTimestamp(token) >= TOKEN_REFRESH_THRESHOLD;
+      if (!isStale) continue;
+
+      if (token.importMethod === "bin" || token.importMethod === "wxQrcode") {
         await refreshTokenFromBin(token);
+      } else if (token.importMethod === "url" && token.sourceUrl) {
+        try {
+          const response = await fetch(token.sourceUrl);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.token) {
+              updateToken(token.id, { ...token, token: data.token, updatedAt: new Date().toISOString() });
+              wsLogger.info(`URL Token自动刷新成功: ${token.name}`);
+            }
+          }
+        } catch (error) {
+          wsLogger.error(`URL Token自动刷新失败: ${token.name}`, error);
+        }
       }
     }
   };
@@ -1563,6 +1576,17 @@ export const useTokenStore = defineStore("tokens", () => {
 
     // 设置跨标签页监听
     setupCrossTabListener();
+
+    // 页面从缓存恢复时（如手机切换app回来），重新检查token是否需要刷新
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        cleanExpiredTokens();
+        refreshTokensIfNeeded().catch((error) =>
+          wsLogger.error("页面恢复后Token刷新失败", error),
+        );
+      }
+    });
+
     tokenLogger.info("Token Store 初始化完成，连接监控已启动");
   };
   const setBattleVersion = (version: number | null) => {
