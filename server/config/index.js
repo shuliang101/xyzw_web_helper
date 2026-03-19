@@ -7,7 +7,7 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
 
 export const config = {
-  port: process.env.SERVER_PORT || 4000,
+  port: process.env.SERVER_PORT || 3333,
   jwtSecret: process.env.JWT_SECRET || "xyzw-dev-secret",
   tokenExpiresIn: process.env.TOKEN_EXPIRES_IN || null,
   uploadDir: path.join(rootDir, "data", "bin"),

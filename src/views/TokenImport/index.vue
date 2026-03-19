@@ -36,6 +36,7 @@
             class="import-method-tabs"
             size="small"
           >
+            <n-radio-button value="wxQrcode"> 微信扫码登录 </n-radio-button>
             <n-radio-button value="singlebin"> BIN单角色获取 </n-radio-button>
           </n-radio-group>
         </div>
@@ -656,7 +657,7 @@ const importFormRef = ref(null);
 const urlFormRef = ref(null);
 const editFormRef = ref(null);
 const editingToken = ref(null);
-const importMethod = ref("singlebin");
+const importMethod = ref("wxQrcode");
 const refreshingTokens = ref(new Set());
 const connectingTokens = ref(new Set());
 // 从localStorage读取上次的视图模式，默认为列表视图
