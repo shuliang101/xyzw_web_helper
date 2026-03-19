@@ -41,17 +41,17 @@
               </n-icon>
               <span>Token管理</span>
             </router-link>
-            <router-link to="/admin/daily-tasks" class="nav-item" active-class="active">
-              <n-icon>
-                <Settings />
-              </n-icon>
-              <span>任务管理</span>
-            </router-link>
             <router-link to="/admin/batch-daily-tasks" class="nav-item" active-class="active">
               <n-icon>
                 <Layers />
               </n-icon>
               <span>批量日常</span>
+            </router-link>
+            <router-link to="/admin/server-tasks" class="nav-item" active-class="active">
+              <n-icon>
+                <Timer />
+              </n-icon>
+              <span>定时任务</span>
             </router-link>
             <router-link to="/admin/message-test" class="nav-item" active-class="active">
               <n-icon>
@@ -118,17 +118,17 @@
             </n-icon>
             <span>Token管理</span>
           </router-link>
-          <router-link to="/admin/daily-tasks" class="drawer-item" @click="isMobileMenuOpen = false">
-            <n-icon>
-              <Settings />
-            </n-icon>
-            <span>任务管理</span>
-          </router-link>
           <router-link to="/admin/batch-daily-tasks" class="drawer-item" @click="isMobileMenuOpen = false">
             <n-icon>
               <Layers />
             </n-icon>
             <span>批量日常</span>
+          </router-link>
+          <router-link to="/admin/server-tasks" class="drawer-item" @click="isMobileMenuOpen = false">
+            <n-icon>
+              <Timer />
+            </n-icon>
+            <span>定时任务</span>
           </router-link>
           <router-link to="/admin/message-test" class="drawer-item" @click="isMobileMenuOpen = false">
             <n-icon>
@@ -171,6 +171,7 @@ import {
   LockOpen,
   Menu,
   Layers,
+  Timer,
   People
 } from '@vicons/ionicons5'
 

@@ -18,7 +18,9 @@
       "Bash(where python)",
       "Bash(where python3)",
       "Bash(where node)",
-      "Bash(npx prettier --check src/components/GameStatus.vue)"
+      "Bash(npx prettier --check src/components/GameStatus.vue)",
+      "Bash(xargs wc:*)",
+      "Bash(npm install:*)"
     ]
   }
 }

@@ -2932,13 +2932,19 @@ const taskForm = reactive({
 // 任务分组定义
 const taskGroupDefinitions = [
   { name: 'daily', label: '日常', tasks: ['startBatch', 'claimHangUpRewards', 'batchAddHangUpTime', 'resetBottles', 'batchlingguanzi', 'batchclubsign', 'batchStudy', 'batcharenafight', 'batchSmartSendCar', 'batchClaimCars', 'store_purchase', 'collection_claimfreereward', 'batchGenieSweep'] },
-  { name: 'dungeon', label: '副本', tasks: ['climbTower', 'batchmengjing', 'skinChallenge', 'batchClaimPeachTasks', 'batchBuyDreamItems'] },
+  { name: 'dungeon', label: '副本', tasks: ['climbTower', 'skinChallenge', 'batchClaimPeachTasks'] },
   { name: 'baoku', label: '宝库', tasks: ['batchbaoku13', 'batchbaoku45'] },
   { name: 'weirdTower', label: '怪异塔', tasks: ['climbWeirdTower', 'batchUseItems', 'batchMergeItems', 'batchClaimFreeEnergy'] },
   { name: 'resource', label: '资源', tasks: ['batchOpenBox', 'batchOpenBoxByPoints', 'batchClaimBoxPointReward', 'batchFish', 'batchRecruit', 'legion_storebuygoods'] },
   { name: 'legacy', label: '功法', tasks: ['batchLegacyClaim', 'batchLegacyGiftSendEnhanced'] },
   { name: 'monthly', label: '月度', tasks: ['batchTopUpFish', 'batchTopUpArena'] }
 ];
+
+const availableTaskValues = new Set(availableTasks.map((task) => task.value));
+const sanitizeScheduledSelectedTasks = (selectedTasks = []) =>
+  Array.isArray(selectedTasks)
+    ? selectedTasks.filter((task) => availableTaskValues.has(task))
+    : [];
 
 // 计算属性，根据 taskGroupDefinitions 将 availableTasks 分组
 const groupedAvailableTasks = computed(() => {
@@ -3001,7 +3007,12 @@ const loadScheduledTasks = () => {
       const parsed = JSON.parse(saved);
 
       // Ensure we have an array
-      scheduledTasks.value = Array.isArray(parsed) ? parsed : [];
+      scheduledTasks.value = Array.isArray(parsed)
+        ? parsed.map((task) => ({
+            ...task,
+            selectedTasks: sanitizeScheduledSelectedTasks(task.selectedTasks),
+          }))
+        : [];
     } else {
       scheduledTasks.value = [];
     }
@@ -3060,6 +3071,7 @@ const editTask = (task) => {
     );
   }
   Object.assign(taskForm, taskData);
+  taskForm.selectedTasks = sanitizeScheduledSelectedTasks(taskData.selectedTasks);
   taskScheduleSelectedGroupIds.value = [];
   showTaskModal.value = true;
 };
@@ -3150,7 +3162,7 @@ const saveTask = () => {
     runTime: formattedRunTime,
     cronExpression: taskForm.runType === "cron" ? taskForm.cronExpression : "",
     selectedTokens: [...taskForm.selectedTokens],
-    selectedTasks: [...taskForm.selectedTasks],
+    selectedTasks: sanitizeScheduledSelectedTasks(taskForm.selectedTasks),
     enabled: taskForm.enabled,
   };
 
@@ -3770,7 +3782,7 @@ const verifyTaskDependencies = async (task) => {
   }
 
   // Verify task functions exist
-  for (const taskName of task.selectedTasks) {
+  for (const taskName of sanitizeScheduledSelectedTasks(task.selectedTasks)) {
     const taskFunction = eval(taskName);
     if (typeof taskFunction !== "function") {
       addLog({
@@ -3862,7 +3874,7 @@ const executeScheduledTask = async (task) => {
     selectedTokens.value = [...availableTokens];
 
     // Execute selected tasks in parallel
-    const taskPromises = task.selectedTasks.map(async (taskName) => {
+    const taskPromises = sanitizeScheduledSelectedTasks(task.selectedTasks).map(async (taskName) => {
       if (shouldStop.value) return;
 
       if (
@@ -3872,18 +3884,6 @@ const executeScheduledTask = async (task) => {
         addLog({
           time: new Date().toLocaleTimeString(),
           message: `跳过任务: ${availableTasks.find((t) => t.value === taskName)?.label || taskName} (不在宝库开放时间)`,
-          type: "warning",
-        });
-        return;
-      }
-
-      if (
-        ["batchmengjing", "batchBuyDreamItems"].includes(taskName) &&
-        !ismengjingActivityOpen.value
-      ) {
-        addLog({
-          time: new Date().toLocaleTimeString(),
-          message: `跳过任务: ${availableTasks.find((t) => t.value === taskName)?.label || taskName} (不在梦境开放时间)`,
           type: "warning",
         });
         return;

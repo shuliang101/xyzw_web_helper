@@ -598,28 +598,8 @@ export class DailyTaskRunner {
       });
     }
 
-    // 咸王梦境
-    const mengyandayOfWeek = new Date().getDay();
-    if (
-      (mengyandayOfWeek === 0) |
-      (mengyandayOfWeek === 1) |
-      (mengyandayOfWeek === 3) |
-      (mengyandayOfWeek === 4)
-    ) {
-      const mjbattleTeam = { 0: 107 };
-      taskList.push({
-        name: "咸王梦境",
-        execute: () =>
-          this.executeGameCommand(
-            tokenId,
-            "dungeon_selecthero",
-            { battleTeam: mjbattleTeam },
-            "咸王梦境",
-          ),
-      });
-    }
-
     // 深海灯神
+    const mengyandayOfWeek = new Date().getDay();
     if (
       mengyandayOfWeek === 1 &&
       isTodayAvailable(statisticsTime[`genie:daily:free:5`])

@@ -192,6 +192,17 @@ const api = {
       request.put(`/admin/users/${userId}/password`, payload),
     getPublicKey: () => request.get("/admin/public-key"),
   },
+
+  // 后端定时任务
+  scheduledTasks: {
+    list: () => request.get("/scheduled-tasks"),
+    create: (data) => request.post("/scheduled-tasks", data),
+    update: (id, data) => request.put(`/scheduled-tasks/${id}`, data),
+    delete: (id) => request.delete(`/scheduled-tasks/${id}`),
+    toggle: (id) => request.patch(`/scheduled-tasks/${id}/toggle`),
+    getLogs: (id, limit = 50) => request.get(`/scheduled-tasks/${id}/logs`, { params: { limit } }),
+    runNow: (id) => request.post(`/scheduled-tasks/${id}/run`),
+  },
 };
 
 export default api;

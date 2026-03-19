@@ -114,6 +114,15 @@ const my_routes = [
         }
       },
       {
+        path: 'server-tasks',
+        name: 'ServerScheduledTasks',
+        component: () => import('@/views/ServerScheduledTasks.vue'),
+        meta: {
+          title: '后端定时任务',
+          requiresAuth: true
+        }
+      },
+      {
         path: 'users',
         name: 'AdminUsers',
         component: () => import('@/views/AdminUsers.vue'),

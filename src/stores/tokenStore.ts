@@ -260,7 +260,7 @@ export const useTokenStore = defineStore("tokens", () => {
     gameTokens.value[index] = {
       ...token,
       ...updates,
-      // 绾喕绻氳箛鍛存付鐎涙顔屾稉宥堫潶鐟曞棛娲婃稉?undefined
+      // 确保关键字段不被 updates 中的 undefined 值覆盖
       id: token.id,
       name: updates.name ?? token.name,
       token: updates.token ?? token.token,
