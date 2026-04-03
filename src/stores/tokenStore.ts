@@ -8,11 +8,16 @@ import { XyzwWebSocketClient } from "@/utils/xyzwWebSocket";
 
 import useIndexedDB from "@/hooks/useIndexedDB";
 import { generateRandomSeed } from "@/utils/randomSeed";
-import { transformToken } from "@/utils/token";
-import { emitPlus } from "./events/index.js";
+import {
+  transformToken,
+  setAuthUserRateLimiterCallback,
+  scheduleAuthUserRequest,
+} from "@/utils/token";
+import { emitPlus, $emit } from "./events/index.js";
 import router from "@/router";
 
-const { getArrayBuffer, storeArrayBuffer, deleteArrayBuffer, clearAll } = useIndexedDB();
+const { getArrayBuffer, storeArrayBuffer, deleteArrayBuffer, clearAll } =
+  useIndexedDB();
 
 const TOKEN_REFRESH_THRESHOLD = 12 * 60 * 60 * 1000; // 12小时
 
@@ -354,7 +359,10 @@ export const useTokenStore = defineStore("tokens", () => {
   const tokenRefreshAttempts = ref<Record<string, number>>({});
 
   // 尝试自动刷新Token
-  const attemptTokenRefresh = async (tokenId: string, forceReconnect = false) => {
+  const attemptTokenRefresh = async (
+    tokenId: string,
+    forceReconnect = false,
+  ) => {
     // 检查冷却时间 (10秒)
     const lastAttempt = tokenRefreshAttempts.value[tokenId] || 0;
     const now = Date.now();
@@ -373,14 +381,20 @@ export const useTokenStore = defineStore("tokens", () => {
     try {
       if (gameToken.importMethod === "url" && gameToken.sourceUrl) {
         // URL形式token刷新
-        const response = await fetch(gameToken.sourceUrl);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.token) {
-            updateToken(tokenId, { ...gameToken, token: data.token });
-            wsLogger.info(`从URL获取token成功: ${gameToken.name}`);
-            refreshSuccess = true;
+        const token = await scheduleAuthUserRequest(async () => {
+          const response = await fetch(gameToken.sourceUrl!);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.token) {
+              return data.token;
+            }
           }
+          return null;
+        });
+        if (token) {
+          updateToken(tokenId, { ...gameToken, token });
+          wsLogger.info(`从URL获取token成功: ${gameToken.name}`);
+          refreshSuccess = true;
         }
       } else if (
         gameToken.importMethod === "bin" ||
@@ -389,7 +403,7 @@ export const useTokenStore = defineStore("tokens", () => {
         // Bin形式token刷新
         let userToken: ArrayBuffer | null = await getArrayBuffer(tokenId);
         let usedOldKey = false;
-        
+
         if (!userToken) {
           const tokenByName = await getArrayBuffer(gameToken.name);
           if (tokenByName) {
@@ -418,18 +432,18 @@ export const useTokenStore = defineStore("tokens", () => {
 
     if (refreshSuccess) {
       wsLogger.info(`Token刷新成功 [${tokenId}]`);
-      
+
       const currentPath = router.currentRoute.value.path;
-      const shouldReconnect = 
-        forceReconnect || 
-        currentPath === '/tokens' || 
-        currentPath === '/admin/game-features';
-      
+      const shouldReconnect =
+        forceReconnect ||
+        currentPath === "/tokens" ||
+        currentPath === "/admin/game-features";
+
       if (shouldReconnect) {
         wsLogger.info(`触发自动重连 [${tokenId}]`);
         // 重置重连状态以允许立即重连
         if (wsConnections.value[tokenId]) {
-           wsConnections.value[tokenId].reconnectAttempts = 0;
+          wsConnections.value[tokenId].reconnectAttempts = 0;
         }
         selectToken(tokenId, true);
       }
@@ -465,54 +479,13 @@ export const useTokenStore = defineStore("tokens", () => {
           }
 
           const gameToken = gameTokens.value.find((t) => t.id === tokenId);
-          if (gameToken) {
-            if (gameToken.importMethod === "url" && gameToken.sourceUrl) {
-              // URL形式token刷新
-              try {
-                const response = await fetch(gameToken.sourceUrl);
-                if (response.ok) {
-                  const data = await response.json();
-                  if (data.token) {
-                    // 直接使用返回的token，无需transformToken
-                    updateToken(tokenId, { ...gameToken, token: data.token });
-                    console.log("从URL获取token成功:", gameToken.name);
-                    refreshSuccess = true;
-                  }
-                }
-              } catch (error) {
-                console.error("从URL获取token失败:", error);
-              }
-            } else if (
-              gameToken.importMethod === "bin" ||
-              gameToken.importMethod === "wxQrcode"
-            ) {
-              // Bin形式token刷新（兼容新旧两种key格式）
-              // 优先使用新的tokenId作为key，如果失败则尝试旧的name作为key
-              let userToken: ArrayBuffer | null = await getArrayBuffer(tokenId);
-              let usedOldKey = false;
-              if (!userToken) {
-                userToken = await getArrayBuffer(gameToken.name);
-                usedOldKey = true;
-              }
-              console.log("读取到的ArrayBuffer:", tokenId, userToken);
-              if (userToken) {
-                const token = await transformToken(userToken);
-                updateToken(tokenId, { ...gameToken, token });
-                // 如果使用旧的name key读取成功，则用新的tokenId key重新保存并删除旧数据
-                if (usedOldKey) {
-                  await storeArrayBuffer(tokenId, userToken);
-                  await deleteArrayBuffer(gameToken.name);
-                  console.log(
-                    "已迁移IndexedDB数据:",
-                    gameToken.name,
-                    "->",
-                    tokenId,
-                  );
-                }
-                console.log(gameToken);
-                refreshSuccess = true;
-              }
-            }
+          const refreshSuccess = gameToken
+            ? await attemptTokenRefresh(tokenId)
+            : false;
+          if (!refreshSuccess) {
+            wsLogger.error(
+              `Token 已过期且无法自动刷新，请重新导入 [${tokenId}]`,
+            );
           }
           if (refreshSuccess) {
             wsLogger.info(`Token刷新成功，自动重新连接 [${tokenId}]`);
@@ -1335,7 +1308,7 @@ export const useTokenStore = defineStore("tokens", () => {
   const cleanExpiredTokens = async () => {
     const now = new Date();
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    
+
     // 找出需要清理的token
     const tokensToRemove = gameTokens.value.filter((token) => {
       // URL和bin文件导入的token设为长期有效，不会过期
@@ -1354,12 +1327,12 @@ export const useTokenStore = defineStore("tokens", () => {
     });
 
     const cleanedCount = tokensToRemove.length;
-    
+
     // 逐个删除，触发清理逻辑（WebSocket断开、IndexedDB删除等）
     for (const token of tokensToRemove) {
       await removeToken(token.id);
     }
-    
+
     return cleanedCount;
   };
 
@@ -1576,6 +1549,17 @@ export const useTokenStore = defineStore("tokens", () => {
 
     // 设置跨标签页监听
     setupCrossTabListener();
+
+    // 设置限流等待回调
+    setAuthUserRateLimiterCallback((waitTimeMs: number, queueSize: number) => {
+      const waitSeconds = Math.ceil(waitTimeMs / 1000);
+      $emit.emit("token:refresh:waiting", {
+        waitTimeMs,
+        waitSeconds,
+        queueSize,
+        timestamp: Date.now(),
+      });
+    });
 
     // 页面从缓存恢复时（如手机切换app回来），重新检查token是否需要刷新
     document.addEventListener("visibilitychange", () => {
