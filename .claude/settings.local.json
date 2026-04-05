@@ -20,7 +20,8 @@
       "Bash(where node)",
       "Bash(npx prettier --check src/components/GameStatus.vue)",
       "Bash(xargs wc:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

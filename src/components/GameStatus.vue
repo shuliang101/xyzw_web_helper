@@ -49,6 +49,9 @@
     <!-- 挂机状态（提取组件） -->
     <HangUpStatusCard v-show="activeSection === 'daily'" />
 
+    <!-- 无限阵容助手（提取组件） -->
+    <Unlimitedlineup v-show="activeSection === 'tools'" />
+
     <!-- 宝箱助手（提取组件） -->
     <BoxHelperCard v-show="activeSection === 'tools'" />
 
@@ -208,10 +211,16 @@
         <ClubMonthBattleRecords />
       </div>
 
-      <div class="warrank-full-container" v-if="saltFieldSubTab === 'legionWarMap'">
+      <div
+        class="warrank-full-container"
+        v-if="saltFieldSubTab === 'legionWarMap'"
+      >
         <LegionWarMap />
       </div>
-      <div class="warrank-full-container" v-if="saltFieldSubTab === 'legionWarStatistics'">
+      <div
+        class="warrank-full-container"
+        v-if="saltFieldSubTab === 'legionWarStatistics'"
+      >
         <LegionWarStatistics />
       </div>
     </div>
@@ -333,6 +342,7 @@ import PeachInfo from "./Club/PeachInfo.vue";
 import ServerRankList from "./cards/ServerRankListPageCard.vue";
 import LegionWarMap from "./Club/LegionWarMap.vue";
 import LegionWarStatistics from "./Club/LegionWarStatistics.vue";
+import Unlimitedlineup from "./cards/Unlimitedlineup.vue";
 
 const tokenStore = useTokenStore();
 const message = useMessage();

@@ -13,6 +13,15 @@
         </div>
       </div>
 
+      <!-- 限流等待提示 -->
+      <n-alert
+        v-if="rateLimitWaiting"
+        type="warning"
+        style="margin-bottom: 16px"
+      >
+        {{ rateLimitMessage }}
+      </n-alert>
+
       <!-- Token导入区域 -->
       <a-modal
         class="token-import-modal"
@@ -36,6 +45,7 @@
             class="import-method-tabs"
             size="small"
           >
+            <n-radio-button value="wxQrcode"> 微信扫码登录 </n-radio-button>
             <n-radio-button value="singlebin"> BIN单角色获取 </n-radio-button>
           </n-radio-group>
         </div>
@@ -619,13 +629,15 @@ import {
   SyncCircle,
   TrashBin,
 } from "@vicons/ionicons5";
-import { NIcon, useDialog, useMessage } from "naive-ui";
-import { h, onMounted, reactive, ref, watch } from "vue";
+import { NIcon, NAlert, useDialog, useMessage } from "naive-ui";
+import { h, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
-import { transformToken } from "@/utils/token";
+import { transformToken, scheduleAuthUserRequest } from "@/utils/token";
+import { $emit } from "@/stores/events/index.ts";
 import useIndexedDB from "@/hooks/useIndexedDB";
-const { getArrayBuffer, storeArrayBuffer, deleteArrayBuffer, clearAll } = useIndexedDB();
+const { getArrayBuffer, storeArrayBuffer, deleteArrayBuffer, clearAll } =
+  useIndexedDB();
 // 接收路由参数
 const props = defineProps({
   token: String,
@@ -640,13 +652,16 @@ const router = useRouter();
 const message = useMessage();
 const dialog = useDialog();
 const tokenStore = useTokenStore();
-
+const authStore = useAuthStore();
 const handleLogout = () => {
   authStore.logout();
-  message.success('账号已退出');
-  router.push('/login');
+  message.success("账号已退出");
+  router.push("/login");
 };
-const authStore = useAuthStore();
+
+// 限流等待状态
+const rateLimitWaiting = ref(false);
+const rateLimitMessage = ref("");
 
 // 响应式数据
 const showImportForm = ref(false);
@@ -656,7 +671,7 @@ const importFormRef = ref(null);
 const urlFormRef = ref(null);
 const editFormRef = ref(null);
 const editingToken = ref(null);
-const importMethod = ref("singlebin");
+const importMethod = ref("wxQrcode");
 const refreshingTokens = ref(new Set());
 const connectingTokens = ref(new Set());
 // 从localStorage读取上次的视图模式，默认为列表视图
@@ -947,42 +962,48 @@ const refreshToken = async (token) => {
 
   try {
     if (token.importMethod === "url") {
-      // 有源URL的token - 从URL重新获取
-      let response;
+      // 有源URL的token - 从URL重新获取（使用限流）
+      const data = await scheduleAuthUserRequest(async () => {
+        let response;
 
-      const isLocalUrl =
-        token.sourceUrl.startsWith(window.location.origin) ||
-        token.sourceUrl.startsWith("/") ||
-        token.sourceUrl.startsWith("http://localhost") ||
-        token.sourceUrl.startsWith("http://127.0.0.1");
+        const isLocalUrl =
+          token.sourceUrl.startsWith(window.location.origin) ||
+          token.sourceUrl.startsWith("/") ||
+          token.sourceUrl.startsWith("http://localhost") ||
+          token.sourceUrl.startsWith("http://127.0.0.1");
 
-      if (isLocalUrl) {
-        response = await fetch(token.sourceUrl);
-      } else {
-        try {
-          response = await fetch(token.sourceUrl, {
-            method: "GET",
-            headers: {
-              Accept: "application/json",
-            },
-            mode: "cors",
-          });
-        } catch (corsError) {
+        if (isLocalUrl) {
+          response = await fetch(token.sourceUrl);
+        } else {
+          try {
+            response = await fetch(token.sourceUrl, {
+              method: "GET",
+              headers: {
+                Accept: "application/json",
+              },
+              mode: "cors",
+            });
+          } catch (corsError) {
+            throw new Error(
+              `跨域请求被阻止。请确保目标服务器支持CORS。错误详情: ${corsError.message}`,
+            );
+          }
+        }
+
+        if (!response.ok) {
           throw new Error(
-            `跨域请求被阻止。请确保目标服务器支持CORS。错误详情: ${corsError.message}`,
+            `请求失败: ${response.status} ${response.statusText}`,
           );
         }
-      }
 
-      if (!response.ok) {
-        throw new Error(`请求失败: ${response.status} ${response.statusText}`);
-      }
+        const result = await response.json();
 
-      const data = await response.json();
+        if (!result.token) {
+          throw new Error("返回数据中未找到token字段");
+        }
 
-      if (!data.token) {
-        throw new Error("返回数据中未找到token字段");
-      }
+        return result;
+      });
 
       // 更新token信息
       tokenStore.updateToken(token.id, {
@@ -1093,6 +1114,8 @@ const refreshToken = async (token) => {
     message.error(error.message || "Token刷新失败");
   } finally {
     refreshingTokens.value.delete(token.id);
+    // 关闭限流等待提示
+    rateLimitWaiting.value = false;
   }
 };
 
@@ -1411,22 +1434,20 @@ const refreshAllTokens = async () => {
             // 更新进度显示
             loadingMessage.content = `正在刷新Token (${i + 1}/${tokensToRefresh.length}): ${token.name}`;
 
-            // 调用单个刷新函数
+            // 调用单个刷新函数（限流器会自动处理等待）
             await refreshToken(token);
             successCount++;
           } catch (error) {
             console.error(`刷新Token "${token.name}" 失败:`, error);
             failCount++;
           }
-
-          // 添加短暂延迟避免请求过于频繁
-          if (i < tokensToRefresh.length - 1) {
-            await new Promise((resolve) => setTimeout(resolve, 500));
-          }
         }
 
         // 关闭进度提示
         loadingMessage.destroy();
+
+        // 关闭限流等待提示
+        rateLimitWaiting.value = false;
 
         // 显示结果
         if (failCount === 0) {
@@ -1736,9 +1757,18 @@ const handleUrlParams = async () => {
 // 监听路由参数变化
 watch(() => [props.token, props.api], handleUrlParams, { immediate: false });
 
+// 限流等待事件处理
+const handleRateLimitWaiting = (data) => {
+  rateLimitWaiting.value = true;
+  rateLimitMessage.value = `Token刷新限流等待中，预计等待 ${data.waitSeconds} 秒（队列: ${data.queueSize}）`;
+};
+
 // 生命周期
 onMounted(async () => {
   tokenStore.initTokenStore();
+
+  // 监听限流等待事件
+  $emit.on("token:refresh:waiting", handleRateLimitWaiting);
 
   // 处理URL参数
   await handleUrlParams();
@@ -1747,6 +1777,11 @@ onMounted(async () => {
   if (!tokenStore.hasTokens && !props.token && !props.api) {
     showImportForm.value = true;
   }
+});
+
+onUnmounted(() => {
+  // 移除限流等待事件监听
+  $emit.off("token:refresh:waiting", handleRateLimitWaiting);
 });
 </script>
 

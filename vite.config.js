@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import path from "path";
-  import fs from "fs";
+import fs from "fs";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -21,6 +21,7 @@ async function safeImport(moduleName, humanName) {
 }
 
 export default defineConfig(async () => {
+  const localApiTarget = `http://localhost:${process.env.SERVER_PORT || "4000"}`;
   let basicSsl;
   try {
     ({ default: basicSsl } = await import("@vitejs/plugin-basic-ssl"));
@@ -145,11 +146,11 @@ export default defineConfig(async () => {
       proxy: {
         // server分支：本地后端API
         "/api": {
-          target: "http://localhost:4000",
+          target: localApiTarget,
           changeOrigin: true,
         },
         "/files/bin": {
-          target: "http://localhost:4000",
+          target: localApiTarget,
           changeOrigin: true,
         },
 

@@ -108,7 +108,10 @@ import { getTokenId, transformToken, getServerList } from "@/utils/token";
 import useIndexedDB from "@/hooks/useIndexedDB";
 import { g_utils } from "@/utils/bonProtocol";
 import { useTokenStore } from "@/stores/tokenStore";
+import { useAuthStore } from "@/stores/auth";
+import api from "@/api/index";
 const tokenStore = useTokenStore();
+const authStore = useAuthStore();
 const { storeArrayBuffer } = useIndexedDB();
 
 const message = useMessage();
@@ -143,6 +146,7 @@ const serverListData = ref<any[]>([]);
 const currentBinData = ref<ArrayBuffer | null>(null);
 const binDecodedResult = ref("");
 const originalBinData = ref<any>(null);
+const selectedRoleBinPayloads = ref<Record<string, { buffer: ArrayBuffer; fileName: string }>>({});
 const roleList = ref<
   Array<{
     id: string;
@@ -224,6 +228,13 @@ const addSelectedRole = async (roleInfo: any) => {
       .replace(/{id}/g, () => String(roleInfo.roleId))
       .replace(/{server}/g, () => String(serverNum) + "服");
 
+    // 同步保存到后端 - 移至 handleImport 统一上传
+    // 缓存bin，等handleImport时统一上传后端
+    selectedRoleBinPayloads.value[tokenId] = {
+      buffer: newBinBuffer,
+      fileName: `bin-${serverNum}服-${roleIndex}-${roleInfo.roleId}-${finalName}.bin`,
+    };
+
     // 检查是否已存在相同配置 (根据角色名称和roleId)
     const exists = roleList.value.some(
       (r) => r.roleId === roleInfo.roleId && r.name === finalName
@@ -242,7 +253,7 @@ const addSelectedRole = async (roleInfo: any) => {
       server: String(serverNum) + "服",
       roleIndex: roleIndex,
       wsUrl: importForm.wsUrl || "",
-      importMethod: "wxQrcode",
+      importMethod: "wxQrcode" as const,
     });
 
     message.success(`已添加角色: ${finalName}`);
@@ -371,7 +382,7 @@ const checkScanStatus = async () => {
 
     // 使用微信官方推荐的扫码状态轮询路径
     const url =
-      "/api/weixin/connect/l/qrconnect?uuid=" +
+      "/api/weixin-long/connect/l/qrconnect?uuid=" +
       qrcodeUUID.value +
       "&f=url&_=" +
       Date.now();
@@ -703,23 +714,40 @@ const handleImport = async () => {
     return;
   }
   roleList.value.forEach((role) => {
-    // tokenStore.gameTokens中发现已存在的重复名称，则移出token后重新添加
     const gameToken = tokenStore.gameTokens.find((t) => t.id === role.id);
     if (gameToken) {
-      console.log("移除同名token:", gameToken);
-      // tokenStore.removeToken(gameToken.id);
-      tokenStore.updateToken(gameToken.id, {
-        ...role,
-      });
+      tokenStore.updateToken(gameToken.id, { ...role, importMethod: "wxQrcode" as const });
     } else {
-      tokenStore.addToken({
-        ...role,
-      });
+      tokenStore.addToken({ ...role, importMethod: "wxQrcode" as const });
     }
   });
+  if (authStore.isAuthenticated) {
+    let uploadFailedCount = 0;
+    for (const role of roleList.value) {
+      const payload = selectedRoleBinPayloads.value[role.id];
+      if (!payload?.buffer) continue;
+      try {
+        const file = new File(
+          [new Uint8Array(payload.buffer)],
+          payload.fileName || `${role.name || role.id}.bin`,
+          { type: "application/octet-stream" },
+        );
+        const form = new FormData();
+        form.append("bin", file);
+        await api.bins.upload(form);
+      } catch (err) {
+        uploadFailedCount += 1;
+        console.warn("bin上传后端失败:", role.name, err);
+      }
+    }
+    if (uploadFailedCount > 0) {
+      message.warning(`${uploadFailedCount} 个角色bin上传后端失败`);
+    }
+  }
   console.log("当前Token列表:", tokenStore.gameTokens);
   message.success("Token添加成功");
   roleList.value = [];
+  selectedRoleBinPayloads.value = {};
   emit("ok");
 };
 
