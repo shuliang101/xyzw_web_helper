@@ -10,7 +10,12 @@ export const config = {
   port: process.env.SERVER_PORT || 4000,
   jwtSecret: process.env.JWT_SECRET || "xyzw-dev-secret",
   tokenExpiresIn: process.env.TOKEN_EXPIRES_IN || null,
+  dataDir: path.join(rootDir, "data"),
   uploadDir: path.join(rootDir, "data", "bin"),
+  clubCarDataDir: path.join(rootDir, "data", "club-car"),
+  clubCarUploadDir: path.join(rootDir, "data", "club-car", "uploads"),
+  clubCarMasterBinDir: path.join(rootDir, "data", "club-car", "master-bin"),
+  clubCarMemberBinDir: path.join(rootDir, "data", "club-car", "member-bin"),
   databaseFile: path.join(rootDir, "data", "app.db"),
   admin: {
     username: process.env.ADMIN_USERNAME || "admin",

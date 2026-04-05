@@ -9,6 +9,7 @@ import { errorHandler } from './middleware/errorHandler.js'
 import { config } from './config/index.js'
 import { ensureDir } from './utils/fileSystem.js'
 import { scheduler } from './services/taskScheduler.js'
+import { clubCarScheduler } from './services/clubCarScheduler.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -45,6 +46,7 @@ const start = () => {
   app.listen(config.port, () => {
     console.log(`Server running on http://localhost:${config.port}`)
     scheduler.start()
+    clubCarScheduler.start()
   })
 }
 

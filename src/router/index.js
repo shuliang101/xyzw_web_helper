@@ -3,32 +3,31 @@ import { watch } from 'vue'
 import * as autoRoutes from 'vue-router/auto-routes'
 import { useTokenStore } from '@/stores/tokenStore'
 import { useAuthStore } from '@/stores/auth'
-import { isNowInLegionWarTime } from "@/utils/clubBattleUtils"
 
 const generatedRoutes = autoRoutes.routes ?? []
 
-const my_routes = [
+const myRoutes = [
   {
     path: '/',
-    redirect: '/login'
+    redirect: '/login',
   },
   {
     path: '/home',
     name: 'Home',
     component: () => import('@/views/Home.vue'),
     meta: {
-      title: '首页',
-      requiresToken: false
-    }
+      title: 'Home',
+      requiresToken: false,
+    },
   },
   {
     path: '/tokens',
     name: 'TokenImport',
     component: () => import('@/views/TokenImport/index.vue'),
     meta: {
-      title: 'Token管理',
+      title: 'Token Manager',
       requiresToken: false,
-      requiresAuth: true
+      requiresAuth: true,
     },
     props: route => ({
       token: route.query.token,
@@ -36,8 +35,8 @@ const my_routes = [
       server: route.query.server,
       wsUrl: route.query.wsUrl,
       api: route.query.api,
-      auto: route.query.auto === 'true'
-    })
+      auto: route.query.auto === 'true',
+    }),
   },
   {
     name: 'DefaultLayout',
@@ -49,123 +48,142 @@ const my_routes = [
         name: 'Dashboard',
         component: () => import('@/views/Dashboard.vue'),
         meta: {
-          title: '控制台',
+          title: 'Dashboard',
           requiresToken: true,
-          requiresAuth: true
-        }
+          requiresAuth: true,
+        },
       },
       {
         path: 'game-features',
         name: 'GameFeatures',
         component: () => import('@/views/GameFeatures.vue'),
         meta: {
-          title: '游戏功能',
+          title: 'Game Features',
           requiresToken: true,
-          requiresAuth: true
-        }
+          requiresAuth: true,
+        },
       },
       {
         path: 'message-test',
         name: 'MessageTest',
         component: () => import('@/components/Test/MessageTester.vue'),
         meta: {
-          title: '消息测试',
+          title: 'Message Test',
           requiresToken: true,
-          requiresAuth: true
-        }
+          requiresAuth: true,
+        },
       },
       {
         path: 'legion-war',
         name: 'LegionWar',
         component: () => import('@/views/LegionWar.vue'),
         meta: {
-          title: '实时盐场',
-          requiresToken: true
-        }
+          title: 'Legion War',
+          requiresToken: true,
+        },
       },
       {
         path: 'profile',
         name: 'Profile',
         component: () => import('@/views/Profile.vue'),
         meta: {
-          title: '个人设置',
+          title: 'Profile',
           requiresToken: true,
-          requiresAuth: true
-        }
+          requiresAuth: true,
+        },
       },
       {
         path: 'daily-tasks',
         name: 'DailyTasks',
         component: () => import('@/views/DailyTasks.vue'),
         meta: {
-          title: '日常任务',
+          title: 'Daily Tasks',
           requiresToken: true,
-          requiresAuth: true
-        }
+          requiresAuth: true,
+        },
       },
       {
         path: 'batch-daily-tasks',
         name: 'BatchDailyTasks',
         component: () => import('@/views/BatchDailyTasks.vue'),
         meta: {
-          title: '批量日常',
+          title: 'Batch Daily Tasks',
           requiresToken: true,
-          requiresAuth: true
-        }
+          requiresAuth: true,
+        },
       },
       {
         path: 'server-tasks',
         name: 'ServerScheduledTasks',
         component: () => import('@/views/ServerScheduledTasks.vue'),
         meta: {
-          title: '后端定时任务',
-          requiresAuth: true
-        }
+          title: 'Server Scheduled Tasks',
+          requiresAuth: true,
+        },
       },
       {
         path: 'users',
         name: 'AdminUsers',
         component: () => import('@/views/AdminUsers.vue'),
         meta: {
-          title: '用户管理',
+          title: 'Users',
           requiresAuth: true,
-          requiresAdmin: true
-        }
+          requiresAdmin: true,
+        },
       },
-      ...generatedRoutes
-    ]
+      {
+        path: 'club-car',
+        name: 'AdminClubCarSystem',
+        component: () => import('@/views/ClubCarSystem.vue'),
+        meta: {
+          title: 'Club Car System',
+          requiresAuth: true,
+          requiresAdmin: true,
+        },
+      },
+      ...generatedRoutes,
+    ],
+  },
+  {
+    path: '/club-car/bind',
+    name: 'PublicClubCarMemberBind',
+    component: () => import('@/views/ClubCarMemberBind.vue'),
+    meta: {
+      title: 'Club Member Bind',
+      requiresToken: false,
+    },
   },
   {
     path: '/websocket-test',
     name: 'WebSocketTest',
     component: () => import('@/components/Test/WebSocketTester.vue'),
     meta: {
-      title: 'WebSocket测试',
+      title: 'WebSocket Test',
       requiresToken: true,
-      requiresAuth: true
-    }
+      requiresAuth: true,
+    },
   },
   {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/Login.vue'),
     meta: {
-      title: '登录',
-      requiresToken: false
-    }
+      title: 'Login',
+      requiresToken: false,
+    },
   },
   {
     path: '/register',
     name: 'Register',
     component: () => import('@/views/Register.vue'),
     meta: {
-      title: '注册',
-      requiresToken: false
-    }
+      title: 'Register',
+      requiresToken: false,
+    },
   },
   {
     path: '/game-roles',
-    redirect: '/tokens'
+    redirect: '/tokens',
   },
   ...generatedRoutes,
   {
@@ -173,45 +191,45 @@ const my_routes = [
     name: 'NotFound',
     component: () => import('@/views/NotFound.vue'),
     meta: {
-      title: '页面不存在'
-    }
-  }
+      title: 'Not Found',
+    },
+  },
 ]
 
 const router = createRouter({
   history: createWebHistory(),
-  routes: my_routes,
+  routes: myRoutes,
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) {
       return savedPosition
     }
     return { top: 0 }
-  }
+  },
 })
-
-autoRoutes.handleHotUpdate?.(router)
 
 router.beforeEach(async (to, from, next) => {
   const tokenStore = useTokenStore()
   const authStore = useAuthStore()
   const isAdminUser = authStore.user?.role === 'admin'
 
-  // 设置页面标题
   document.title = to.meta.title
-    ? `${to.meta.title} - 隐♥月管理系统`
-    : '隐♥月管理系统'
+    ? `${to.meta.title} - XYZW Console`
+    : 'XYZW Console'
 
-  // 等待远程 bin 恢复完成（登录后异步拉取）
   if (tokenStore.remoteBinSyncing?.value) {
     await new Promise(resolve => {
       const stop = watch(
         () => tokenStore.remoteBinSyncing?.value,
-        (syncing) => { if (!syncing) { stop(); resolve() } }
+        (syncing) => {
+          if (!syncing) {
+            stop()
+            resolve()
+          }
+        },
       )
     })
   }
 
-  // 1. 检查认证（server分支逻辑）
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next({ path: '/login', query: { redirect: to.fullPath } })
     return
@@ -233,13 +251,11 @@ router.beforeEach(async (to, from, next) => {
     return
   }
 
-  // 2. 检查token（原有逻辑）
   if (to.meta.requiresToken && !tokenStore.hasTokens && !isAdminUser) {
     next('/tokens')
     return
   }
 
-  // 3. 根路径智能跳转
   if (to.path === '/') {
     if (isAdminUser) {
       next('/admin/users')
@@ -252,12 +268,6 @@ router.beforeEach(async (to, from, next) => {
     } else {
       next('/tokens')
     }
-    return
-  }
-
-  // 4. 军团战时间自动跳转（main分支）
-  if (to.name !== 'LegionWar' && isNowInLegionWarTime()) {
-    next('/admin/legion-war')
     return
   }
 

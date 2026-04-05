@@ -6,6 +6,7 @@ import adminRoutes from './adminRoutes.js'
 import activityRoutes from './activityRoutes.js'
 import warrankRoutes from './warrankRoutes.js'
 import scheduledTaskRoutes from './scheduledTaskRoutes.js'
+import clubCarRoutes from './clubCarRoutes.js'
 
 const router = Router()
 
@@ -16,5 +17,6 @@ router.use('/admin', adminRoutes)
 router.use('/activity', activityRoutes)
 router.use('/warrank', warrankRoutes)
 router.use('/scheduled-tasks', scheduledTaskRoutes)
+router.use('/club-car', clubCarRoutes)
 
 export default router
