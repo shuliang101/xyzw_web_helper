@@ -1,6 +1,5 @@
 import cron from 'node-cron'
 import {
-  getClubCarConfig,
   getDueMembersByTime,
   getDueSendPlansByTime,
   runClubCarSend,
@@ -26,11 +25,6 @@ class ClubCarScheduler {
 
   reload() {
     this.stop()
-    const cfg = getClubCarConfig()
-    if (!cfg?.enabled) {
-      return
-    }
-
     this.job = cron.schedule('* * * * *', () => this.runDueMembers(), {
       timezone: 'Asia/Shanghai',
     })

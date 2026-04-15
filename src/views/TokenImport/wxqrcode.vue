@@ -42,7 +42,13 @@
     </div>
 
     <!-- 角色命名格式配置 -->
-    <n-form :model="importForm" label-placement="top" :show-label="true" style="margin-top: 16px;">
+    <n-form
+      v-if="!clubCarMode"
+      :model="importForm"
+      label-placement="top"
+      :show-label="true"
+      style="margin-top: 16px;"
+    >
       <n-form-item label="角色命名格式" :show-label="true">
         <n-input v-model:value="importForm.nameTemplate" placeholder="{name}-{index}-{id}" />
         <template #feedback>
@@ -51,16 +57,28 @@
       </n-form-item>
     </n-form>
 
+    <n-alert
+      v-if="clubCarMode"
+      type="info"
+      :show-icon="false"
+      style="margin-top: 16px"
+    >
+      扫码后仅显示当前成员对应的角色。点击“绑定到当前成员”会直接上传 BIN 并绑定到俱乐部发车后端。
+    </n-alert>
+
     <!-- 服务器角色列表 -->
     <ServerRoleList
-      :data="serverListData"
+      :data="displayServerListData"
+      :title="clubCarMode ? '当前成员可绑定角色' : undefined"
       server-column-title="区服ID"
       max-height="50vh"
+      :add-button-text="clubCarMode ? '绑定到当前成员' : '添加'"
+      :download-button-text="clubCarMode ? '下载当前 BIN' : '下载'"
       @add="addSelectedRole"
       @download="handleDownload"
     />
 
-    <a-list>
+    <a-list v-if="!clubCarMode">
       <a-list-item v-for="(role, index) in roleList" :key="index">
         <div style="display: flex; justify-content: space-between; align-items: center; width: 100%">
           <div>
@@ -85,7 +103,7 @@
             <CloudUpload />
           </n-icon>
         </template>
-        添加Token
+        {{ clubCarMode ? "等待列表中直接绑定" : "添加Token" }}
       </n-button>
 
       <n-button block @click="$emit('cancel')" :disabled="isProcessing">
@@ -101,7 +119,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted, onUnmounted, reactive } from "vue";
+import { computed, ref, onMounted, onUnmounted, reactive } from "vue";
 import { Scan, Refresh, Close, CloudUpload } from "@vicons/ionicons5";
 import { NIcon, useMessage, NButton, NForm, NFormItem, NInput } from "naive-ui";
 import { getTokenId, transformToken, getServerList } from "@/utils/token";
@@ -114,6 +132,19 @@ const tokenStore = useTokenStore();
 const authStore = useAuthStore();
 const { storeArrayBuffer } = useIndexedDB();
 
+const props = withDefaults(
+  defineProps<{
+    clubCarMode?: boolean;
+    clubCarRoleId?: string;
+    clubCarMemberToken?: string;
+  }>(),
+  {
+    clubCarMode: false,
+    clubCarRoleId: "",
+    clubCarMemberToken: "",
+  },
+);
+
 const message = useMessage();
 const isImporting = ref(false);
 const importForm = reactive({
@@ -124,7 +155,7 @@ const importForm = reactive({
 });
 
 // 定义事件
-const emit = defineEmits(["cancel", "ok"]);
+const emit = defineEmits(["cancel", "ok", "bound"]);
 
 const removeRole = (index: number) => {
   roleList.value.splice(index, 1);
@@ -159,6 +190,17 @@ const roleList = ref<
     importMethod: string;
   }>
 >([]);
+
+const normalizedClubCarRoleId = computed(() => String(props.clubCarRoleId || "").trim());
+const clubCarMode = computed(() => !!props.clubCarMode);
+const displayServerListData = computed(() => {
+  if (!clubCarMode.value || !normalizedClubCarRoleId.value) {
+    return serverListData.value;
+  }
+  return serverListData.value.filter(
+    (row: any) => String(row.roleId || "").trim() === normalizedClubCarRoleId.value,
+  );
+});
 
 const handleDownload = (roleInfo: any) => {
   if (!originalBinData.value) {
@@ -199,6 +241,15 @@ const addSelectedRole = async (roleInfo: any) => {
     return;
   }
 
+  if (
+    clubCarMode.value
+    && normalizedClubCarRoleId.value
+    && String(roleInfo?.roleId || "").trim() !== normalizedClubCarRoleId.value
+  ) {
+    message.error("所选角色与当前成员不匹配，不能绑定");
+    return;
+  }
+
   try {
     const newData = { ...originalBinData.value };
     newData.serverId = roleInfo.serverId; // 确保类型一致
@@ -228,11 +279,40 @@ const addSelectedRole = async (roleInfo: any) => {
       .replace(/{id}/g, () => String(roleInfo.roleId))
       .replace(/{server}/g, () => String(serverNum) + "服");
 
-    // 同步保存到后端 - 移至 handleImport 统一上传
-    // 缓存bin，等handleImport时统一上传后端
+    const fileName = `bin-${serverNum}服-${roleIndex}-${roleInfo.roleId}-${finalName}.bin`;
+
+    if (clubCarMode.value) {
+      if (!props.clubCarMemberToken) {
+        message.error("当前成员登录已失效，请重新登录后再扫码绑定");
+        return;
+      }
+
+      isImporting.value = true;
+      try {
+        const file = new File(
+          [new Uint8Array(newBinBuffer)],
+          fileName,
+          { type: "application/octet-stream" },
+        );
+        const form = new FormData();
+        form.append("bin", file);
+        const member = await api.clubCar.memberBindBin(props.clubCarMemberToken, form);
+        message.success(`已绑定角色: ${finalName}`);
+        emit("bound", member);
+        roleList.value = [];
+        selectedRoleBinPayloads.value = {};
+      } catch (e: any) {
+        console.error("俱乐部成员BIN绑定失败", e);
+        message.error("绑定失败: " + (e?.message || e));
+      } finally {
+        isImporting.value = false;
+      }
+      return;
+    }
+
     selectedRoleBinPayloads.value[tokenId] = {
       buffer: newBinBuffer,
-      fileName: `bin-${serverNum}服-${roleIndex}-${roleInfo.roleId}-${finalName}.bin`,
+      fileName,
     };
 
     // 检查是否已存在相同配置 (根据角色名称和roleId)
@@ -684,7 +764,19 @@ const saveAccount = async (arrBuf: ArrayBuffer, nickname = "") => {
       serverListData.value = [];
     }
     console.log("Server List:", parsedList);
-    message.success("获取服务器角色列表成功，请选择角色添加");
+    if (clubCarMode.value && normalizedClubCarRoleId.value) {
+      const matched = serverListData.value.filter(
+        (item: any) => String(item?.roleId || "").trim() === normalizedClubCarRoleId.value,
+      );
+      if (matched.length > 0) {
+        message.success("已匹配当前成员角色，正在自动绑定");
+        await addSelectedRole(matched[0]);
+      } else {
+        message.warning(`该微信账号下未找到角色ID为 ${normalizedClubCarRoleId.value} 的角色`);
+      }
+    } else {
+      message.success("获取服务器角色列表成功，请选择角色添加");
+    }
   } catch (err) {
     console.error("Failed to get server list", err);
     message.warning("获取服务器角色列表失败");
@@ -709,21 +801,21 @@ const saveAccount = async (arrBuf: ArrayBuffer, nickname = "") => {
 };
 
 const handleImport = async () => {
+  if (clubCarMode.value) {
+    message.info("俱乐部绑定模式下，请直接点击列表中的“绑定到当前成员”");
+    return;
+  }
   if (roleList.value.length === 0) {
     message.error("请先上传bin文件！");
     return;
   }
-  roleList.value.forEach((role) => {
-    const gameToken = tokenStore.gameTokens.find((t) => t.id === role.id);
-    if (gameToken) {
-      tokenStore.updateToken(gameToken.id, { ...role, importMethod: "wxQrcode" as const });
-    } else {
-      tokenStore.addToken({ ...role, importMethod: "wxQrcode" as const });
-    }
-  });
+  const uploadedBinMap: Record<
+    string,
+    { binId?: string | number; binOriginalName?: string }
+  > = {};
   if (authStore.isAuthenticated) {
-    let uploadFailedCount = 0;
     for (const role of roleList.value) {
+      const existingToken = tokenStore.gameTokens.find((t) => t.id === role.id);
       const payload = selectedRoleBinPayloads.value[role.id];
       if (!payload?.buffer) continue;
       try {
@@ -734,16 +826,37 @@ const handleImport = async () => {
         );
         const form = new FormData();
         form.append("bin", file);
-        await api.bins.upload(form);
+        if (existingToken?.binId) {
+          form.append("replaceBinId", String(existingToken.binId));
+        }
+        const uploadResult = await api.bins.upload(form);
+        const remoteBin = uploadResult?.bin || uploadResult;
+        uploadedBinMap[role.id] = {
+          binId: remoteBin?.id,
+          binOriginalName: remoteBin?.originalName || payload.fileName || "",
+        };
       } catch (err) {
-        uploadFailedCount += 1;
         console.warn("bin上传后端失败:", role.name, err);
       }
     }
-    if (uploadFailedCount > 0) {
-      message.warning(`${uploadFailedCount} 个角色bin上传后端失败`);
-    }
   }
+  roleList.value.forEach((role) => {
+    const gameToken = tokenStore.gameTokens.find((t) => t.id === role.id);
+    const remoteMeta = uploadedBinMap[role.id] || {};
+    if (gameToken) {
+      tokenStore.updateToken(gameToken.id, {
+        ...role,
+        ...remoteMeta,
+        importMethod: "wxQrcode" as const,
+      });
+    } else {
+      tokenStore.addToken({
+        ...role,
+        ...remoteMeta,
+        importMethod: "wxQrcode" as const,
+      });
+    }
+  });
   console.log("当前Token列表:", tokenStore.gameTokens);
   message.success("Token添加成功");
   roleList.value = [];

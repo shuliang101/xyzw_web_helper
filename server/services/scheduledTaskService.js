@@ -115,6 +115,61 @@ export const updateLastRun = (taskId, nextRunAt = null) => {
     .run(new Date().toISOString(), nextRunAt, taskId)
 }
 
+const normalizeBinId = (value) => String(value)
+
+export const removeBinReferences = (userId, binId) => {
+  const targetId = normalizeBinId(binId)
+  const now = new Date().toISOString()
+  const rows = db.prepare('SELECT id, token_ids FROM scheduled_tasks WHERE user_id = ?').all(userId)
+
+  let affectedTasks = 0
+  for (const row of rows) {
+    const currentIds = JSON.parse(row.token_ids || '[]')
+    const nextIds = currentIds.filter(id => normalizeBinId(id) !== targetId)
+    if (nextIds.length === currentIds.length) continue
+
+    db.prepare('UPDATE scheduled_tasks SET token_ids = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+      .run(JSON.stringify(nextIds), now, row.id, userId)
+    affectedTasks += 1
+  }
+
+  return affectedTasks
+}
+
+export const replaceBinReferences = (userId, oldBinId, newBinId) => {
+  const oldId = normalizeBinId(oldBinId)
+  const replacementId = newBinId
+  const now = new Date().toISOString()
+  const rows = db.prepare('SELECT id, token_ids FROM scheduled_tasks WHERE user_id = ?').all(userId)
+
+  let affectedTasks = 0
+  for (const row of rows) {
+    const currentIds = JSON.parse(row.token_ids || '[]')
+    let changed = false
+    const seen = new Set()
+    const nextIds = []
+
+    for (const id of currentIds) {
+      const mapped = normalizeBinId(id) === oldId ? replacementId : id
+      if (normalizeBinId(id) === oldId) {
+        changed = true
+      }
+      const dedupeKey = normalizeBinId(mapped)
+      if (seen.has(dedupeKey)) continue
+      seen.add(dedupeKey)
+      nextIds.push(mapped)
+    }
+
+    if (!changed) continue
+
+    db.prepare('UPDATE scheduled_tasks SET token_ids = ?, updated_at = ? WHERE id = ? AND user_id = ?')
+      .run(JSON.stringify(nextIds), now, row.id, userId)
+    affectedTasks += 1
+  }
+
+  return affectedTasks
+}
+
 // 执行日志
 export const createRunLog = (taskId, userId, tokenId) => {
   const stmt = db.prepare(`

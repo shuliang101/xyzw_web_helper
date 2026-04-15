@@ -100,9 +100,14 @@
 
             <n-collapse-item title="微信扫码生成 BIN（可选）" name="wx">
               <p class="hint">
-                这里与 Token 管理页一致，可扫码登录微信后下载 BIN，再在下方上传绑定。
+                扫码后只会展示当前成员对应的角色，选中后会直接绑定到当前成员，无需再手动上传。
               </p>
-              <WxQrcodeForm />
+              <WxQrcodeForm
+                club-car-mode
+                :club-car-role-id="memberInfo.roleId"
+                :club-car-member-token="memberToken"
+                @bound="handleWxBound"
+              />
             </n-collapse-item>
           </n-collapse>
 
@@ -360,6 +365,11 @@ const logoutMember = () => {
   setMemberToken('')
   applyMember({})
   loginForm.password = ''
+}
+
+const handleWxBound = (member) => {
+  applyMember(member || {})
+  selectedFileName.value = member?.boundBinName || ''
 }
 
 const formatDate = (value) => {

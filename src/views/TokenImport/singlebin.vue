@@ -81,9 +81,13 @@ import { getTokenId, transformToken } from "@/utils/token";
 const $emit = defineEmits(["cancel", "ok"]);
 
 const { storeArrayBuffer } = useIndexedDB();
+const selectedRoleBinPayloads = ref<
+  Record<string, { buffer: ArrayBuffer; fileName: string }>
+>({});
 
 const cancel = () => {
   roleList.value = [];
+  selectedRoleBinPayloads.value = {};
   $emit("cancel");
 };
 
@@ -171,17 +175,10 @@ const uploadBin = (binFile: File) => {
         wsUrl: importForm.wsUrl || "",
         importMethod: "bin",
       });
-
-      // 登录状态下同步上传到后端
-      if (authStore.isAuthenticated) {
-        try {
-          const form = new FormData();
-          form.append('bin', binFile);
-          await api.bins.upload(form);
-        } catch (err) {
-          console.warn('bin文件上传到后端失败:', err);
-        }
-      }
+      selectedRoleBinPayloads.value[tokenId] = {
+        buffer: userToken,
+        fileName: binFile.name,
+      };
     };
     reader.onerror = () => {
       message.error("读取文件失败，请重试");
@@ -196,24 +193,65 @@ const handleImport = async () => {
     message.error("请先上传bin文件！");
     return;
   }
+  const uploadedBinMap: Record<
+    string,
+    { binId?: string | number; binOriginalName?: string }
+  > = {};
+  if (authStore.isAuthenticated) {
+    for (const role of roleList.value) {
+      const existingToken = tokenStore.gameTokens.find((t) => t.id === role.id);
+      if (existingToken?.binId) {
+        try {
+          await api.bins.remove(existingToken.binId);
+        } catch (err) {
+          console.warn("删除旧后端bin失败:", existingToken.name, err);
+        }
+      }
+
+      const payload = selectedRoleBinPayloads.value[role.id];
+      if (!payload?.buffer) continue;
+
+      try {
+        const file = new File(
+          [new Uint8Array(payload.buffer)],
+          payload.fileName || `${role.name || role.id}.bin`,
+          { type: "application/octet-stream" },
+        );
+        const form = new FormData();
+        form.append("bin", file);
+        if (existingToken?.binId) {
+          form.append("replaceBinId", String(existingToken.binId));
+        }
+        const uploadResult = await api.bins.upload(form);
+        const remoteBin = uploadResult?.bin || uploadResult;
+        uploadedBinMap[role.id] = {
+          binId: remoteBin?.id,
+          binOriginalName: remoteBin?.originalName || payload.fileName || "",
+        };
+      } catch (err) {
+        console.warn("上传新后端bin失败:", role.name, err);
+      }
+    }
+  }
   roleList.value.forEach((role) => {
-    // tokenStore.gameTokens中发现已存在的重复名称，则移出token后重新添加
+    const remoteMeta = uploadedBinMap[role.id] || {};
     const gameToken = tokenStore.gameTokens.find((t) => t.id === role.id);
     if (gameToken) {
-      console.log("移除同名token:", gameToken);
-      // tokenStore.removeToken(gameToken.id);
       tokenStore.updateToken(gameToken.id, {
         ...role,
+        ...remoteMeta,
       });
     } else {
       tokenStore.addToken({
         ...role,
+        ...remoteMeta,
       });
     }
   });
   console.log("当前Token列表:", tokenStore.gameTokens);
   message.success("Token添加成功");
   roleList.value = [];
+  selectedRoleBinPayloads.value = {};
   $emit("ok");
 };
 </script>

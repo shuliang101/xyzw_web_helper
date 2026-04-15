@@ -15,6 +15,12 @@ const CLUB_MEMBER_BIN_DIR = config.clubCarMemberBinDir
 const SEND_MODE_VALUES = new Set(['red', 'gold', 'no_refresh'])
 const SEND_WINDOW_START_MINUTES = 6 * 60
 const SEND_WINDOW_END_MINUTES = 20 * 60
+const CAR_RESEARCH_PART_COSTS = [
+  20, 21, 22, 23, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 47, 50, 53, 56,
+  59, 62, 65, 68, 71, 74, 78, 82, 86, 90, 94, 99, 104, 109, 114, 119, 126, 133,
+  140, 147, 154, 163, 172, 181, 190, 199, 210, 221, 232, 243, 369, 393, 422,
+  457, 498, 548, 607, 678, 763, 865, 1011,
+]
 
 ensureDir(config.clubCarDataDir)
 ensureDir(CLUB_MASTER_BIN_DIR)
@@ -95,6 +101,12 @@ const isSameDayByIso = (isoText, now = new Date()) => {
   const date = parseDateSafe(isoText)
   if (!date) return false
   return isSameLocalDate(date, now)
+}
+
+const hasPlanSucceededToday = (planRow, now = new Date()) => {
+  const lastRunAt = parseDateSafe(planRow?.last_run_at)
+  if (!lastRunAt) return false
+  return isSameLocalDate(lastRunAt, now)
 }
 
 const isMondayToWednesdayWindow = (now = new Date()) => {
@@ -178,7 +190,6 @@ const mapPlan = (row) => {
     targetRoleId: String(row.target_role_id),
     senderRoleId: String(row.sender_role_id),
     sendMode: row.send_mode || 'red',
-    useCoupon: row.use_coupon === 1,
     sendTime: normalizeTimeHHmm(row.send_time, '06:00'),
     isActive: row.is_active === 1,
     lastRunAt: row.last_run_at || '',
@@ -433,21 +444,65 @@ const normalizeCars = (raw) => {
   }))
 }
 
-const isBigPrize = (rewards) => {
-  const bigPrizes = [
-    { type: 3, itemId: 3201, value: 10 },
-    { type: 3, itemId: 1001, value: 10 },
-    { type: 3, itemId: 1022, value: 2000 },
-    { type: 2, itemId: 0, value: 2000 },
-    { type: 3, itemId: 1023, value: 5 },
-    { type: 3, itemId: 1022, value: 2500 },
-    { type: 3, itemId: 1001, value: 12 },
-  ]
+const BIG_PRIZE_RULES = [
+  { type: 2, itemId: 0, minValue: 2000 },
+  { type: 3, itemId: 1001, minValue: 10 },
+  { type: 3, itemId: 1022, minValue: 2000 },
+  { type: 3, itemId: 1023, minValue: 5 },
+  { type: 3, itemId: 3201, minValue: 10 },
+]
+
+const GOLD_MODE_BIG_PRIZE_RULES = [
+  { type: 2, itemId: 0, minValue: 2000 },
+  { type: 3, itemId: 1022, minValue: 2000 },
+  { type: 3, itemId: 1023, minValue: 5 },
+]
+
+const normalizeRewardValue = (reward) =>
+  Number(reward?.value || reward?.num || reward?.quantity || reward?.count || 0)
+
+const getRewardKey = (reward) => `${Number(reward?.type || 0)}:${Number(reward?.itemId || 0)}`
+
+const CLUB_CAR_ITEM_NAME_MAP = {
+  1001: '招募令',
+  1022: '白玉',
+  1023: '彩玉',
+  3201: '红色万能碎片',
+  35002: '刷新券',
+}
+
+const rewardMatchesRule = (reward, rule) =>
+  getRewardKey(reward) === `${rule.type}:${rule.itemId}`
+  && normalizeRewardValue(reward) >= rule.minValue
+
+const isHighValueReward = (reward) => BIG_PRIZE_RULES.some(rule => rewardMatchesRule(reward, rule))
+
+const formatRewardLabel = (reward) => {
+  const type = Number(reward?.type || 0)
+  const itemId = Number(reward?.itemId || 0)
+  const value = normalizeRewardValue(reward)
+
+  if (type === 2) return `金砖 ${value}`
+  if (type === 3) return `${CLUB_CAR_ITEM_NAME_MAP[itemId] || `物品${itemId}`} ${value}`
+  if (type === 1) return `金币 ${value}`
+  return `类型${type} 物品${itemId} ${value}`
+}
+
+const findMatchedRewards = (rewards, rules) => {
+  if (!Array.isArray(rewards)) return []
+  return rewards
+    .filter(reward => rules.some(rule => rewardMatchesRule(reward, rule)))
+    .map(formatRewardLabel)
+}
+
+const hasGoldModeBigReward = (rewards) => {
   if (!Array.isArray(rewards)) return false
-  return bigPrizes.some(prize => rewards.some((reward) =>
-    Number(reward?.type || 0) === prize.type
-    && Number(reward?.itemId || 0) === prize.itemId
-    && Number(reward?.value || 0) >= prize.value))
+  return rewards.some(reward => GOLD_MODE_BIG_PRIZE_RULES.some(rule => rewardMatchesRule(reward, rule)))
+}
+
+const isBigPrize = (rewards) => {
+  if (!Array.isArray(rewards)) return false
+  return rewards.some(reward => isHighValueReward(reward))
 }
 
 const countRacingRefreshTickets = (rewards) => {
@@ -482,6 +537,52 @@ const canClaimCar = (car) => {
 const readRefreshTicketCount = (roleInfoResp) =>
   Number(roleInfoResp?.role?.items?.[35002]?.quantity || 0)
 
+const readCarPartCount = (roleInfoResp) =>
+  Number(roleInfoResp?.role?.items?.[35009]?.quantity || 0)
+
+const readCarResearchLevel = (carResp) =>
+  Number(carResp?.body?.roleCar?.research?.[1] || carResp?.roleCar?.research?.[1] || 0)
+
+const tryUpgradeCarResearch = async (client, memberEntry, initialLevel = 0) => {
+  let level = Number(initialLevel || 0)
+  let upgraded = 0
+
+  while (level < CAR_RESEARCH_PART_COSTS.length) {
+    let roleInfoResp
+    try {
+      roleInfoResp = await client.sendWithPromise('role_getroleinfo', {}, 5000)
+    } catch (error) {
+      memberEntry.errors.push(`read research parts failed: ${error?.message || error}`)
+      break
+    }
+
+    const parts = readCarPartCount(roleInfoResp)
+    const required = CAR_RESEARCH_PART_COSTS[level]
+    if (parts < required) break
+
+    try {
+      await client.sendWithPromise('car_research', { researchId: 1 }, 5000)
+      upgraded += 1
+      level += 1
+      await sleep(300)
+    } catch (error) {
+      memberEntry.errors.push(`car research failed at level ${level + 1}: ${error?.message || error}`)
+      break
+    }
+  }
+
+  return { upgraded, level }
+}
+
+const tryClaimCarResearchReward = async (client, memberEntry) => {
+  try {
+    const rewardResp = await client.sendWithPromise('car_claimpartconsumereward', {}, 5000)
+    return !!rewardResp?.reward
+  } catch {
+    return false
+  }
+}
+
 const withWsClientFromBin = async (binPath, fn) => {
   const tokenStr = await transformBinToToken(binPath)
   const wsUrl = buildGameWsUrl(tokenStr)
@@ -498,22 +599,7 @@ const checkSendPermission = (memberRow, now = new Date()) => {
   if (!isMondayToWednesdayWindow(now)) {
     return { ok: false, reason: 'send time window is Monday-Wednesday 06:00-20:00' }
   }
-
-  const lastSendAt = parseDateSafe(memberRow?.last_send_at)
-  if (lastSendAt && (now.getTime() - lastSendAt.getTime()) < FOUR_HOURS_MS) {
-    return { ok: false, reason: 'send interval must be at least 4 hours' }
-  }
-
   return { ok: true }
-}
-
-const isHelperAvailable = (helperRow, now = new Date()) => {
-  if (!helperRow) return false
-  const lastSendAt = parseDateSafe(helperRow.last_send_at)
-  const lastHelpAt = parseDateSafe(helperRow.last_help_at)
-  if (lastSendAt && (now.getTime() - lastSendAt.getTime()) < FOUR_HOURS_MS) return false
-  if (lastHelpAt && (now.getTime() - lastHelpAt.getTime()) < FOUR_HOURS_MS) return false
-  return true
 }
 
 const updateMemberSendAt = (roleId, isoText) => {
@@ -628,10 +714,6 @@ const normalizePlanPayload = (data = {}, currentRow = null) => {
   const targetRoleId = String(data.targetRoleId || currentRow?.target_role_id || '').trim()
   const sendMode = normalizeSendMode(data.sendMode, currentRow?.send_mode || 'red')
   const sendTime = normalizeSendTime(data.sendTime, currentRow?.send_time || '06:00')
-  const useCoupon = data.useCoupon === undefined
-    ? (currentRow?.use_coupon === 1)
-    : !!data.useCoupon
-
   if (!senderRoleId || !targetRoleId) {
     const err = new Error('senderRoleId and targetRoleId are required')
     err.status = 400
@@ -680,7 +762,6 @@ const normalizePlanPayload = (data = {}, currentRow = null) => {
     senderRoleId,
     targetRoleId,
     sendMode,
-    useCoupon,
     sendTime,
   }
 }
@@ -688,14 +769,13 @@ const normalizePlanPayload = (data = {}, currentRow = null) => {
 export const getDueSendPlansByTime = (now = new Date()) => {
   const weekday = getLocalWeekday(now)
   if (!weekday) return []
-  const currentHHmm = formatHHmm(now)
+  const currentMinutes = (now.getHours() * 60) + now.getMinutes()
   const rows = db.prepare(`
     SELECT * FROM club_car_send_plans
     WHERE is_active = 1
       AND weekday = ?
-      AND send_time = ?
     ORDER BY id ASC
-  `).all(weekday, currentHHmm)
+  `).all(weekday)
 
   return rows
     .map(row => ({
@@ -703,9 +783,15 @@ export const getDueSendPlansByTime = (now = new Date()) => {
       sender: getMemberRowByRoleId(row.sender_role_id),
       target: getMemberRowByRoleId(row.target_role_id),
     }))
+    .filter(item => {
+      const sendMinutes = toMinutesOfDay(normalizeTimeHHmm(item.row.send_time, '06:00'))
+      if (currentMinutes < sendMinutes) return false
+      return (currentMinutes - sendMinutes) <= 30
+    })
     .filter(item => item.sender && item.sender.is_active === 1)
     .filter(item => item.target && item.target.is_active === 1)
     .filter(item => item.sender.bound_bin_path)
+    .filter(item => !hasPlanSucceededToday(item.row, now))
     .filter(item => checkSendPermission(item.sender, now).ok)
     .map(item => mapPlan(item.row))
 }
@@ -745,13 +831,12 @@ export const createClubCarSendPlan = (data = {}) => {
     INSERT INTO club_car_send_plans (
       weekday, target_role_id, sender_role_id, send_mode, use_coupon, send_time, is_active, created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+    VALUES (?, ?, ?, ?, 0, ?, 1, ?, ?)
   `).run(
     payload.weekday,
     payload.targetRoleId,
     payload.senderRoleId,
     payload.sendMode,
-    payload.useCoupon ? 1 : 0,
     payload.sendTime,
     now,
     now,
@@ -771,14 +856,13 @@ export const updateClubCarSendPlan = (planId, data = {}) => {
   const now = new Date().toISOString()
   db.prepare(`
     UPDATE club_car_send_plans
-    SET weekday = ?, target_role_id = ?, sender_role_id = ?, send_mode = ?, use_coupon = ?, send_time = ?, updated_at = ?
+    SET weekday = ?, target_role_id = ?, sender_role_id = ?, send_mode = ?, use_coupon = 0, send_time = ?, updated_at = ?
     WHERE id = ?
   `).run(
     payload.weekday,
     payload.targetRoleId,
     payload.senderRoleId,
     payload.sendMode,
-    payload.useCoupon ? 1 : 0,
     payload.sendTime,
     now,
     planId,
@@ -1002,6 +1086,46 @@ export const updateClubMemberScheduleByRole = (roleId, data = {}) => {
   return mapMember(getMemberRowById(row.id))
 }
 
+export const batchUpdateClubMemberClaimSchedule = ({ roleIds = [], claimEnabled = false, claimTime = '16:00' } = {}) => {
+  const normalizedRoleIds = [...new Set((Array.isArray(roleIds) ? roleIds : [])
+    .map(item => String(item || '').trim())
+    .filter(Boolean))]
+
+  const normalizedClaimEnabled = !!claimEnabled
+  const normalizedClaimTime = normalizeTimeHHmm(claimTime, '16:00')
+  const now = new Date().toISOString()
+
+  const activeBoundMembers = getActiveBoundMemberRows()
+  const boundRoleIdSet = new Set(activeBoundMembers.map(member => String(member.role_id)))
+
+  const tx = db.transaction(() => {
+    for (const member of activeBoundMembers) {
+      const roleId = String(member.role_id)
+      const enabled = normalizedRoleIds.includes(roleId)
+      if (enabled) {
+        ensurePlanClaimGapForSender(roleId, normalizedClaimTime)
+      }
+      db.prepare(`
+        UPDATE club_car_members
+        SET claim_enabled = ?, claim_time = ?, updated_at = ?
+        WHERE role_id = ?
+      `).run(enabled ? 1 : 0, normalizedClaimTime, now, roleId)
+    }
+  })
+
+  for (const roleId of normalizedRoleIds) {
+    if (!boundRoleIdSet.has(roleId)) {
+      const err = new Error(`member ${roleId} is not bound`)
+      err.status = 400
+      throw err
+    }
+  }
+
+  tx()
+
+  return getClubCarMembers({ activeOnly: true })
+}
+
 export const updateClubMemberTarget = (memberId, targetRoleId) => {
   const member = getMemberRowById(memberId)
   if (!member) {
@@ -1162,8 +1286,11 @@ const sortCarsForSend = (cars = []) => [...cars]
 const meetsPlanSendMode = (car, sendMode) => {
   if (sendMode === 'no_refresh') return true
   const color = Number(car?.color || 0)
-  if (sendMode === 'gold') return color >= 5
-  return color >= 4
+  if (sendMode === 'gold') {
+    if (color >= 6) return true
+    return color >= 5 && hasGoldModeBigReward(car?.rewards)
+  }
+  return color >= 5
 }
 
 const updatePlanLastRunAt = (planId, isoText) => {
@@ -1171,29 +1298,23 @@ const updatePlanLastRunAt = (planId, isoText) => {
     .run(isoText, isoText, planId)
 }
 
-const pickCarForPlan = async ({ client, cars, tickets, sendMode, useCoupon, maxRefreshTimes }) => {
-  const idleCars = sortCarsForSend(cars)
-  if (!idleCars.length) {
-    return { car: null, tickets, refreshAttempts: 0, reason: 'no idle cars' }
-  }
-
-  if (sendMode === 'no_refresh') {
-    return { car: idleCars[0], tickets, refreshAttempts: 0, reason: '' }
-  }
-
-  const ready = idleCars.find(car => meetsPlanSendMode(car, sendMode))
-  if (ready) {
-    return { car: ready, tickets, refreshAttempts: 0, reason: '' }
-  }
-
-  const candidate = { ...idleCars[0] }
+const prepareCarForPlan = async ({ client, car, tickets, sendMode, maxRefreshTimes }) => {
+  const candidate = { ...(car || {}) }
   let attempts = 0
   let currentTickets = tickets
 
-  while (!meetsPlanSendMode(candidate, sendMode) && attempts < maxRefreshTimes) {
-    const freeRefresh = Number(candidate.refreshCount ?? 0) === 0
-    if (!freeRefresh && (!useCoupon || currentTickets < 6)) break
+  if (sendMode === 'no_refresh') {
+    return {
+      car: candidate,
+      tickets: currentTickets,
+      refreshAttempts: attempts,
+      reason: '',
+      stopReason: '不刷新，直接发车',
+      matchedRewards: [],
+    }
+  }
 
+  while (!meetsPlanSendMode(candidate, sendMode) && attempts < maxRefreshTimes) {
     const refreshResp = await client.sendWithPromise('car_refresh', { carId: String(candidate.id) }, 10000)
     const refreshData = refreshResp?.car || refreshResp?.body?.car || refreshResp
     updateCarFromResponse(candidate, refreshData)
@@ -1209,10 +1330,40 @@ const pickCarForPlan = async ({ client, cars, tickets, sendMode, useCoupon, maxR
   }
 
   if (!meetsPlanSendMode(candidate, sendMode)) {
-    return { car: null, tickets: currentTickets, refreshAttempts: attempts, reason: 'target quality not reached' }
+    return {
+      car: null,
+      tickets: currentTickets,
+      refreshAttempts: attempts,
+      reason: 'target quality not reached',
+      stopReason: '',
+      matchedRewards: [],
+    }
   }
 
-  return { car: candidate, tickets: currentTickets, refreshAttempts: attempts, reason: '' }
+  const color = Number(candidate?.color || 0)
+  const matchedRewards = sendMode === 'gold'
+    ? findMatchedRewards(candidate?.rewards, GOLD_MODE_BIG_PRIZE_RULES)
+    : []
+
+  let stopReason = ''
+  if (sendMode === 'gold') {
+    if (color >= 6) {
+      stopReason = '刷到金车'
+    } else if (color >= 5 && matchedRewards.length) {
+      stopReason = `红车命中大奖: ${matchedRewards.join('，')}`
+    }
+  } else if (sendMode === 'red' && color >= 5) {
+    stopReason = '刷到红车'
+  }
+
+  return {
+    car: candidate,
+    tickets: currentTickets,
+    refreshAttempts: attempts,
+    reason: '',
+    stopReason,
+    matchedRewards,
+  }
 }
 
 export const runClubCarSend = async (options = {}) => {
@@ -1233,7 +1384,6 @@ export const runClubCarSend = async (options = {}) => {
     return summary
   }
 
-  const helperUsage = new Set()
   const detail = []
   let sentCars = 0
 
@@ -1249,8 +1399,11 @@ export const runClubCarSend = async (options = {}) => {
       sendMode: plan.sendMode,
       sendTime: plan.sendTime,
       sent: 0,
+      totalIdleCars: 0,
+      completed: false,
       skippedReason: '',
       refreshAttempts: 0,
+      sentCarsDetail: [],
       errors: [],
     }
 
@@ -1279,12 +1432,6 @@ export const runClubCarSend = async (options = {}) => {
       continue
     }
 
-    if (helperUsage.has(plan.targetRoleId) || !isHelperAvailable(targetRow, now)) {
-      planEntry.skippedReason = 'target is still in 4-hour helping interval'
-      detail.push(planEntry)
-      continue
-    }
-
     try {
       await withWsClientFromBin(senderRow.bound_bin_path, async (client) => {
         let roleInfoResp = null
@@ -1298,39 +1445,77 @@ export const runClubCarSend = async (options = {}) => {
 
         const carResp = await client.sendWithPromise('car_getrolecar', {}, 10000)
         const cars = normalizeCars(carResp?.body ?? carResp)
-        const picked = await pickCarForPlan({
-          client,
-          cars,
-          tickets,
-          sendMode: plan.sendMode,
-          useCoupon: plan.useCoupon,
-          maxRefreshTimes: cfg.maxRefreshTimes,
-        })
-        planEntry.refreshAttempts = picked.refreshAttempts
+        const idleCars = sortCarsForSend(cars)
+        planEntry.totalIdleCars = idleCars.length
 
-        if (!picked.car) {
-          planEntry.skippedReason = picked.reason || 'no suitable car found'
+        if (!idleCars.length) {
+          planEntry.skippedReason = 'no idle cars'
+          planEntry.completed = true
+          updatePlanLastRunAt(plan.id, nowIso)
           return
         }
 
-        await client.sendWithPromise(
-          'car_send',
-          {
-            carId: String(picked.car.id),
-            helperId: String(plan.targetRoleId),
-            text: '',
-            isUpgrade: false,
-          },
-          10000,
-        )
+        let currentTickets = tickets
+        let targetQualityReached = false
 
-        helperUsage.add(String(plan.targetRoleId))
-        updateMemberHelpAt(plan.targetRoleId, nowIso)
-        updateMemberSendAt(plan.senderRoleId, nowIso)
-        updatePlanLastRunAt(plan.id, nowIso)
-        planEntry.sent = 1
-        sentCars += 1
-        await sleep(300)
+        for (const idleCar of idleCars) {
+          const prepared = await prepareCarForPlan({
+            client,
+            car: idleCar,
+            tickets: currentTickets,
+            sendMode: plan.sendMode,
+            maxRefreshTimes: cfg.maxRefreshTimes,
+          })
+          currentTickets = prepared.tickets
+          planEntry.refreshAttempts += prepared.refreshAttempts
+
+          if (!prepared.car) {
+            if (!targetQualityReached && prepared.reason) {
+              planEntry.skippedReason = prepared.reason
+            }
+            continue
+          }
+
+          targetQualityReached = true
+
+          try {
+            await client.sendWithPromise(
+              'car_send',
+              {
+                carId: String(prepared.car.id),
+                helperId: String(plan.targetRoleId),
+                text: '',
+                isUpgrade: false,
+              },
+              10000,
+            )
+            planEntry.sent += 1
+            sentCars += 1
+            planEntry.sentCarsDetail.push({
+              carId: String(prepared.car.id),
+              color: Number(prepared.car?.color || 0),
+              stopReason: prepared.stopReason || '',
+              matchedRewards: prepared.matchedRewards || [],
+            })
+            await sleep(300)
+          } catch (error) {
+            planEntry.errors.push(`car ${prepared.car.id}: ${error?.message || error}`)
+          }
+        }
+
+        if (planEntry.sent > 0) {
+          updateMemberHelpAt(plan.targetRoleId, nowIso)
+          updateMemberSendAt(plan.senderRoleId, nowIso)
+        }
+
+        if (planEntry.sent === planEntry.totalIdleCars) {
+          planEntry.completed = true
+          updatePlanLastRunAt(plan.id, nowIso)
+        } else if (planEntry.sent > 0) {
+          planEntry.skippedReason = `partial sent ${planEntry.sent}/${planEntry.totalIdleCars}`
+        } else if (!planEntry.skippedReason) {
+          planEntry.skippedReason = 'no suitable car found'
+        }
       })
     } catch (error) {
       planEntry.errors.push(String(error?.message || error))
@@ -1376,6 +1561,9 @@ export const runClubCarClaim = async (options = {}) => {
       roleId: member.roleId,
       name: member.name,
       claimed: 0,
+      researchLevel: 0,
+      researchUpgraded: 0,
+      researchRewardClaimed: false,
       skippedReason: '',
       errors: [],
     }
@@ -1395,6 +1583,7 @@ export const runClubCarClaim = async (options = {}) => {
     try {
       await withWsClientFromBin(rawMember.bound_bin_path, async (client) => {
         const carResp = await client.sendWithPromise('car_getrolecar', {}, 10000)
+        memberEntry.researchLevel = readCarResearchLevel(carResp)
         const cars = normalizeCars(carResp?.body ?? carResp)
         for (const car of cars) {
           if (!canClaimCar(car)) continue
@@ -1406,6 +1595,13 @@ export const runClubCarClaim = async (options = {}) => {
             memberEntry.errors.push(`car ${car.id}: ${error?.message || error}`)
           }
           await sleep(300)
+        }
+
+        const researchResult = await tryUpgradeCarResearch(client, memberEntry, memberEntry.researchLevel)
+        memberEntry.researchUpgraded = researchResult.upgraded
+        memberEntry.researchLevel = researchResult.level
+        if (memberEntry.researchUpgraded > 0) {
+          memberEntry.researchRewardClaimed = await tryClaimCarResearchReward(client, memberEntry)
         }
       })
 

@@ -13,6 +13,7 @@ import {
   updateClubMemberPasswordByRole,
   updateClubMemberSchedule,
   updateClubMemberScheduleByRole,
+  batchUpdateClubMemberClaimSchedule,
   updateClubMemberTarget,
   clearClubMemberBindingById,
   authenticateClubMember,
@@ -104,6 +105,19 @@ export const updateClubCarMemberScheduleHandler = (req, res, next) => {
   }
 }
 
+export const batchUpdateClubCarMemberClaimScheduleHandler = (req, res, next) => {
+  try {
+    const members = batchUpdateClubMemberClaimSchedule({
+      roleIds: req.body?.roleIds,
+      claimEnabled: req.body?.claimEnabled,
+      claimTime: req.body?.claimTime,
+    })
+    res.json({ success: true, data: members })
+  } catch (error) {
+    next(error)
+  }
+}
+
 export const updateClubCarMemberTargetHandler = (req, res, next) => {
   try {
     const memberId = req.params.id
@@ -119,6 +133,16 @@ export const unbindClubCarMemberBinHandler = (req, res, next) => {
   try {
     const memberId = req.params.id
     const member = clearClubMemberBindingById(memberId)
+    res.json({ success: true, data: member })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export const bindClubCarMemberBinByAdminHandler = (req, res, next) => {
+  try {
+    const roleId = req.body?.roleId || req.params.roleId
+    const member = bindClubMemberBinByRoleId(roleId, req.file)
     res.json({ success: true, data: member })
   } catch (error) {
     next(error)

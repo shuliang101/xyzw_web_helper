@@ -3,6 +3,7 @@ import { config } from '../config/index.js'
 import db from '../utils/db.js'
 import { ensureDir, removeFileIfExists } from '../utils/fileSystem.js'
 import fs from 'fs'
+import { removeBinReferences, replaceBinReferences } from './scheduledTaskService.js'
 
 ensureDir(config.uploadDir)
 
@@ -62,27 +63,54 @@ const mapBin = (row) => {
   }
 }
 
-export const saveBinRecord = (userId, file) => {
+export const saveBinRecord = (userId, file, options = {}) => {
   const originalName = sanitizeFilename(file.originalname)
   const storedName = `${Date.now()}_${originalName}`
   const destination = path.join(config.uploadDir, storedName)
   fs.renameSync(file.path, destination)
 
   const createdAt = new Date().toISOString()
-  const stmt = db.prepare(`
-    INSERT INTO bins (user_id, original_name, stored_name, file_path, size, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `)
-  const result = stmt.run(userId, originalName, storedName, destination, file.size, createdAt)
-  return mapBin({
-    id: result.lastInsertRowid,
-    user_id: userId,
-    original_name: originalName,
-    stored_name: storedName,
-    file_path: destination,
-    size: file.size,
-    created_at: createdAt
+  const transaction = db.transaction(() => {
+    const stmt = db.prepare(`
+      INSERT INTO bins (user_id, original_name, stored_name, file_path, size, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `)
+    const result = stmt.run(userId, originalName, storedName, destination, file.size, createdAt)
+    const createdBin = mapBin({
+      id: result.lastInsertRowid,
+      user_id: userId,
+      original_name: originalName,
+      stored_name: storedName,
+      file_path: destination,
+      size: file.size,
+      created_at: createdAt
+    })
+
+    const replaceBinId = options?.replaceBinId
+    let replacedTaskCount = 0
+    let removedBin = null
+    if (replaceBinId !== undefined && replaceBinId !== null && String(replaceBinId).trim()) {
+      const oldRow = db.prepare('SELECT * FROM bins WHERE id = ? AND user_id = ?').get(replaceBinId, userId)
+      if (oldRow) {
+        replacedTaskCount = replaceBinReferences(userId, oldRow.id, createdBin.id)
+        db.prepare('DELETE FROM bins WHERE id = ?').run(oldRow.id)
+        removedBin = mapBin(oldRow)
+      }
+    }
+
+    return {
+      bin: createdBin,
+      replacedTaskCount,
+      removedBin,
+    }
   })
+
+  try {
+    return transaction()
+  } catch (error) {
+    removeFileIfExists(destination)
+    throw error
+  }
 }
 
 export const listBins = (userId) => {
@@ -103,7 +131,14 @@ export const deleteBin = (userId, binId) => {
     throw error
   }
 
+  const removedTaskRefs = db.transaction(() => {
+    const affectedTasks = removeBinReferences(userId, row.id)
+    db.prepare('DELETE FROM bins WHERE id = ?').run(binId)
+    return affectedTasks
+  })()
   removeFileIfExists(resolveBinPath(row))
-  db.prepare('DELETE FROM bins WHERE id = ?').run(binId)
-  return mapBin(row)
+  return {
+    ...mapBin(row),
+    removedTaskRefs,
+  }
 }

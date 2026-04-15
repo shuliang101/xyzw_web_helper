@@ -15,8 +15,10 @@ import {
   updateClubCarSendPlanHandler,
   deleteClubCarSendPlanHandler,
   updateClubCarMemberScheduleHandler,
+  batchUpdateClubCarMemberClaimScheduleHandler,
   updateClubCarMemberTargetHandler,
   unbindClubCarMemberBinHandler,
+  bindClubCarMemberBinByAdminHandler,
   runClubCarSendNowHandler,
   runClubCarClaimNowHandler,
   listClubCarRunLogsHandler,
@@ -57,7 +59,9 @@ router.post('/send-plans', createClubCarSendPlanHandler)
 router.put('/send-plans/:id', updateClubCarSendPlanHandler)
 router.delete('/send-plans/:id', deleteClubCarSendPlanHandler)
 router.put('/members/:id/schedule', updateClubCarMemberScheduleHandler)
+router.put('/members/claim-schedule', batchUpdateClubCarMemberClaimScheduleHandler)
 router.put('/members/:id/target', updateClubCarMemberTargetHandler)
+router.post('/members/:roleId/bind-bin', upload.single('bin'), bindClubCarMemberBinByAdminHandler)
 router.delete('/members/:id/bound-bin', unbindClubCarMemberBinHandler)
 router.post('/run/send', runClubCarSendNowHandler)
 router.post('/run/claim', runClubCarClaimNowHandler)

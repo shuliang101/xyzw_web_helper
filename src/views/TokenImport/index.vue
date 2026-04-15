@@ -949,6 +949,12 @@ const refreshBinTokenFromRemote = async (token) => {
   tokenStore.updateToken(token.id, {
     token: newToken,
     server: toServerLabel(parsedMeta.server) || token.server,
+    binId: matchedBin.id,
+    binOriginalName:
+      matchedBin.originalName ||
+      matchedBin.filename ||
+      matchedBin.storedName ||
+      "",
     lastRefreshed: Date.now(),
   });
   await storeArrayBuffer(token.id, buffer);
@@ -1380,6 +1386,14 @@ const deleteToken = (token) => {
     positiveText: "确定删除",
     negativeText: "取消",
     onPositiveClick: async () => {
+      if (authStore.isAuthenticated && token.binId) {
+        try {
+          await api.bins.remove(token.binId);
+        } catch (error) {
+          message.error(error.message || "后端BIN删除失败");
+          return;
+        }
+      }
       await tokenStore.removeToken(token.id);
       message.success("Token已删除");
     },

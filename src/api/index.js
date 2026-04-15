@@ -204,7 +204,11 @@ const api = {
     updateSendPlan: (planId, body) => request.put(`/club-car/send-plans/${planId}`, body),
     deleteSendPlan: planId => request.delete(`/club-car/send-plans/${planId}`),
     updateMemberSchedule: (memberId, body) => request.put(`/club-car/members/${memberId}/schedule`, body),
+    batchUpdateMemberClaimSchedule: body => request.put('/club-car/members/claim-schedule', body),
     updateMemberTarget: (memberId, body) => request.put(`/club-car/members/${memberId}/target`, body),
+    bindMemberBin: (roleId, formData) => request.post(`/club-car/members/${roleId}/bind-bin`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
     unbindMemberBin: memberId => request.delete(`/club-car/members/${memberId}/bound-bin`),
     runSendNow: () => request.post('/club-car/run/send'),
     runClaimNow: () => request.post('/club-car/run/claim'),

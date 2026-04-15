@@ -33,6 +33,8 @@ declare interface TokenData {
   token: string; // 原始Base64 token
   wsUrl: string | null; // 可选的自定义WebSocket URL
   server: string;
+  binId?: string | number;
+  binOriginalName?: string;
   remark?: string; // 备注信息
   importMethod?: "manual" | "bin" | "url" | "wxQrcode"; // 导入方式：manual（手动）、bin文件或url链接
   sourceUrl?: string; // 当importMethod为url时，存储url链接
@@ -249,6 +251,8 @@ export const useTokenStore = defineStore("tokens", () => {
       sourceUrl: tokenData.sourceUrl || null, // Token来源URL（用于刷新）
       importMethod: tokenData.importMethod || "manual", // 导入方式：manual 或 url
       avatar: tokenData.avatar || "", // 用户头像
+      binId: tokenData.binId,
+      binOriginalName: tokenData.binOriginalName || "",
     };
 
     gameTokens.value.push(newToken);
@@ -1780,6 +1784,9 @@ export const useTokenStore = defineStore("tokens", () => {
     const existingToken = gameTokens.value.find((t) => t.name === roleName);
     if (existingToken) {
       existingToken.token = tokenValue;
+      existingToken.binId = bin?.id ?? existingToken.binId;
+      existingToken.binOriginalName =
+        bin?.originalName || existingToken.binOriginalName || "";
       if (
         !existingToken.server ||
         String(existingToken.server).includes("\u672a\u77e5")
@@ -1795,6 +1802,8 @@ export const useTokenStore = defineStore("tokens", () => {
         token: tokenValue,
         wsUrl: null,
         server: serverName,
+        binId: bin?.id,
+        binOriginalName: bin?.originalName || "",
         importMethod: "bin",
         updatedAt: new Date().toISOString(),
       };

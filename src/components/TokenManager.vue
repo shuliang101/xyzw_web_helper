@@ -145,6 +145,8 @@ import { useMessage, useDialog, NIcon } from "naive-ui";
 import { gameTokens } from "@/stores/tokenStore";
 import { useLocalTokenStore } from "@/stores/localTokenManager";
 import { useGameRolesStore } from "@/stores/gameRoles";
+import { useAuthStore } from "@/stores/auth";
+import api from "@/api";
 import {
   Refresh,
   Download,
@@ -160,6 +162,7 @@ const message = useMessage();
 const dialog = useDialog();
 const localTokenStore = useLocalTokenStore();
 const gameRolesStore = useGameRolesStore();
+const authStore = useAuthStore();
 
 // 方法
 const maskToken = (token) => {
@@ -409,7 +412,16 @@ const removeToken = (roleId) => {
     content: "确定要删除此角色的游戏Token吗？这将断开相关的WebSocket连接。",
     positiveText: "确定删除",
     negativeText: "取消",
-    onPositiveClick: () => {
+    onPositiveClick: async () => {
+      const tokenData = localTokenStore.gameTokens[roleId];
+      if (authStore.isAuthenticated && tokenData?.binId) {
+        try {
+          await api.bins.remove(tokenData.binId);
+        } catch (error) {
+          message.error(error.message || "后端BIN删除失败");
+          return;
+        }
+      }
       localTokenStore.removeGameToken(roleId);
       message.success("Token已删除");
     },

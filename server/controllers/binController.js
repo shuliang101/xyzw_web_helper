@@ -7,12 +7,21 @@ export const uploadBin = (req, res, next) => {
     if (!req.file) {
       return res.status(400).json({ message: '未上传文件' })
     }
-    const record = saveBinRecord(req.user.id, req.file)
+    const result = saveBinRecord(req.user.id, req.file, {
+      replaceBinId: req.body?.replaceBinId,
+    })
+    const record = result?.bin || result
     logActivity(req.user.id, 'bin_upload', `上传 BIN：${record.originalName}`, {
       binId: record.id,
-      size: record.size
+      size: record.size,
+      replaceBinId: req.body?.replaceBinId || null,
+      replacedTaskCount: result?.replacedTaskCount || 0,
     })
-    res.status(201).json({ bin: record })
+    res.status(201).json({
+      bin: record,
+      replacedTaskCount: result?.replacedTaskCount || 0,
+      removedBin: result?.removedBin || null,
+    })
   } catch (error) {
     next(error)
   }
@@ -31,7 +40,8 @@ export const removeBin = (req, res, next) => {
   try {
     const bin = deleteBin(req.user.id, req.params.id)
     logActivity(req.user.id, 'bin_delete', `删除 BIN：${bin?.originalName || bin?.storedName || bin?.id}`, {
-      binId: bin?.id
+      binId: bin?.id,
+      removedTaskRefs: bin?.removedTaskRefs || 0,
     })
     res.json({ bin })
   } catch (error) {

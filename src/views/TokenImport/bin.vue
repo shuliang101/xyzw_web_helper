@@ -318,24 +318,13 @@ const handleImport = async () => {
     message.error("请先上传bin文件");
     return;
   }
-  roleList.value.forEach((role) => {
-    // tokenStore.gameTokens中发现已存在的重复名称，则移出token后重新添加
-    const gameToken = tokenStore.gameTokens.find((t) => t.id === role.id);
-    if (gameToken) {
-      console.log("移除同名token:", gameToken);
-      // tokenStore.removeToken(gameToken.id);
-      tokenStore.updateToken(gameToken.id, {
-        ...role,
-      });
-    } else {
-      tokenStore.addToken({
-        ...role,
-      });
-    }
-  });
+  const uploadedBinMap: Record<
+    string,
+    { binId?: string | number; binOriginalName?: string }
+  > = {};
   if (authStore.isAuthenticated) {
-    let uploadFailedCount = 0;
     for (const role of roleList.value) {
+      const existingToken = tokenStore.gameTokens.find((t) => t.id === role.id);
       const payload = selectedRoleBinPayloads.value[role.id];
       if (!payload?.buffer) continue;
       try {
@@ -346,18 +335,35 @@ const handleImport = async () => {
         );
         const form = new FormData();
         form.append("bin", file);
-        await api.bins.upload(form);
+        if (existingToken?.binId) {
+          form.append("replaceBinId", String(existingToken.binId));
+        }
+        const uploadResult = await api.bins.upload(form);
+        const remoteBin = uploadResult?.bin || uploadResult;
+        uploadedBinMap[role.id] = {
+          binId: remoteBin?.id,
+          binOriginalName: remoteBin?.originalName || payload.fileName || "",
+        };
       } catch (err) {
-        uploadFailedCount += 1;
         console.warn("bin角色文件上传失败:", role.name, err);
       }
     }
-    if (uploadFailedCount > 0) {
-      message.warning(
-        `${uploadFailedCount} 个角色bin上传后端失败，重新打开后可能仍会丢失区服信息`,
-      );
-    }
   }
+  roleList.value.forEach((role) => {
+    const remoteMeta = uploadedBinMap[role.id] || {};
+    const gameToken = tokenStore.gameTokens.find((t) => t.id === role.id);
+    if (gameToken) {
+      tokenStore.updateToken(gameToken.id, {
+        ...role,
+        ...remoteMeta,
+      });
+    } else {
+      tokenStore.addToken({
+        ...role,
+        ...remoteMeta,
+      });
+    }
+  });
   console.log("当前Token列表:", tokenStore.gameTokens);
   message.success("Token添加成功");
   roleList.value = [];

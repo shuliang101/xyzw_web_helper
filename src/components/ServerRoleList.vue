@@ -31,10 +31,10 @@
         </div>
         <div class="server-role-card__actions">
           <n-button type="primary" size="small" block @click="emit('add', row)">
-            添加
+            {{ props.addButtonText }}
           </n-button>
           <n-button type="info" size="small" block @click="emit('download', row)">
-            下载
+            {{ props.downloadButtonText }}
           </n-button>
         </div>
       </div>
@@ -70,11 +70,15 @@ const props = withDefaults(
     title?: string;
     serverColumnTitle?: string;
     maxHeight?: string;
+    addButtonText?: string;
+    downloadButtonText?: string;
   }>(),
   {
     title: "服务器角色列表",
     serverColumnTitle: "区服",
     maxHeight: "",
+    addButtonText: "添加",
+    downloadButtonText: "下载",
   }
 );
 
@@ -207,7 +211,7 @@ const columns = computed(() => [
               type: "primary",
               onClick: () => emit("add", row),
             },
-            { default: () => "添加" }
+            { default: () => props.addButtonText }
           ),
           h(
             NButton,
@@ -216,7 +220,7 @@ const columns = computed(() => [
               type: "info",
               onClick: () => emit("download", row),
             },
-            { default: () => "下载" }
+            { default: () => props.downloadButtonText }
           ),
         ]
       );

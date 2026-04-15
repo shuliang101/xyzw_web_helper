@@ -154,6 +154,16 @@ const myRoutes = [
     },
   },
   {
+    path: '/club-car/monitor',
+    name: 'ClubCarMonitor',
+    component: () => import('@/views/ClubCarMonitor.vue'),
+    meta: {
+      title: 'Club Car Monitor',
+      requiresAuth: true,
+      requiresAdmin: true,
+    },
+  },
+  {
     path: '/websocket-test',
     name: 'WebSocketTest',
     component: () => import('@/components/Test/WebSocketTester.vue'),

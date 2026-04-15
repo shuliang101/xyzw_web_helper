@@ -32,7 +32,7 @@
               <n-tag type="info" size="small">
                 {{ task.runType === 'daily' ? `每天 ${task.runTime}` : task.cronExpression }}
               </n-tag>
-              <n-tag size="small">{{ task.binIds.length }} 个角色</n-tag>
+              <n-tag size="small">{{ getValidBinCount(task.binIds) }} 个角色</n-tag>
             </div>
             <div class="task-actions">
               <n-button size="small" @click="runNow(task)" :loading="runningIds.has(task.id)">
@@ -59,7 +59,8 @@
             <span v-if="task.lastRunAt">上次执行：{{ formatTime(task.lastRunAt) }}</span>
             <span v-else>从未执行</span>
             <span>任务：{{ task.selectedTasks.length > 0 ? task.selectedTasks.map(t => taskLabelMap[t] || t).join('、') : '日常任务' }}</span>
-            <span v-if="task.binIds.length > 0">角色：{{ getBinNames(task.binIds) }}</span>
+            <span v-if="getValidBinCount(task.binIds) > 0">角色：{{ getBinNames(task.binIds) }}</span>
+            <span v-else>角色：-</span>
           </div>
         </n-card>
       </div>
@@ -251,9 +252,16 @@ const getBinNameById = (id) => {
   return bin ? bin.originalName : `角色 ${id}`
 }
 
+const getValidBinIds = (ids) => Array.isArray(ids)
+  ? ids.filter(id => !!binMap.value[id])
+  : []
+
+const getValidBinCount = (ids) => getValidBinIds(ids).length
+
 const getBinNames = (ids) => {
-  if (!ids?.length) return '-'
-  return ids.map(id => getBinNameById(id)).join('、')
+  const validIds = getValidBinIds(ids)
+  if (!validIds.length) return '-'
+  return validIds.map(id => getBinNameById(id)).join('、')
 }
 
 const formatSize = (bytes) => {
