@@ -11,9 +11,9 @@ const DEFAULT_TEMPLATE_PATH = path.resolve(
   '../assets/templates/salt-warrank-template.xlsx'
 )
 
-const ALLY_NAMES = new Set(['梦盟', '龙盟'])
+const ALLY_NAMES = new Set(['梦盟', '龙盟', '曦盟'])
 const ENEMY_NAMES = new Set(['大联盟', '正义联盟'])
-const ALLY_KEYWORDS = ['梦', '龙']
+const ALLY_KEYWORDS = ['梦', '龙', '曦盟', '曦']
 const ENEMY_KEYWORDS = ['正义', '大联']
 
 const FACTION_ALLY = '盟友'
