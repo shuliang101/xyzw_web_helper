@@ -34,9 +34,9 @@
               <n-icon><PersonCircle /></n-icon>
               <span>Token 管理</span>
             </router-link>
-            <router-link to="/admin/batch-daily-tasks" class="nav-item" active-class="active">
-              <n-icon><Layers /></n-icon>
-              <span>批量日常</span>
+            <router-link to="/club-car/monitor" class="nav-item" active-class="active">
+              <n-icon><Eye /></n-icon>
+              <span>发车监视</span>
             </router-link>
             <router-link to="/admin/server-tasks" class="nav-item" active-class="active">
               <n-icon><Timer /></n-icon>
@@ -90,9 +90,9 @@
             <n-icon><PersonCircle /></n-icon>
             <span>Token 管理</span>
           </router-link>
-          <router-link to="/admin/batch-daily-tasks" class="drawer-item" @click="isMobileMenuOpen = false">
-            <n-icon><Layers /></n-icon>
-            <span>批量日常</span>
+          <router-link to="/club-car/monitor" class="drawer-item" @click="isMobileMenuOpen = false">
+            <n-icon><Eye /></n-icon>
+            <span>发车监视</span>
           </router-link>
           <router-link to="/admin/server-tasks" class="drawer-item" @click="isMobileMenuOpen = false">
             <n-icon><Timer /></n-icon>
@@ -125,8 +125,8 @@ import {
   ChatbubbleEllipsesSharp,
   ChevronDown,
   Cube,
+  Eye,
   Home,
-  Layers,
   Menu,
   People,
   PersonCircle,

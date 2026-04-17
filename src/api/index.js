@@ -199,7 +199,7 @@ const api = {
     }),
     syncMembers: () => request.post('/club-car/sync-members'),
     listMembers: (activeOnly = false) => request.get('/club-car/members', { params: { activeOnly } }),
-    listSendPlans: () => request.get('/club-car/send-plans'),
+    listSendPlans: roleId => request.get('/club-car/send-plans', { params: roleId ? { roleId } : {} }),
     createSendPlan: body => request.post('/club-car/send-plans', body),
     updateSendPlan: (planId, body) => request.put(`/club-car/send-plans/${planId}`, body),
     deleteSendPlan: planId => request.delete(`/club-car/send-plans/${planId}`),
@@ -212,7 +212,9 @@ const api = {
     unbindMemberBin: memberId => request.delete(`/club-car/members/${memberId}/bound-bin`),
     runSendNow: () => request.post('/club-car/run/send'),
     runClaimNow: () => request.post('/club-car/run/claim'),
-    listLogs: (limit = 50) => request.get('/club-car/logs', { params: { limit } }),
+    listLogs: (limit = 50, roleId = null) => request.get('/club-car/logs', {
+      params: roleId ? { limit, roleId } : { limit },
+    }),
 
     memberLogin: body => request.post('/club-car/member/login', body),
     memberSetPassword: body => request.post('/club-car/member/set-password', body),

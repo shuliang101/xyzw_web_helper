@@ -207,7 +207,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useMessage } from 'naive-ui'
 import { Add } from '@vicons/ionicons5'
 import api from '@/api/index.js'
@@ -334,19 +334,21 @@ const resetForm = () => {
   })
 }
 
-const openCreateModal = () => {
+const openCreateModal = async () => {
   editingTask.value = null
   resetForm()
+  await fetchBins()
   showModal.value = true
 }
 
-const editTask = (task) => {
+const editTask = async (task) => {
+  await fetchBins()
   editingTask.value = task
   form.name = task.name
   form.runType = task.runType
   form.runTime = task.runTime || '08:00'
   form.cronExpression = task.cronExpression || '0 8 * * *'
-  form.binIds = [...(task.binIds || [])]
+  form.binIds = getValidBinIds(task.binIds || [])
   form.selectedTasks = sanitizeSelectedTasks(task.selectedTasks)
   form.enabled = task.enabled
   Object.assign(form.taskSettings, task.taskSettings || {})
@@ -448,9 +450,21 @@ const formatTime = (iso) => {
 const statusLabel = (s) => ({ running: '执行中', success: '成功', failed: '失败', partial: '部分成功' }[s] || s)
 const statusType = (s) => ({ running: 'info', success: 'success', failed: 'error', partial: 'warning' }[s] || 'default')
 
+const handleVisibilityChange = () => {
+  if (document.visibilityState === 'visible') {
+    fetchBins()
+    fetchTasks()
+  }
+}
+
 onMounted(() => {
   fetchTasks()
   fetchBins()
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>
 

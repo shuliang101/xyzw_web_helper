@@ -200,14 +200,6 @@ const handleImport = async () => {
   if (authStore.isAuthenticated) {
     for (const role of roleList.value) {
       const existingToken = tokenStore.gameTokens.find((t) => t.id === role.id);
-      if (existingToken?.binId) {
-        try {
-          await api.bins.remove(existingToken.binId);
-        } catch (err) {
-          console.warn("删除旧后端bin失败:", existingToken.name, err);
-        }
-      }
-
       const payload = selectedRoleBinPayloads.value[role.id];
       if (!payload?.buffer) continue;
 

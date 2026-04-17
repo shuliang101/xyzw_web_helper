@@ -46,7 +46,12 @@ router.get('/member/profile', getClubCarMemberProfileHandler)
 router.post('/member/bind-bin', upload.single('bin'), bindClubCarMemberBinHandler)
 router.put('/member/schedule', updateClubCarMemberScheduleByRoleHandler)
 
-router.use(authenticate, requireAdmin)
+router.use(authenticate)
+
+router.get('/send-plans', listClubCarSendPlansHandler)
+router.get('/logs', listClubCarRunLogsHandler)
+
+router.use(requireAdmin)
 
 router.get('/config', getClubCarConfigHandler)
 router.get('/club-info', getClubCarClubInfoHandler)
@@ -54,7 +59,6 @@ router.put('/config', updateClubCarConfigHandler)
 router.post('/master-bin', upload.single('bin'), uploadClubCarMasterBinHandler)
 router.post('/sync-members', syncClubCarMembersHandler)
 router.get('/members', listClubCarMembersHandler)
-router.get('/send-plans', listClubCarSendPlansHandler)
 router.post('/send-plans', createClubCarSendPlanHandler)
 router.put('/send-plans/:id', updateClubCarSendPlanHandler)
 router.delete('/send-plans/:id', deleteClubCarSendPlanHandler)
@@ -65,6 +69,5 @@ router.post('/members/:roleId/bind-bin', upload.single('bin'), bindClubCarMember
 router.delete('/members/:id/bound-bin', unbindClubCarMemberBinHandler)
 router.post('/run/send', runClubCarSendNowHandler)
 router.post('/run/claim', runClubCarClaimNowHandler)
-router.get('/logs', listClubCarRunLogsHandler)
 
 export default router

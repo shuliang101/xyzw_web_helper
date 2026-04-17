@@ -41,7 +41,8 @@ export const removeBin = (req, res, next) => {
     const bin = deleteBin(req.user.id, req.params.id)
     logActivity(req.user.id, 'bin_delete', `删除 BIN：${bin?.originalName || bin?.storedName || bin?.id}`, {
       binId: bin?.id,
-      removedTaskRefs: bin?.removedTaskRefs || 0,
+      removedTaskRefs: bin?.removedTaskRefs?.affectedTasks || 0,
+      deletedTasks: bin?.removedTaskRefs?.deletedTasks || 0,
     })
     res.json({ bin })
   } catch (error) {

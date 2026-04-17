@@ -7,7 +7,7 @@
         <p>{{ pageSubtitle }}</p>
       </div>
       <n-space>
-        <n-button @click="goManage">
+        <n-button v-if="isAdmin" @click="goManage">
           管理页
         </n-button>
         <n-button type="primary" :loading="loading" @click="fetchAll">
@@ -97,15 +97,24 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import api from '@/api'
+import { useAuthStore } from '@/stores/auth'
+import { useTokenStore } from '@/stores/tokenStore'
 
 const router = useRouter()
 const message = useMessage()
+const authStore = useAuthStore()
+const tokenStore = useTokenStore()
 
 const loading = ref(false)
 const plans = ref([])
 const logs = ref([])
 const selectedTargetRoleId = ref(null)
 let refreshTimer = null
+const isAdmin = computed(() => authStore.user?.role === 'admin')
+const currentRoleId = computed(() => {
+  if (isAdmin.value) return ''
+  return String(tokenStore.selectedToken?.id || '')
+})
 
 const weekdayOptions = [
   { label: '周一', value: 1 },
@@ -167,6 +176,9 @@ const todayLabel = computed(() => todayWeekday.value ? weekdayLabel(todayWeekday
 
 const pageSubtitle = computed(() => {
   if (!todayWeekday.value) return '今天不是周一到周三，页面会继续显示今天的执行记录。'
+  if (!isAdmin.value && currentRoleId.value) {
+    return `${todayLabel.value}的计划安排和执行结果。当前仅展示与角色 ${currentRoleId.value} 相关的数据。`
+  }
   return `${todayLabel.value}的计划安排、实时执行结果和重试状态都在这里。`
 })
 
@@ -269,8 +281,8 @@ const fetchAll = async () => {
   loading.value = true
   try {
     const [planData, logData] = await Promise.all([
-      api.clubCar.listSendPlans(),
-      api.clubCar.listLogs(50),
+      api.clubCar.listSendPlans(currentRoleId.value),
+      api.clubCar.listLogs(50, currentRoleId.value),
     ])
     plans.value = planData
     logs.value = logData

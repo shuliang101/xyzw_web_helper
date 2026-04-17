@@ -42,6 +42,52 @@ const getTodayBossId = () => {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
+const extraCardRewards = [
+  { name: '七日奖励礼包', cardId: 4001 },
+  { name: '限时礼包', cardId: 4002 },
+  { name: '永久卡礼包', cardId: 4003 },
+]
+
+const battleCommands = new Set([
+  'fight_startareaarena',
+  'fight_startpvp',
+  'fight_starttower',
+  'fight_startboss',
+  'fight_startlegionboss',
+  'fight_startdungeon',
+])
+
+const isIgnorableRewardError = (error) => {
+  const message = String(error?.message || '')
+  return message.includes('[-10006]') || message.includes('[1400010]')
+}
+
+const isArenaActivityOpen = (date = new Date()) => {
+  const hour = date.getHours()
+  return hour >= 6 && hour < 22
+}
+
+const isTaskMarkedCompleted = (completedTasks, taskId) => {
+  if (!completedTasks) return false
+  const rawValue = Array.isArray(completedTasks)
+    ? completedTasks[taskId]
+    : completedTasks[taskId] ?? completedTasks[String(taskId)]
+  return rawValue === -1 || rawValue === '-1'
+}
+
+const getItemQuantity = (items, itemId) => {
+  if (!items) return 0
+  if (Array.isArray(items)) {
+    const target = items.find((item) => Number(item?.id ?? item?.itemId) === Number(itemId))
+    return Number(target?.quantity ?? target?.num ?? 0)
+  }
+  const record = items[itemId] ?? items[String(itemId)]
+  if (record && typeof record === 'object') {
+    return Number(record.quantity ?? record.num ?? 0)
+  }
+  return Number(record ?? 0)
+}
+
 export class ServerDailyTaskRunner {
   constructor(wsClient, settings = {}) {
     this.wsClient = wsClient
@@ -62,6 +108,7 @@ export class ServerDailyTaskRunner {
       ...settings,
     }
     this.callbacks = {}
+    this.battleVersion = null
   }
 
   log(message, type = 'info') {
@@ -73,6 +120,9 @@ export class ServerDailyTaskRunner {
   async executeGameCommand(cmd, params = {}, description = '', timeout = 8000) {
     try {
       if (description) this.log(`执行: ${description}`)
+      if (battleCommands.has(cmd) && this.battleVersion !== null && this.battleVersion !== undefined) {
+        params = { battleVersion: this.battleVersion, ...params }
+      }
       const result = await this.wsClient.sendWithPromise(cmd, params, timeout)
       await sleep(this.settings.commandDelay)
       if (description) this.log(`${description} - 成功`, 'success')
@@ -80,6 +130,18 @@ export class ServerDailyTaskRunner {
     } catch (error) {
       await sleep(this.settings.commandDelay)
       if (description) this.log(`${description} - 失败: ${error.message}`, 'error')
+      throw error
+    }
+  }
+
+  async executeOptionalGameCommand(cmd, params = {}, description = '', timeout = 8000) {
+    try {
+      return await this.executeGameCommand(cmd, params, description, timeout)
+    } catch (error) {
+      if (isIgnorableRewardError(error)) {
+        this.log(`${description} - 跳过: ${error.message}`, 'warning')
+        return null
+      }
       throw error
     }
   }
@@ -245,6 +307,19 @@ export class ServerDailyTaskRunner {
       throw error
     }
 
+    try {
+      const battleResp = await this.wsClient.sendWithPromise('fight_startlevel', {}, 8000)
+      const version = battleResp?.battleData?.version
+      if (version !== undefined && version !== null) {
+        this.battleVersion = version
+        this.log(`battleVersion 已同步: ${version}`)
+      } else {
+        this.log('未获取到 battleVersion，部分战斗指令可能失败', 'warning')
+      }
+    } catch (error) {
+      this.log(`获取 battleVersion 失败: ${error.message}`, 'warning')
+    }
+
     // 同步 randomSeed（必须在 role_getroleinfo 之后发送，否则后续命令返回 200020）
     try {
       const stats = roleInfoResp?.role?.statistics ?? roleInfoResp?.role?.statisticsTime ?? {}
@@ -271,7 +346,7 @@ export class ServerDailyTaskRunner {
     }
 
     const completedTasks = roleData.dailyTask?.complete ?? {}
-    const isTaskCompleted = (taskId) => completedTasks[taskId] === -1
+    const isTaskCompleted = (taskId) => isTaskMarkedCompleted(completedTasks, taskId)
     const statistics = roleData.statistics ?? {}
     const statisticsTime = roleData.statisticsTime ?? {}
     const settings = this.settings
@@ -318,24 +393,52 @@ export class ServerDailyTaskRunner {
       taskList.push({
         name: '竞技场战斗',
         execute: async () => {
-          const hour = new Date().getHours()
-          if (hour < 6 || hour > 22) { this.log('当前时间不在竞技场开放时间内，跳过', 'warning'); return }
+          if (!isArenaActivityOpen()) {
+            this.log('当前时间不在竞技场开放时间内（06:00-21:59），跳过', 'warning')
+            return
+          }
+
+          let latestRoleInfo = roleData
+          try {
+            const roleInfoResp = await this.executeGameCommand('role_getroleinfo', {}, '刷新竞技场前角色信息', 10000)
+            latestRoleInfo = roleInfoResp?.role || latestRoleInfo
+          } catch (error) {
+            this.log(`刷新竞技场前角色信息失败，将继续尝试: ${error.message}`, 'warning')
+          }
+
+          const arenaTicketCount = getItemQuantity(latestRoleInfo?.items, 1007)
+          this.log(`当前竞技场门票: ${arenaTicketCount}`)
+          if (arenaTicketCount <= 0) {
+            this.log('竞技场门票不足，跳过竞技场战斗', 'warning')
+            return
+          }
+
           await this.switchToFormationIfNeeded(settings.arenaFormation, '竞技场阵容')
           await this.executeGameCommand('arena_startarea', {}, '开始竞技场')
-          for (let i = 1; i <= 3; i++) {
+
+          const fightCount = Math.min(3, arenaTicketCount)
+          for (let i = 1; i <= fightCount; i++) {
             try {
               const targets = await this.executeGameCommand('arena_getareatarget', {}, `获取竞技场目标${i}`)
               const targetId = pickArenaTargetId(targets)
               if (targetId) {
                 await this.executeGameCommand('fight_startareaarena', { targetId }, `竞技场战斗${i}`, 10000)
+              } else {
+                this.log(`竞技场战斗${i}未找到有效目标: ${JSON.stringify(targets)}`, 'warning')
+                break
               }
             } catch (err) {
-              this.log(`竞技场战斗${i}失败: ${err.message}`, 'error'); break
+              this.log(`竞技场战斗${i}失败: ${err.message}`, 'error')
+              break
             }
             await sleep(1000)
           }
         },
       })
+    } else if (!settings.arenaEnable) {
+      this.log('配置已关闭竞技场任务，跳过', 'warning')
+    } else {
+      this.log('今日竞技场日常已完成，跳过', 'info')
     }
 
     // 3. BOSS
@@ -364,11 +467,20 @@ export class ServerDailyTaskRunner {
       { name: '领取每日礼包', cmd: 'discount_claimreward' },
       { name: '领取每日免费奖励', cmd: 'collection_claimfreereward' },
       { name: '领取免费礼包', cmd: 'card_claimreward' },
-      { name: '领取永久卡礼包', cmd: 'card_claimreward', params: { cardId: 4003 } },
     ]
+    extraCardRewards.forEach((reward) => {
+      fixedRewards.push({
+        name: `领取${reward.name}`,
+        cmd: 'card_claimreward',
+        params: { cardId: reward.cardId },
+      })
+    })
     if (settings.claimEmail) fixedRewards.push({ name: '领取邮件奖励', cmd: 'mail_claimallattachment' })
     fixedRewards.forEach((reward) => {
-      taskList.push({ name: reward.name, execute: () => this.executeGameCommand(reward.cmd, reward.params || {}, reward.name) })
+      taskList.push({
+        name: reward.name,
+        execute: () => this.executeOptionalGameCommand(reward.cmd, reward.params || {}, reward.name),
+      })
     })
 
     taskList.push({ name: '开始领取珍宝阁礼包', execute: () => this.executeGameCommand('collection_goodslist', {}, '开始领取珍宝阁礼包') })

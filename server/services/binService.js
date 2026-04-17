@@ -4,6 +4,11 @@ import db from '../utils/db.js'
 import { ensureDir, removeFileIfExists } from '../utils/fileSystem.js'
 import fs from 'fs'
 import { removeBinReferences, replaceBinReferences } from './scheduledTaskService.js'
+import { scheduler } from './taskScheduler.js'
+import {
+  bindClubMemberBinReferenceByRoleId,
+  clearClubMemberBinReferenceByRoleId,
+} from './clubCarService.js'
 
 ensureDir(config.uploadDir)
 
@@ -20,6 +25,12 @@ const decodeFilename = (name = '') => {
 const sanitizeFilename = (name = '') => {
   const decoded = decodeFilename(path.basename(name)) || 'bin.bin'
   return decoded.replace(INVALID_FILENAME_CHARS, '_')
+}
+
+const extractRoleIdFromBinName = (name = '') => {
+  const normalized = sanitizeFilename(name)
+  const match = normalized.match(/^bin-[^-]+-\d+-(\d+)-.+\.bin$/i)
+  return match?.[1] ? String(match[1]) : ''
 }
 
 const resolveBinPath = (row) => {
@@ -68,6 +79,7 @@ export const saveBinRecord = (userId, file, options = {}) => {
   const storedName = `${Date.now()}_${originalName}`
   const destination = path.join(config.uploadDir, storedName)
   fs.renameSync(file.path, destination)
+  const newRoleId = extractRoleIdFromBinName(originalName)
 
   const createdAt = new Date().toISOString()
   const transaction = db.transaction(() => {
@@ -89,12 +101,14 @@ export const saveBinRecord = (userId, file, options = {}) => {
     const replaceBinId = options?.replaceBinId
     let replacedTaskCount = 0
     let removedBin = null
+    let removedBinRoleId = ''
     if (replaceBinId !== undefined && replaceBinId !== null && String(replaceBinId).trim()) {
       const oldRow = db.prepare('SELECT * FROM bins WHERE id = ? AND user_id = ?').get(replaceBinId, userId)
       if (oldRow) {
         replacedTaskCount = replaceBinReferences(userId, oldRow.id, createdBin.id)
         db.prepare('DELETE FROM bins WHERE id = ?').run(oldRow.id)
         removedBin = mapBin(oldRow)
+        removedBinRoleId = extractRoleIdFromBinName(oldRow.original_name || oldRow.stored_name || '')
       }
     }
 
@@ -102,11 +116,33 @@ export const saveBinRecord = (userId, file, options = {}) => {
       bin: createdBin,
       replacedTaskCount,
       removedBin,
+      newRoleId,
+      removedBinRoleId,
     }
   })
 
   try {
-    return transaction()
+    const result = transaction()
+
+    if (result.removedBin && result.removedBinRoleId && result.removedBinRoleId !== result.newRoleId) {
+      clearClubMemberBinReferenceByRoleId(result.removedBinRoleId, {
+        expectedPath: result.removedBin.filePath,
+      })
+    }
+
+    if (result.newRoleId) {
+      bindClubMemberBinReferenceByRoleId(
+        result.newRoleId,
+        result.bin.filePath,
+        result.bin.originalName,
+      )
+    }
+
+    if (result.replacedTaskCount > 0) {
+      scheduler.reload()
+    }
+
+    return result
   } catch (error) {
     removeFileIfExists(destination)
     throw error
@@ -136,9 +172,19 @@ export const deleteBin = (userId, binId) => {
     db.prepare('DELETE FROM bins WHERE id = ?').run(binId)
     return affectedTasks
   })()
-  removeFileIfExists(resolveBinPath(row))
+  const removedBin = mapBin(row)
+  const roleId = extractRoleIdFromBinName(row.original_name || row.stored_name || '')
+  if (roleId) {
+    clearClubMemberBinReferenceByRoleId(roleId, {
+      expectedPath: removedBin.filePath,
+    })
+  }
+  if ((removedTaskRefs?.affectedTasks || 0) > 0 || (removedTaskRefs?.deletedTasks || 0) > 0) {
+    scheduler.reload()
+  }
+  removeFileIfExists(removedBin.filePath)
   return {
-    ...mapBin(row),
+    ...removedBin,
     removedTaskRefs,
   }
 }

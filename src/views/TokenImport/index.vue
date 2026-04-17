@@ -113,18 +113,9 @@
               >
                 最后使用 {{ getSortIcon("lastUsed") }}
               </n-button>
-            </n-button-group>
-          </n-space>
-          <div class="header-actions">
-            <n-button type="success" @click="goToDashboard">
-              <template #icon>
-                <n-icon>
-                  <List />
-                </n-icon>
-              </template>
-              批量功能
-            </n-button>
-
+          </n-button-group>
+        </n-space>
+        <div class="header-actions">
             <n-button
               v-if="!showImportForm"
               type="primary"
@@ -580,6 +571,16 @@
             clearable
           />
         </n-form-item>
+        <n-form-item label="重新上传BIN">
+          <input
+            type="file"
+            accept=".bin,.dmp"
+            @change="handleEditBinChange"
+          />
+          <div v-if="editBinFileName" class="edit-bin-tip">
+            已选择: {{ editBinFileName }}
+          </div>
+        </n-form-item>
         <n-form-item label="服务器">
           <n-input v-model:value="editForm.server" />
         </n-form-item>
@@ -598,8 +599,8 @@
 
       <template #footer>
         <div class="modal-actions">
-          <n-button @click="showEditModal = false"> 取消 </n-button>
-          <n-button type="primary" @click="saveEdit"> 保存 </n-button>
+          <n-button @click="closeEditModal"> 取消 </n-button>
+          <n-button type="primary" :loading="isSavingEdit" @click="saveEdit"> 保存 </n-button>
         </div>
       </template>
     </n-modal>
@@ -616,7 +617,6 @@ import WxQrcodeForm from "./wxqrcode.vue";
 import { useTokenStore, selectedTokenId } from "@/stores/tokenStore";
 import {
   Add,
-  Copy,
   Create,
   EllipsisHorizontal,
   Grid,
@@ -626,13 +626,13 @@ import {
   Menu,
   Refresh,
   Star,
-  SyncCircle,
   TrashBin,
 } from "@vicons/ionicons5";
 import { NIcon, NAlert, useDialog, useMessage } from "naive-ui";
 import { h, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
+import api from "@/api";
 import { transformToken, scheduleAuthUserRequest } from "@/utils/token";
 import { $emit } from "@/stores/events/index.ts";
 import useIndexedDB from "@/hooks/useIndexedDB";
@@ -671,6 +671,10 @@ const importFormRef = ref(null);
 const urlFormRef = ref(null);
 const editFormRef = ref(null);
 const editingToken = ref(null);
+const isSavingEdit = ref(false);
+const editBinFile = ref(null);
+const editBinBuffer = ref(null);
+const editBinFileName = ref("");
 const importMethod = ref("wxQrcode");
 const refreshingTokens = ref(new Set());
 const connectingTokens = ref(new Set());
@@ -811,6 +815,59 @@ const editForm = reactive({
 const editRules = {
   name: [{ required: true, message: "请输入Token名称", trigger: "blur" }],
   token: [{ required: true, message: "请输入Token字符串", trigger: "blur" }],
+};
+
+const readFileAsArrayBuffer = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("读取BIN文件失败"));
+    reader.readAsArrayBuffer(file);
+  });
+
+const closeEditModal = () => {
+  showEditModal.value = false;
+  editingToken.value = null;
+  editBinFile.value = null;
+  editBinBuffer.value = null;
+  editBinFileName.value = "";
+};
+
+const handleEditBinChange = async (event) => {
+  const file = event?.target?.files?.[0];
+  if (!file || !editingToken.value) {
+    editBinFile.value = null;
+    editBinBuffer.value = null;
+    editBinFileName.value = "";
+    return;
+  }
+
+  try {
+    const buffer = await readFileAsArrayBuffer(file);
+    const nextToken = await transformToken(buffer);
+    const parsedMeta = parseBinMetaFromName(file.name);
+
+    editBinFile.value = file;
+    editBinBuffer.value = buffer;
+    editBinFileName.value = file.name;
+    editForm.token = nextToken;
+
+    if (parsedMeta?.server) {
+      editForm.server = toServerLabel(parsedMeta.server) || editForm.server;
+    }
+
+    message.success("新BIN已读取，保存后生效");
+  } catch (error) {
+    console.error("读取编辑BIN失败:", error);
+    message.error(error?.message || "读取BIN失败");
+    editBinFile.value = null;
+    editBinBuffer.value = null;
+    editBinFileName.value = "";
+  } finally {
+    if (event?.target) {
+      event.target.value = "";
+    }
+  }
 };
 
 const bulkOptions = [
@@ -1253,26 +1310,11 @@ const getTokenActions = (token) => {
       icon: () => h(NIcon, null, { default: () => h(Create) }),
     },
     {
-      label: "复制Token",
-      key: "copy",
-      icon: () => h(NIcon, null, { default: () => h(Copy) }),
+      label: "重新上传BIN",
+      key: "edit-bin",
+      icon: () => h(NIcon, null, { default: () => h(Add) }),
     },
   ];
-
-  // 根据Token类型添加刷新选项
-  if (token.importMethod === "url" && token.sourceUrl) {
-    actions.push({
-      label: "从URL刷新",
-      key: "refresh-url",
-      icon: () => h(NIcon, null, { default: () => h(SyncCircle) }),
-    });
-  } else {
-    actions.push({
-      label: "重新获取",
-      key: "refresh",
-      icon: () => h(NIcon, null, { default: () => h(Refresh) }),
-    });
-  }
 
   actions.push(
     { type: "divider" },
@@ -1292,16 +1334,8 @@ const handleTokenAction = async (key, token) => {
     case "edit":
       editToken(token);
       break;
-    case "copy":
-      copyToken(token);
-      break;
-    case "refresh":
-      // 重新获取Token
-      refreshToken(token);
-      break;
-    case "refresh-url":
-      // URL获取的Token刷新
-      refreshToken(token);
+    case "edit-bin":
+      editToken(token);
       break;
     case "delete":
       deleteToken(token);
@@ -1311,6 +1345,9 @@ const handleTokenAction = async (key, token) => {
 
 const editToken = (token) => {
   editingToken.value = token;
+  editBinFile.value = null;
+  editBinBuffer.value = null;
+  editBinFileName.value = "";
   Object.assign(editForm, {
     name: token.name,
     token: token.token,
@@ -1325,30 +1362,77 @@ const saveEdit = async () => {
   if (!editFormRef.value || !editingToken.value) return;
 
   try {
+    isSavingEdit.value = true;
     await editFormRef.value.validate();
 
-    tokenStore.updateToken(editingToken.value.id, {
+    const updatePayload = {
       name: editForm.name,
       token: editForm.token,
       server: editForm.server,
       wsUrl: editForm.wsUrl,
       remark: editForm.remark,
-    });
+    };
+
+    if (editBinFile.value && editBinBuffer.value) {
+      await storeArrayBuffer(editingToken.value.id, editBinBuffer.value);
+      await deleteArrayBuffer(editingToken.value.name).catch(() => {});
+
+      if (authStore.isAuthenticated) {
+        if (editingToken.value.binId) {
+          try {
+            await api.bins.remove(editingToken.value.binId);
+          } catch (error) {
+            if (error?.status !== 404) {
+              throw error;
+            }
+          }
+        }
+
+        const uploadedFile = new File(
+          [new Uint8Array(editBinBuffer.value)],
+          editBinFile.value.name,
+          { type: "application/octet-stream" },
+        );
+        const form = new FormData();
+        form.append("bin", uploadedFile);
+        const uploadResult = await api.bins.upload(form);
+        const remoteBin = uploadResult?.bin || uploadResult;
+
+        updatePayload.binId = remoteBin?.id;
+        updatePayload.binOriginalName =
+          remoteBin?.originalName || editBinFile.value.name || "";
+      } else {
+        updatePayload.binId = undefined;
+        updatePayload.binOriginalName = editBinFile.value.name || "";
+      }
+
+      updatePayload.lastRefreshed = Date.now();
+      updatePayload.importMethod = "bin";
+    }
+
+    const targetTokenId = editingToken.value.id;
+    const shouldReconnect = tokenStore.getWebSocketStatus(targetTokenId) === "connected";
+    tokenStore.updateToken(editingToken.value.id, updatePayload);
+
+    if (shouldReconnect) {
+      tokenStore.closeWebSocketConnection(targetTokenId);
+      setTimeout(() => {
+        tokenStore.createWebSocketConnection(
+          targetTokenId,
+          updatePayload.token,
+          updatePayload.wsUrl,
+        );
+      }, 500);
+    }
 
     message.success("Token信息已更新");
-    showEditModal.value = false;
-    editingToken.value = null;
+    closeEditModal();
   } catch (error) {
-    // 验证失败
-  }
-};
-
-const copyToken = async (token) => {
-  try {
-    await navigator.clipboard.writeText(token.token);
-    message.success("Token已复制到剪贴板");
-  } catch (error) {
-    message.error("复制失败");
+    if (error?.message) {
+      message.error(error.message);
+    }
+  } finally {
+    isSavingEdit.value = false;
   }
 };
 
@@ -1390,8 +1474,12 @@ const deleteToken = (token) => {
         try {
           await api.bins.remove(token.binId);
         } catch (error) {
-          message.error(error.message || "后端BIN删除失败");
-          return;
+          if (error?.status === 404) {
+            message.warning("后端BIN记录不存在，仅删除本地Token");
+          } else {
+            message.error(error.message || "后端BIN删除失败");
+            return;
+          }
         }
       }
       await tokenStore.removeToken(token.id);
@@ -1665,10 +1753,6 @@ const maskToken = (token) => {
 
 const formatTime = (timestamp) => {
   return new Date(timestamp).toLocaleString("zh-CN");
-};
-
-const goToDashboard = () => {
-  router.push("/admin/batch-daily-tasks");
 };
 
 // 开始任务管理 - 直接跳转到控制台
@@ -2405,6 +2489,13 @@ onUnmounted(() => {
   display: flex;
   gap: var(--spacing-md);
   justify-content: flex-end;
+}
+
+.edit-bin-tip {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  word-break: break-all;
 }
 
 @media (max-width: 768px) {

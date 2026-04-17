@@ -8,7 +8,7 @@ import { encode, parse, getEnc, bon, g_utils } from './bonProtocol.js'
 
 const commandDefaults = {
   role_getroleinfo: {
-    clientVersion: '2.10.3-f10a39eaa0c409f4-wx',
+    clientVersion: '2.21.2-fa918e1997301834-wx',
     inviteUid: 0,
     platform: 'hortor',
     platformExt: 'mix',
@@ -20,9 +20,14 @@ const commandDefaults = {
   system_buygold: {
     buyNum: 1,
   },
+  system_claimhangupreward: {},
   system_mysharecallback: {
     isSkipShareCard: true,
     type: 2,
+  },
+  system_custom: {
+    key: '',
+    value: 0,
   },
   friend_batch: {
     friendId: 0,
@@ -36,23 +41,43 @@ const commandDefaults = {
     itemId: 2001,
     number: 10,
   },
+  mail_claimallattachment: {
+    category: 0,
+  },
+  bottlehelper_claim: {},
   bottlehelper_start: {
     bottleType: -1,
   },
   bottlehelper_stop: {
     bottleType: -1,
   },
+  arena_startarea: {},
   arena_getareatarget: {
     refresh: false,
   },
+  genie_sweep: {
+    genieId: 1,
+  },
+  genie_buysweep: {},
+  discount_claimreward: {
+    discountId: 1,
+  },
+  collection_claimfreereward: {},
+  card_claimreward: {
+    cardId: 1,
+  },
+  collection_goodslist: {},
+  legion_signin: {},
   presetteam_saveteam: {
     teamId: 1,
   },
+  presetteam_getinfo: {},
   artifact_lottery: {
     lotteryNumber: 1,
     newFree: true,
     type: 1,
   },
+  fight_startlevel: {},
 }
 
 function buildCommandBody(cmd, params = {}) {

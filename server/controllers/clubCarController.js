@@ -20,6 +20,8 @@ import {
   verifyClubMemberToken,
   bindClubMemberBinByRoleId,
   getClubCarRunLogs,
+  getClubCarRunLogsByRoleId,
+  getClubCarSendPlansByRoleId,
 } from '../services/clubCarService.js'
 import { clubCarScheduler } from '../services/clubCarScheduler.js'
 
@@ -63,7 +65,12 @@ export const listClubCarMembersHandler = (req, res) => {
 }
 
 export const listClubCarSendPlansHandler = (req, res) => {
-  res.json({ success: true, data: getClubCarSendPlans() })
+  const roleId = String(req.query.roleId || '').trim()
+  if (req.user?.role === 'admin') {
+    res.json({ success: true, data: getClubCarSendPlans() })
+    return
+  }
+  res.json({ success: true, data: getClubCarSendPlansByRoleId(roleId) })
 }
 
 export const createClubCarSendPlanHandler = (req, res, next) => {
@@ -169,7 +176,10 @@ export const runClubCarClaimNowHandler = async (req, res, next) => {
 
 export const listClubCarRunLogsHandler = (req, res) => {
   const limit = Number(req.query.limit || 50)
-  const logs = getClubCarRunLogs(limit)
+  const roleId = String(req.query.roleId || '').trim()
+  const logs = req.user?.role === 'admin'
+    ? getClubCarRunLogs(limit)
+    : getClubCarRunLogsByRoleId(roleId, limit)
   res.json({ success: true, data: logs })
 }
 

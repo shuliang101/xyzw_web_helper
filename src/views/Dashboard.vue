@@ -101,13 +101,6 @@ const quickActions = ref([
     action: "add-token",
   },
   {
-    id: 3,
-    icon: CheckmarkCircle,
-    title: "批量任务",
-    description: "批量执行任务",
-    action: "batch-daily-tasks",
-  },
-  {
     id: 4,
     icon: Cloud,
     title: "WebSocket测试",
@@ -149,9 +142,6 @@ const handleQuickAction = (action) => {
       break;
     case "open-settings":
       router.push("/admin/profile");
-      break;
-    case "batch-daily-tasks":
-      router.push("/admin/batch-daily-tasks");
       break;
   }
 };

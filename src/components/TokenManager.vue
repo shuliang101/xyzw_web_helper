@@ -418,8 +418,12 @@ const removeToken = (roleId) => {
         try {
           await api.bins.remove(tokenData.binId);
         } catch (error) {
-          message.error(error.message || "后端BIN删除失败");
-          return;
+          if (error?.status === 404) {
+            message.warning("后端BIN记录不存在，仅删除本地Token");
+          } else {
+            message.error(error.message || "后端BIN删除失败");
+            return;
+          }
         }
       }
       localTokenStore.removeGameToken(roleId);

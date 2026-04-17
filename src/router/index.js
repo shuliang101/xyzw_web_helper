@@ -160,7 +160,6 @@ const myRoutes = [
     meta: {
       title: 'Club Car Monitor',
       requiresAuth: true,
-      requiresAdmin: true,
     },
   },
   {
@@ -246,6 +245,11 @@ router.beforeEach(async (to, from, next) => {
   }
 
   if (to.meta.requiresAdmin && authStore.user?.role !== 'admin') {
+    next('/admin/dashboard')
+    return
+  }
+
+  if (to.name === 'BatchDailyTasks') {
     next('/admin/dashboard')
     return
   }
