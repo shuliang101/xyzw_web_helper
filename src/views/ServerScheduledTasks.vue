@@ -269,6 +269,36 @@ const formatSize = (bytes) => {
   return (bytes / 1024).toFixed(1) + ' KB'
 }
 
+const createDefaultTaskSettings = () => ({
+  arenaFormation: 1,
+  towerFormation: 1,
+  bossFormation: 1,
+  bossTimes: 2,
+  arenaEnable: true,
+  claimHangUp: true,
+  claimBottle: true,
+  claimEmail: true,
+  payRecruit: true,
+  openBox: true,
+  blackMarketPurchase: true,
+  commandDelay: 500,
+  taskDelay: 500,
+})
+
+const hhmmToTimestamp = (hhmm) => {
+  const text = String(hhmm || '').trim()
+  const match = text.match(/^(\d{1,2}):(\d{1,2})$/)
+  if (!match) return null
+
+  const hour = Number(match[1])
+  const minute = Number(match[2])
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null
+
+  const date = new Date()
+  date.setHours(hour, minute, 0, 0)
+  return date.getTime()
+}
+
 const showModal = ref(false)
 const editingTask = ref(null)
 const form = reactive({
@@ -280,21 +310,7 @@ const form = reactive({
   binIds: [],
   selectedTasks: [],
   enabled: true,
-  taskSettings: {
-    arenaFormation: 1,
-    towerFormation: 1,
-    bossFormation: 1,
-    bossTimes: 2,
-    arenaEnable: true,
-    claimHangUp: true,
-    claimBottle: true,
-    claimEmail: true,
-    payRecruit: true,
-    openBox: true,
-    blackMarketPurchase: true,
-    commandDelay: 500,
-    taskDelay: 500,
-  },
+  taskSettings: createDefaultTaskSettings(),
 })
 
 const showLogsModal = ref(false)
@@ -326,12 +342,7 @@ const resetForm = () => {
   form.binIds = []
   form.selectedTasks = []
   form.enabled = true
-  Object.assign(form.taskSettings, {
-    arenaFormation: 1, towerFormation: 1, bossFormation: 1, bossTimes: 2,
-    arenaEnable: true, claimHangUp: true, claimBottle: true,
-    claimEmail: true, payRecruit: true, openBox: true,
-    blackMarketPurchase: true, commandDelay: 500, taskDelay: 500,
-  })
+  Object.assign(form.taskSettings, createDefaultTaskSettings())
 }
 
 const openCreateModal = async () => {
@@ -342,16 +353,18 @@ const openCreateModal = async () => {
 }
 
 const editTask = async (task) => {
+  resetForm()
   await fetchBins()
   editingTask.value = task
   form.name = task.name
   form.runType = task.runType
   form.runTime = task.runTime || '08:00'
+  form.runTimeTs = hhmmToTimestamp(form.runTime)
   form.cronExpression = task.cronExpression || '0 8 * * *'
   form.binIds = getValidBinIds(task.binIds || [])
   form.selectedTasks = sanitizeSelectedTasks(task.selectedTasks)
   form.enabled = task.enabled
-  Object.assign(form.taskSettings, task.taskSettings || {})
+  Object.assign(form.taskSettings, createDefaultTaskSettings(), task.taskSettings || {})
   showModal.value = true
 }
 

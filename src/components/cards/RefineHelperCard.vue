@@ -398,6 +398,81 @@ const refreshHeroes = async () => {
     const heroData = role?.heroes || {};
     const items = role?.items || {};
 
+    console.log("[refine-debug] refreshHeroes raw", {
+      presetTeamInfo,
+      teamData,
+      role,
+      heroData,
+      items,
+    });
+    try {
+      console.log(
+        "[refine-debug-json]",
+        JSON.stringify(
+          {
+            presetTeamInfo,
+            teamData,
+            role,
+            heroData,
+            items,
+          },
+          null,
+          2,
+        ),
+      );
+    } catch (debugError) {
+      console.warn("[refine-debug] stringify failed", debugError);
+    }
+
+    const activeTeamId = Number(teamData?.useTeamId || 1);
+    const activeTeamInfo = teamData?.teams?.[activeTeamId]?.teamInfo || {};
+    const detailedTeamHeroes = Object.fromEntries(
+      Object.entries(activeTeamInfo).map(([slot, teamHero]) => {
+        const heroKey = String(teamHero?.heroId || teamHero?.id || "");
+        const fullHero = heroData[heroKey] || null;
+        return [
+          slot,
+          {
+            slot: Number(slot),
+            heroKey,
+            teamHero,
+            fullHero,
+            teamHeroEquipment: teamHero?.equipment || null,
+            fullHeroEquipment: fullHero?.equipment || null,
+            teamEquipCurQuench: teamHero?.equipCurQuench || null,
+            fullHeroEquipCurQuench: fullHero?.equipCurQuench || null,
+            teamHeroKeys: Object.keys(teamHero || {}),
+            fullHeroKeys: Object.keys(fullHero || {}),
+          },
+        ];
+      }),
+    );
+
+    console.log("[refine-debug] activeTeamHeroes", {
+      activeTeamId,
+      activeTeamInfo,
+      detailedTeamHeroes,
+    });
+    try {
+      console.log(
+        "[refine-debug-activeTeamHeroes-json]",
+        JSON.stringify(
+          {
+            activeTeamId,
+            activeTeamInfo,
+            detailedTeamHeroes,
+          },
+          null,
+          2,
+        ),
+      );
+    } catch (debugError) {
+      console.warn(
+        "[refine-debug] activeTeamHeroes stringify failed",
+        debugError,
+      );
+    }
+
     // 更新白玉和彩玉数量
     jadeCount.value = items["1022"]?.quantity || 0;
     colorJadeCount.value = items["1023"]?.quantity || 0;

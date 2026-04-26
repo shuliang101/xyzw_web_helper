@@ -6,6 +6,8 @@ import { authenticate, requireAdmin } from '../middleware/auth.js'
 import {
   getClubCarConfigHandler,
   getClubCarClubInfoHandler,
+  exportClubCarConfigPackageHandler,
+  importClubCarConfigPackageHandler,
   updateClubCarConfigHandler,
   uploadClubCarMasterBinHandler,
   syncClubCarMembersHandler,
@@ -55,6 +57,8 @@ router.use(requireAdmin)
 
 router.get('/config', getClubCarConfigHandler)
 router.get('/club-info', getClubCarClubInfoHandler)
+router.get('/config-package', exportClubCarConfigPackageHandler)
+router.post('/config-package', importClubCarConfigPackageHandler)
 router.put('/config', updateClubCarConfigHandler)
 router.post('/master-bin', upload.single('bin'), uploadClubCarMasterBinHandler)
 router.post('/sync-members', syncClubCarMembersHandler)

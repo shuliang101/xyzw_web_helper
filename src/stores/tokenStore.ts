@@ -1304,6 +1304,8 @@ export const useTokenStore = defineStore("tokens", () => {
 
     gameTokens.value = [];
     selectedTokenId.value = null;
+    remoteBinSynced.value = false;
+    remoteBinSyncing.value = false;
 
     // 清空IndexedDB
     await clearAll();

@@ -167,7 +167,11 @@ const handleLogin = async () => {
   }
 };
 
-const redirectToHome = () => {
+const redirectToHome = async () => {
+  if (!authStore.isAdmin && !tokenStore.hasTokens) {
+    await tokenStore.restoreTokensFromRemoteBins();
+  }
+
   if (authStore.isAdmin) {
     router.push("/admin/users");
   } else if (tokenStore.hasTokens) {
@@ -177,9 +181,9 @@ const redirectToHome = () => {
   }
 };
 
-onMounted(() => {
+onMounted(async () => {
   if (authStore.isAuthenticated) {
-    redirectToHome();
+    await redirectToHome();
   }
 });
 </script>

@@ -195,6 +195,29 @@ const isBigPrize = (rewards) => {
   return false;
 };
 
+const countBigPrizes = (rewards) => {
+  const bigPrizes = [
+    { type: 3, itemId: 3201, value: 10 },
+    { type: 3, itemId: 1001, value: 10 },
+    { type: 3, itemId: 1022, value: 2000 },
+    { type: 2, itemId: 0, value: 2000 },
+    { type: 3, itemId: 1023, value: 5 },
+    { type: 3, itemId: 1022, value: 2500 },
+    { type: 3, itemId: 1001, value: 12 },
+  ];
+
+  if (!rewards || !Array.isArray(rewards)) return 0;
+
+  return rewards.filter((reward) =>
+    bigPrizes.some(
+      (prize) =>
+        Number(reward?.type || 0) === prize.type &&
+        Number(reward?.itemId || 0) === prize.itemId &&
+        Number(reward?.value || 0) >= prize.value,
+    ),
+  ).length;
+};
+
 // 获取车辆状态文本
 const getCarStatusText = (carData) => {
   const sendAt = carData.sendAt || 0;
@@ -399,6 +422,7 @@ const getCarList = async () => {
               color_name: colorName,
               sendAt: sendAt,
               claimAt: claimAt,
+              refreshCount: carInfo.refreshCount || 0,
               rewards: rewards,
               // 添加其他可能需要的属性
               raided: carInfo.raided || 0,
@@ -469,26 +493,40 @@ const shouldSendCar = (carInfo, refreshTickets) => {
   const rewards = carInfo.rewards || [];
 
   // 计算奖励中的赛车刷新券数量
-  const racingTicketsCount = countRacingRefreshTickets(rewards);
+  const bigPrizeCount = countBigPrizes(rewards);
+  const isOrangeCar = Number(color) === 4;
 
-  // 如果刷新券充足（>=6），寻找神话以上|赛车刷新券>=4|大奖车
+  // 如果刷新券充足（>=6），寻找红车以上或大奖车
   if (refreshTickets >= 6) {
     return (
       color >= 5 || // 神话以上
-      racingTicketsCount >= 4 || // 赛车刷新券>=4
-      isBigPrize(rewards)
+      (isOrangeCar ? bigPrizeCount >= 2 : bigPrizeCount >= 1)
     ); // 大奖车
   } else {
-    // 刷新券不足，寻找传说以上|赛车刷新券>=2|大奖车
-    return (
-      color >= 4 || // 传说以上
-      racingTicketsCount >= 2 || // 赛车刷新券>=2
-      isBigPrize(rewards)
-    ); // 大奖车
+    // 刷新券不足，寻找金车/带大奖的红车/双大奖橙车
+    if (color >= 6) return true;
+    if (color === 5) return bigPrizeCount >= 1;
+    if (isOrangeCar) return bigPrizeCount >= 2;
+    return isBigPrize(rewards);
   }
 };
 
 // 智能发车方法
+const MAX_SINGLE_CAR_REFRESH_COUNT = 6;
+
+const shouldSendCarPure = (carInfo) => {
+  const color = Number(carInfo?.color || 0);
+  const rewards = Array.isArray(carInfo?.rewards) ? carInfo.rewards : [];
+  const bigPrizeCount = countBigPrizes(rewards);
+  const isOrangeCar = color === 4;
+
+  if (color < 4) return false;
+  if (color >= 6) return true;
+  if (color === 5) return bigPrizeCount >= 1;
+  if (isOrangeCar) return bigPrizeCount >= 2;
+  return isBigPrize(rewards);
+};
+
 const smartSendCar = async () => {
   const tokenId = tokenStore.selectedToken.id;
   const status = tokenStore.getWebSocketStatus(tokenId);
@@ -517,7 +555,7 @@ const smartSendCar = async () => {
           console.log(`当前车辆品质: ${car.color_name}(${car.color})`);
 
           // 判断当前车辆是否符合发车条件
-          if (shouldSendCar(car, refreshTickets)) {
+          if (shouldSendCarPure(car)) {
             console.log("✅ 该车辆已符合发车条件，开始发车");
             await sendCar(car.id);
             await new Promise((resolve) => setTimeout(resolve, 500)); // 发车后延迟
@@ -531,8 +569,8 @@ const smartSendCar = async () => {
           let shouldRefresh = false;
           let remainingTickets = refreshTickets;
 
-          if (refreshTickets >= 6) {
-            // 刷新券充足时：使用刷新券寻找神话以上|赛车刷新券>=4|大奖车
+          if (refreshCount < MAX_SINGLE_CAR_REFRESH_COUNT) {
+            // 刷新券充足时：使用刷新券寻找红车以上或大奖车
             console.log(
               `💎 刷新券充足，使用刷新券刷新该车辆 (当前刷新券: ${refreshTickets})`,
             );
@@ -540,7 +578,7 @@ const smartSendCar = async () => {
           } else {
             // 刷新券不足时
             if (refreshCount === 0) {
-              // 有免费刷新：使用免费刷新寻找传说以上|赛车刷新券>=2|大奖车
+              // 有免费刷新：继续免费刷新，寻找符合当前颜色/大奖规则的车辆
               console.log("🎯 刷新券不足，使用免费刷新寻找传说以上车辆");
               shouldRefresh = true;
             } else {
@@ -580,7 +618,7 @@ const smartSendCar = async () => {
             }
 
             // 再次判断是否符合发车条件
-            if (shouldSendCar(updatedCar, remainingTickets)) {
+            if (shouldSendCarPure(updatedCar)) {
               console.log("✅ 刷新后车辆符合发车条件，开始发车");
               await sendCar(updatedCar.id);
               await new Promise((resolve) => setTimeout(resolve, 500)); // 发车后延迟
@@ -594,7 +632,7 @@ const smartSendCar = async () => {
 
               // 检查是否可以继续刷新
               const newRefreshCount = updatedCar.refreshCount || 0;
-              if (remainingTickets >= 6) {
+              if (newRefreshCount < MAX_SINGLE_CAR_REFRESH_COUNT) {
                 // 刷新券充足，继续使用刷新券
                 console.log(
                   `💎 继续使用刷新券刷新该车辆 (当前刷新券: ${remainingTickets})`,

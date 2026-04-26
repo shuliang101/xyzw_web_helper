@@ -193,6 +193,8 @@ const api = {
   clubCar: {
     getConfig: () => request.get('/club-car/config'),
     getClubInfo: () => request.get('/club-car/club-info'),
+    exportConfigPackage: () => request.get('/club-car/config-package'),
+    importConfigPackage: body => request.post('/club-car/config-package', body),
     updateConfig: data => request.put('/club-car/config', data),
     uploadMasterBin: formData => request.post('/club-car/master-bin', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

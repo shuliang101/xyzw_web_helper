@@ -12,7 +12,9 @@ const CLUB_MEMBER_TOKEN_SCOPE = 'club_car_member_bind'
 const CLUB_MEMBER_TOKEN_EXPIRES_IN = '2h'
 const CLUB_MASTER_BIN_DIR = config.clubCarMasterBinDir
 const CLUB_MEMBER_BIN_DIR = config.clubCarMemberBinDir
-const SEND_MODE_VALUES = new Set(['red', 'gold', 'no_refresh'])
+const CLUB_CAR_CONFIG_PACKAGE_TYPE = 'club_car_config_package'
+const CLUB_CAR_CONFIG_PACKAGE_VERSION = 1
+const SEND_MODE_VALUES = new Set(['orange', 'red', 'gold', 'no_refresh'])
 const SEND_WINDOW_START_MINUTES = 6 * 60
 const SEND_WINDOW_END_MINUTES = 20 * 60
 const CAR_RESEARCH_PART_COSTS = [
@@ -63,6 +65,72 @@ const isPathInsideDir = (targetPath, dirPath) => {
 }
 
 const isClubCarManagedMemberBinPath = (targetPath) => isPathInsideDir(targetPath, CLUB_MEMBER_BIN_DIR)
+
+const persistManagedMemberBin = ({
+  roleId,
+  sourcePath,
+  fileName = '',
+  moveSource = false,
+}) => {
+  const normalizedRoleId = String(roleId || '').trim()
+  if (!normalizedRoleId) {
+    const err = new Error('roleId is required')
+    err.status = 400
+    throw err
+  }
+
+  const normalizedSourcePath = String(sourcePath || '').trim()
+  if (!normalizedSourcePath) {
+    const err = new Error('file path is required')
+    err.status = 400
+    throw err
+  }
+  if (!fs.existsSync(normalizedSourcePath)) {
+    const err = new Error('source bin file not found')
+    err.status = 404
+    throw err
+  }
+
+  const row = getMemberRowByRoleId(normalizedRoleId)
+  if (!row) return null
+
+  const now = new Date().toISOString()
+  const safeName = sanitizeFilename(fileName || path.basename(normalizedSourcePath))
+  const storedName = `member_${normalizedRoleId}_${Date.now()}_${safeName}`
+  const destination = path.join(CLUB_MEMBER_BIN_DIR, storedName)
+
+  try {
+    if (moveSource) {
+      fs.renameSync(normalizedSourcePath, destination)
+    } else {
+      fs.copyFileSync(normalizedSourcePath, destination)
+    }
+  } catch (error) {
+    removeFileIfExists(destination)
+    throw error
+  }
+
+  try {
+    if (
+      row.bound_bin_path
+      && normalizePathForCompare(row.bound_bin_path) !== normalizePathForCompare(destination)
+      && isClubCarManagedMemberBinPath(row.bound_bin_path)
+    ) {
+      removeFileIfExists(row.bound_bin_path)
+    }
+
+    db.prepare(`
+      UPDATE club_car_members
+      SET bound_bin_path = ?, bound_bin_name = ?, bound_at = ?, updated_at = ?
+      WHERE role_id = ?
+    `).run(destination, safeName, now, now, normalizedRoleId)
+
+    return mapMember(getMemberRowByRoleId(normalizedRoleId))
+  } catch (error) {
+    removeFileIfExists(destination)
+    throw error
+  }
+}
 
 const clearClubMemberBindingRow = (row) => {
   if (!row) return null
@@ -145,6 +213,11 @@ const isMondayToWednesdayWindow = (now = new Date()) => {
     && minutes <= SEND_WINDOW_END_MINUTES
 }
 
+const isMondayToWednesday = (now = new Date()) => {
+  const weekday = now.getDay() // 0..6, Monday=1
+  return weekday >= 1 && weekday <= 3
+}
+
 const mapConfig = (row) => {
   if (!row) return null
   return {
@@ -221,6 +294,9 @@ const mapPlan = (row) => {
     sendTime: normalizeTimeHHmm(row.send_time, '06:00'),
     isActive: row.is_active === 1,
     lastRunAt: row.last_run_at || '',
+    lastAttemptAt: row.last_attempt_at || '',
+    lastResultStatus: row.last_result_status || '',
+    lastResultDetail: parseJsonSafe(row.last_result_detail, null),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     sender: sender ? mapMember(sender) : null,
@@ -530,7 +606,12 @@ const hasGoldModeBigReward = (rewards) => {
 
 const isBigPrize = (rewards) => {
   if (!Array.isArray(rewards)) return false
-  return rewards.some(reward => isHighValueReward(reward))
+  return countBigPrizes(rewards) > 0
+}
+
+const countBigPrizes = (rewards) => {
+  if (!Array.isArray(rewards)) return 0
+  return rewards.filter(reward => isHighValueReward(reward)).length
 }
 
 const countRacingRefreshTickets = (rewards) => {
@@ -547,12 +628,20 @@ const countRacingRefreshTickets = (rewards) => {
 const shouldSendCarByQuality = (car, tickets, minColor = 4) => {
   const color = Number(car?.color || 0)
   const rewards = Array.isArray(car?.rewards) ? car.rewards : []
-  const racingTickets = countRacingRefreshTickets(rewards)
+  const bigPrizeCount = countBigPrizes(rewards)
+  const isOrangeCar = color === 4 && Number(minColor || 4) <= 4
 
   if (tickets >= 6) {
-    return color >= minColor && (color >= 5 || racingTickets >= 4 || isBigPrize(rewards))
+    return color >= minColor
+      && (
+        color >= 5
+        || (isOrangeCar ? bigPrizeCount >= 2 : bigPrizeCount >= 1)
+      )
   }
-  return color >= minColor || racingTickets >= 2 || isBigPrize(rewards)
+  if (color >= Math.max(Number(minColor || 4), 6)) return true
+  if (color === 5) return bigPrizeCount >= 1
+  if (isOrangeCar) return bigPrizeCount >= 2
+  return color >= minColor || bigPrizeCount >= 1
 }
 
 const canClaimCar = (car) => {
@@ -842,6 +931,75 @@ const normalizePlanPayload = (data = {}, currentRow = null) => {
   }
 }
 
+const normalizeImportPackagePayload = (payload = {}) => {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    const err = new Error('invalid config package')
+    err.status = 400
+    throw err
+  }
+
+  const packageType = String(payload.type || '').trim()
+  if (packageType && packageType !== CLUB_CAR_CONFIG_PACKAGE_TYPE) {
+    const err = new Error('unsupported config package type')
+    err.status = 400
+    throw err
+  }
+
+  const version = Number(payload.version || CLUB_CAR_CONFIG_PACKAGE_VERSION)
+  if (!Number.isInteger(version) || version < 1 || version > CLUB_CAR_CONFIG_PACKAGE_VERSION) {
+    const err = new Error('unsupported config package version')
+    err.status = 400
+    throw err
+  }
+
+  const clubInfo = payload.clubInfo && typeof payload.clubInfo === 'object' && !Array.isArray(payload.clubInfo)
+    ? payload.clubInfo
+    : {}
+  const configInfo = payload.config && typeof payload.config === 'object' && !Array.isArray(payload.config)
+    ? payload.config
+    : {}
+
+  return {
+    type: packageType || CLUB_CAR_CONFIG_PACKAGE_TYPE,
+    version,
+    exportedAt: String(payload.exportedAt || ''),
+    clubInfo: {
+      clubId: String(clubInfo.clubId || '').trim(),
+      clubName: String(clubInfo.clubName || '').trim(),
+      leaderRoleId: String(clubInfo.leaderRoleId || '').trim(),
+      leaderName: String(clubInfo.leaderName || '').trim(),
+    },
+    config: {
+      enabled: configInfo.enabled,
+      minColor: configInfo.minColor,
+      maxRefreshTimes: configInfo.maxRefreshTimes,
+      sendCron: configInfo.sendCron,
+      claimCron: configInfo.claimCron,
+    },
+    members: Array.isArray(payload.members) ? payload.members : [],
+    plans: Array.isArray(payload.plans) ? payload.plans : [],
+  }
+}
+
+const assertImportPackageClubCompatible = (currentClubInfo, importedClubInfo) => {
+  const currentClubId = String(currentClubInfo?.clubId || '').trim()
+  const currentClubName = String(currentClubInfo?.clubName || '').trim()
+  const importedClubId = String(importedClubInfo?.clubId || '').trim()
+  const importedClubName = String(importedClubInfo?.clubName || '').trim()
+
+  if (currentClubId && importedClubId && currentClubId !== importedClubId) {
+    const err = new Error('config package club does not match current club')
+    err.status = 400
+    throw err
+  }
+
+  if (!currentClubId && currentClubName && importedClubName && currentClubName !== importedClubName) {
+    const err = new Error('config package club does not match current club')
+    err.status = 400
+    throw err
+  }
+}
+
 export const getDueSendPlansByTime = (now = new Date()) => {
   const weekday = getLocalWeekday(now)
   if (!weekday) return []
@@ -875,6 +1033,9 @@ export const getDueSendPlansByTime = (now = new Date()) => {
 export const getDueMembersByTime = (type, now = new Date()) => {
   const currentHHmm = formatHHmm(now)
   if (type === 'claim') {
+    if (!isMondayToWednesday(now)) {
+      return []
+    }
     const rows = getActiveBoundMemberRows()
     return rows
       .filter(row => row.claim_enabled === 1)
@@ -889,6 +1050,53 @@ export const getClubCarConfig = () => mapConfig(getConfigRow())
 export const getClubCarClubInfo = () => {
   backfillClubSnapshotAssetsIfNeeded()
   return mapClubInfo(getClubInfoRow())
+}
+
+export const exportClubCarConfigPackage = () => {
+  const clubInfo = getClubCarClubInfo() || {}
+  const configInfo = getClubCarConfig() || {}
+  const members = getClubCarMembers({ activeOnly: true })
+  const plans = getClubCarSendPlans()
+
+  return {
+    type: CLUB_CAR_CONFIG_PACKAGE_TYPE,
+    version: CLUB_CAR_CONFIG_PACKAGE_VERSION,
+    exportedAt: new Date().toISOString(),
+    clubInfo: {
+      clubId: clubInfo.clubId || '',
+      clubName: clubInfo.clubName || '',
+      leaderRoleId: clubInfo.leaderRoleId || '',
+      leaderName: clubInfo.leaderName || '',
+    },
+    config: {
+      enabled: !!configInfo.enabled,
+      minColor: Number(configInfo.minColor ?? 4),
+      maxRefreshTimes: Number(configInfo.maxRefreshTimes ?? 20),
+      sendCron: configInfo.sendCron || '0 12 * * *',
+      claimCron: configInfo.claimCron || '0 16 * * *',
+      masterBinName: configInfo.masterBinName || '',
+    },
+    members: members.map(member => ({
+      roleId: member.roleId,
+      name: member.name,
+      targetRoleId: member.targetRoleId || '',
+      sendTime: member.sendTime || '12:00',
+      claimTime: member.claimTime || '16:00',
+      claimEnabled: !!member.claimEnabled,
+      boundBinName: member.boundBinName || '',
+    })),
+    plans: plans.map(plan => ({
+      weekday: Number(plan.weekday || 1),
+      targetRoleId: plan.targetRoleId,
+      senderRoleId: plan.senderRoleId,
+      sendMode: plan.sendMode || 'red',
+      sendTime: plan.sendTime || '06:00',
+    })),
+    summary: {
+      memberCount: members.length,
+      planCount: plans.length,
+    },
+  }
 }
 
 export const getClubCarSendPlans = () => {
@@ -1069,6 +1277,156 @@ export const syncClubMembersFromMaster = async () => {
     total: members.length,
     clubInfo,
     members,
+  }
+}
+
+export const importClubCarConfigPackage = (payload = {}) => {
+  const normalizedPayload = normalizeImportPackagePayload(payload)
+  const currentClubInfo = getClubCarClubInfo() || {}
+  assertImportPackageClubCompatible(currentClubInfo, normalizedPayload.clubInfo)
+
+  const activeMemberRows = db.prepare(`
+    SELECT * FROM club_car_members
+    WHERE is_active = 1
+    ORDER BY power DESC, id ASC
+  `).all()
+
+  if (!activeMemberRows.length) {
+    const err = new Error('no active club members found, please sync members first')
+    err.status = 400
+    throw err
+  }
+
+  const activeMemberMap = new Map(activeMemberRows.map(row => [String(row.role_id), row]))
+  const importedMemberMap = new Map()
+  let skippedMembers = 0
+
+  for (const item of normalizedPayload.members) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      skippedMembers += 1
+      continue
+    }
+
+    const roleId = String(item.roleId || '').trim()
+    if (!roleId || !activeMemberMap.has(roleId)) {
+      skippedMembers += 1
+      continue
+    }
+
+    let targetRoleId = String(item.targetRoleId || '').trim()
+    if (!targetRoleId || targetRoleId === roleId || !activeMemberMap.has(targetRoleId)) {
+      targetRoleId = ''
+    }
+
+    importedMemberMap.set(roleId, {
+      roleId,
+      targetRoleId,
+      sendTime: normalizeTimeHHmm(item.sendTime, '12:00'),
+      claimTime: normalizeTimeHHmm(item.claimTime, '16:00'),
+      claimEnabled: !!item.claimEnabled,
+    })
+  }
+
+  const importedPlans = []
+  const importedPlanKeys = new Set()
+  let skippedPlans = 0
+
+  for (const item of normalizedPayload.plans) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      skippedPlans += 1
+      continue
+    }
+
+    const senderRoleId = String(item.senderRoleId || '').trim()
+    const targetRoleId = String(item.targetRoleId || '').trim()
+    if (
+      !senderRoleId
+      || !targetRoleId
+      || senderRoleId === targetRoleId
+      || !activeMemberMap.has(senderRoleId)
+      || !activeMemberMap.has(targetRoleId)
+    ) {
+      skippedPlans += 1
+      continue
+    }
+
+    const weekday = normalizeWeekday(item.weekday, 1)
+    const sendMode = normalizeSendMode(item.sendMode, 'red')
+    const sendTime = normalizeSendTime(item.sendTime, '06:00')
+    const dedupeKey = `${weekday}|${senderRoleId}|${sendTime}|${targetRoleId}|${sendMode}`
+    if (importedPlanKeys.has(dedupeKey)) {
+      skippedPlans += 1
+      continue
+    }
+
+    importedPlanKeys.add(dedupeKey)
+    importedPlans.push({
+      weekday,
+      senderRoleId,
+      targetRoleId,
+      sendMode,
+      sendTime,
+    })
+  }
+
+  const now = new Date().toISOString()
+  const resetActiveMembers = db.prepare(`
+    UPDATE club_car_members
+    SET target_role_id = NULL, send_time = '12:00', claim_time = '16:00', claim_enabled = 0, updated_at = ?
+    WHERE is_active = 1
+  `)
+  const applyImportedMember = db.prepare(`
+    UPDATE club_car_members
+    SET target_role_id = ?, send_time = ?, claim_time = ?, claim_enabled = ?, updated_at = ?
+    WHERE role_id = ? AND is_active = 1
+  `)
+
+  const tx = db.transaction(() => {
+    updateClubCarConfig(normalizedPayload.config)
+    db.prepare('DELETE FROM club_car_send_plans').run()
+    resetActiveMembers.run(now)
+
+    for (const memberConfig of importedMemberMap.values()) {
+      applyImportedMember.run(
+        memberConfig.targetRoleId || null,
+        memberConfig.sendTime,
+        memberConfig.claimTime,
+        memberConfig.claimEnabled ? 1 : 0,
+        now,
+        memberConfig.roleId,
+      )
+    }
+
+    for (const plan of importedPlans) {
+      createClubCarSendPlan(plan)
+    }
+  })
+
+  tx()
+
+  const summary = {
+    importedMembers: importedMemberMap.size,
+    skippedMembers,
+    importedPlans: importedPlans.length,
+    skippedPlans,
+    activeMembers: activeMemberRows.length,
+  }
+
+  createRunLog(
+    'config_import',
+    skippedMembers > 0 || skippedPlans > 0 ? 'partial' : 'success',
+    `config package imported: ${summary.importedMembers} member(s), ${summary.importedPlans} plan(s)`,
+    {
+      ...summary,
+      clubId: currentClubInfo.clubId || '',
+      clubName: currentClubInfo.clubName || '',
+      exportedAt: normalizedPayload.exportedAt,
+    },
+  )
+
+  return {
+    ...summary,
+    config: getClubCarConfig(),
   }
 }
 
@@ -1269,36 +1627,12 @@ export const clearClubMemberBinReferenceByRoleId = (roleId, options = {}) => {
 }
 
 export const bindClubMemberBinReferenceByRoleId = (roleId, filePath, fileName = '') => {
-  const normalizedRoleId = String(roleId || '').trim()
-  const normalizedPath = String(filePath || '').trim()
-  if (!normalizedRoleId) {
-    const err = new Error('roleId is required')
-    err.status = 400
-    throw err
-  }
-  if (!normalizedPath) {
-    const err = new Error('file path is required')
-    err.status = 400
-    throw err
-  }
-
-  const row = getMemberRowByRoleId(normalizedRoleId)
-  if (!row) return null
-
-  const now = new Date().toISOString()
-  db.prepare(`
-    UPDATE club_car_members
-    SET bound_bin_path = ?, bound_bin_name = ?, bound_at = ?, updated_at = ?
-    WHERE role_id = ?
-  `).run(
-    normalizedPath,
-    sanitizeFilename(fileName || path.basename(normalizedPath)),
-    now,
-    now,
-    normalizedRoleId,
-  )
-
-  return mapMember(getMemberRowByRoleId(normalizedRoleId))
+  return persistManagedMemberBin({
+    roleId,
+    sourcePath: filePath,
+    fileName,
+    moveSource: false,
+  })
 }
 
 export const bindClubMemberBinByRoleId = (roleId, file) => {
@@ -1313,27 +1647,12 @@ export const bindClubMemberBinByRoleId = (roleId, file) => {
     err.status = 400
     throw err
   }
-  const now = new Date().toISOString()
-  const safeName = sanitizeFilename(file.originalname)
-  const storedName = `member_${roleId}_${Date.now()}_${safeName}`
-  const destination = path.join(CLUB_MEMBER_BIN_DIR, storedName)
-  fs.renameSync(file.path, destination)
-
-  if (
-    row.bound_bin_path
-    && normalizePathForCompare(row.bound_bin_path) !== normalizePathForCompare(destination)
-    && isClubCarManagedMemberBinPath(row.bound_bin_path)
-  ) {
-    removeFileIfExists(row.bound_bin_path)
-  }
-
-  db.prepare(`
-    UPDATE club_car_members
-    SET bound_bin_path = ?, bound_bin_name = ?, bound_at = ?, updated_at = ?
-    WHERE role_id = ?
-  `).run(destination, safeName, now, now, String(roleId))
-
-  return mapMember(getMemberRowByRoleId(roleId))
+  return persistManagedMemberBin({
+    roleId,
+    sourcePath: file.path,
+    fileName: file.originalname,
+    moveSource: true,
+  })
 }
 
 export const authenticateClubMember = async ({ roleId, password }) => {
@@ -1442,12 +1761,39 @@ const meetsPlanSendMode = (car, sendMode) => {
   if (sendMode === 'gold') {
     return color >= 6
   }
+  if (sendMode === 'red') {
+    return color >= 5
+  }
+  if (sendMode === 'orange') {
+    return color >= 4
+  }
   return color >= 5
 }
 
 const updatePlanLastRunAt = (planId, isoText) => {
   db.prepare('UPDATE club_car_send_plans SET last_run_at = ?, updated_at = ? WHERE id = ?')
     .run(isoText, isoText, planId)
+}
+
+const getPlanExecutionStatus = (planEntry) => {
+  if (planEntry?.completed) return 'completed'
+  if (Number(planEntry?.sent || 0) > 0) return 'partial'
+  if (Array.isArray(planEntry?.errors) && planEntry.errors.length > 0) return 'failed'
+  return 'waiting'
+}
+
+const updatePlanLastAttempt = (planId, isoText, planEntry) => {
+  db.prepare(`
+    UPDATE club_car_send_plans
+    SET last_attempt_at = ?, last_result_status = ?, last_result_detail = ?, updated_at = ?
+    WHERE id = ?
+  `).run(
+    isoText,
+    getPlanExecutionStatus(planEntry),
+    JSON.stringify(planEntry || null),
+    isoText,
+    planId,
+  )
 }
 
 const prepareCarForPlan = async ({
@@ -1525,6 +1871,8 @@ const prepareCarForPlan = async ({
     stopReason = attempts > 0 ? '已刷到橙车及以上' : '当前已是橙车及以上，直接发车'
   } else if (sendMode === 'gold') {
     stopReason = '刷到金车'
+  } else if (sendMode === 'orange' && color >= 4) {
+    stopReason = '刷到橙车'
   } else if (sendMode === 'red' && color >= 5) {
     stopReason = '刷到红车'
   }
@@ -1648,6 +1996,8 @@ export const runClubCarSend = async (options = {}) => {
         let currentTickets = tickets
         let targetQualityReached = false
 
+        let usedHelperForAnyCar = false
+
         for (const idleCar of idleCars) {
           const prepared = await prepareCarForPlan({
             client,
@@ -1670,16 +2020,22 @@ export const runClubCarSend = async (options = {}) => {
           targetQualityReached = true
 
           try {
+            const helperId = Number(prepared.car?.color || 0) >= 5
+              ? String(plan.targetRoleId)
+              : '0'
             await client.sendWithPromise(
               'car_send',
               {
                 carId: String(prepared.car.id),
-                helperId: String(plan.targetRoleId),
+                helperId,
                 text: '',
                 isUpgrade: false,
               },
               10000,
             )
+            if (helperId !== '0') {
+              usedHelperForAnyCar = true
+            }
             planEntry.sent += 1
             sentCars += 1
             planEntry.sentCarsDetail.push({
@@ -1695,7 +2051,9 @@ export const runClubCarSend = async (options = {}) => {
         }
 
         if (planEntry.sent > 0) {
-          updateMemberHelpAt(plan.targetRoleId, nowIso)
+          if (usedHelperForAnyCar) {
+            updateMemberHelpAt(plan.targetRoleId, nowIso)
+          }
           updateMemberSendAt(plan.senderRoleId, nowIso)
         }
 
@@ -1713,6 +2071,7 @@ export const runClubCarSend = async (options = {}) => {
     }
 
     detail.push(planEntry)
+    updatePlanLastAttempt(plan.id, nowIso, planEntry)
     await sleep(800)
   }
 

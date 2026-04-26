@@ -247,5 +247,17 @@ const hasPlanLastRunAt = clubPlanColumns.some(column => column.name === 'last_ru
 if (!hasPlanLastRunAt) {
   db.prepare('ALTER TABLE club_car_send_plans ADD COLUMN last_run_at TEXT').run()
 }
+const hasPlanLastAttemptAt = clubPlanColumns.some(column => column.name === 'last_attempt_at')
+if (!hasPlanLastAttemptAt) {
+  db.prepare('ALTER TABLE club_car_send_plans ADD COLUMN last_attempt_at TEXT').run()
+}
+const hasPlanLastResultStatus = clubPlanColumns.some(column => column.name === 'last_result_status')
+if (!hasPlanLastResultStatus) {
+  db.prepare('ALTER TABLE club_car_send_plans ADD COLUMN last_result_status TEXT').run()
+}
+const hasPlanLastResultDetail = clubPlanColumns.some(column => column.name === 'last_result_detail')
+if (!hasPlanLastResultDetail) {
+  db.prepare('ALTER TABLE club_car_send_plans ADD COLUMN last_result_detail TEXT').run()
+}
 
 export default db

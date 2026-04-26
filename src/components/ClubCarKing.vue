@@ -531,6 +531,27 @@ const isBigPrize = (rewards) => {
   );
 };
 
+const countBigPrizes = (rewards) => {
+  const bigPrizes = [
+    { type: 3, itemId: 3201, value: 10 },
+    { type: 3, itemId: 1001, value: 10 },
+    { type: 3, itemId: 1022, value: 2000 },
+    { type: 2, itemId: 0, value: 2000 },
+    { type: 3, itemId: 1023, value: 5 },
+    { type: 3, itemId: 1022, value: 2500 },
+    { type: 3, itemId: 1001, value: 12 },
+  ];
+  if (!Array.isArray(rewards)) return 0;
+  return rewards.filter((reward) =>
+    bigPrizes.some(
+      (prize) =>
+        Number(reward?.type || 0) === prize.type &&
+        Number(reward?.itemId || 0) === prize.itemId &&
+        Number(reward?.value || 0) >= prize.value,
+    ),
+  ).length;
+};
+
 const countRacingRefreshTickets = (rewards) => {
   if (!Array.isArray(rewards)) return 0;
   return rewards.reduce(
@@ -540,16 +561,18 @@ const countRacingRefreshTickets = (rewards) => {
   );
 };
 
+const MAX_SINGLE_CAR_REFRESH_COUNT = 6;
+
 const shouldSendCar = (car, tickets) => {
   const color = Number(car?.color || 0);
   const rewards = Array.isArray(car?.rewards) ? car.rewards : [];
-  const racingTickets = countRacingRefreshTickets(rewards);
-  if (tickets >= 6) {
-    return (
-      color >= 4 && (color >= 5 || racingTickets >= 4 || isBigPrize(rewards))
-    );
-  }
-  return color >= 4 || racingTickets >= 2 || isBigPrize(rewards);
+  const bigPrizeCount = countBigPrizes(rewards);
+  const isOrangeCar = color === 4;
+  if (color < 4) return false;
+  if (color >= 6) return true;
+  if (color === 5) return bigPrizeCount >= 1;
+  if (isOrangeCar) return bigPrizeCount >= 2;
+  return color >= 4 || isBigPrize(rewards);
 };
 
 const fetchCarInfo = async () => {
@@ -952,16 +975,25 @@ const smartSendCar = async () => {
         continue;
       }
       let shouldRefresh = false;
-      const free = Number(car.refreshCount ?? 0) === 0;
-      if (tickets >= 6) shouldRefresh = true;
-      else if (free) shouldRefresh = true;
-      else {
+      const refreshCount = Number(car.refreshCount ?? 0);
+      const free = refreshCount === 0;
+      const canRefreshMore = refreshCount < MAX_SINGLE_CAR_REFRESH_COUNT;
+      if (canRefreshMore) shouldRefresh = true;
+      else if (!canRefreshMore) {
+        message.warning(`车辆[${gradeLabel(car.color)}]已刷新 ${refreshCount}/${MAX_SINGLE_CAR_REFRESH_COUNT} 次，达到上限，直接发车`);
+        await assignHelperIfNeeded(car);
+        await sendCar(car);
+        await new Promise((r) => setTimeout(r, 500));
+        continue;
+      } else {
         await assignHelperIfNeeded(car);
         await sendCar(car);
         await new Promise((r) => setTimeout(r, 500));
         continue;
       }
       while (shouldRefresh) {
+        const nextRefreshCount = Number(car.refreshCount ?? 0) + 1;
+        message.info(`车辆[${gradeLabel(car.color)}]开始第 ${nextRefreshCount}/${MAX_SINGLE_CAR_REFRESH_COUNT} 次刷新`);
         await refreshCar(car);
         tickets = Number(refreshTickets.value || 0);
         if (shouldSendCar(car, tickets)) {
@@ -970,10 +1002,17 @@ const smartSendCar = async () => {
           await new Promise((r) => setTimeout(r, 500));
           break;
         }
-        const freeNow = Number(car.refreshCount ?? 0) === 0;
-        if (tickets >= 6) shouldRefresh = true;
-        else if (freeNow) shouldRefresh = true;
-        else {
+        const refreshCountNow = Number(car.refreshCount ?? 0);
+        const freeNow = refreshCountNow === 0;
+        const canRefreshMoreNow = refreshCountNow < MAX_SINGLE_CAR_REFRESH_COUNT;
+        if (canRefreshMoreNow) shouldRefresh = true;
+        else if (!canRefreshMoreNow) {
+          message.warning(`车辆[${gradeLabel(car.color)}]已刷新 ${refreshCountNow}/${MAX_SINGLE_CAR_REFRESH_COUNT} 次，达到上限，直接发车`);
+          await assignHelperIfNeeded(car);
+          await sendCar(car);
+          await new Promise((r) => setTimeout(r, 500));
+          break;
+        } else {
           await assignHelperIfNeeded(car);
           await sendCar(car);
           await new Promise((r) => setTimeout(r, 500));

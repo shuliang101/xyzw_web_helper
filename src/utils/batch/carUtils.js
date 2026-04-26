@@ -4,6 +4,7 @@
 
 // 四小时毫秒数
 const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
+const MAX_SINGLE_CAR_REFRESH_COUNT = 6;
 
 /**
  * 标准化车辆数据
@@ -67,21 +68,25 @@ const bigPrizes = [
   { type: 3, itemId: 1001, value: 12 },
 ];
 
+export const countBigPrizes = (rewards) => {
+  if (!Array.isArray(rewards)) return 0;
+  return rewards.filter((reward) =>
+    bigPrizes.some(
+      (prize) =>
+        Number(reward?.type || 0) === prize.type &&
+        Number(reward?.itemId || 0) === prize.itemId &&
+        Number(reward?.value || 0) >= prize.value
+    )
+  ).length;
+};
+
 /**
  * 判断是否是大奖
  * @param {Array} rewards - 奖励列表
  * @returns {boolean} - 是否是大奖
  */
 export const isBigPrize = (rewards) => {
-  if (!Array.isArray(rewards)) return false;
-  return bigPrizes.some((p) =>
-    rewards.find(
-      (r) =>
-        r.type === p.type &&
-        r.itemId === p.itemId &&
-        Number(r.value || 0) >= p.value
-    )
-  );
+  return countBigPrizes(rewards) > 0;
 };
 
 /**
@@ -169,6 +174,8 @@ const checkRewardConditions = (rewards, conditions, matchAll = false) => {
 export const shouldSendCar = (car, tickets, minColor = 4, customConditions = {}, useGoldRefreshFallback = false, matchAll = false) => {
   const color = Number(car?.color || 0);
   const rewards = Array.isArray(car?.rewards) ? car.rewards : [];
+  const bigPrizeCount = countBigPrizes(rewards);
+  const isOrangeCar = color === 4 && Number(minColor || 4) <= 4;
   
   // 检查自定义条件
   const customConditionsMet = checkRewardConditions(rewards, customConditions, matchAll);
@@ -186,6 +193,18 @@ export const shouldSendCar = (car, tickets, minColor = 4, customConditions = {},
       return customConditionsMet;
     }
     
+    if (color >= 6) {
+      return true;
+    }
+
+    if (color === 5) {
+      return bigPrizeCount >= 1;
+    }
+
+    if (isOrangeCar) {
+      return bigPrizeCount >= 2;
+    }
+
     // 如果没有设置自定义条件，只要颜色满足即可
     return true;
   }
@@ -195,14 +214,11 @@ export const shouldSendCar = (car, tickets, minColor = 4, customConditions = {},
     return true;
   }
 
-  const racingTickets = countRacingRefreshTickets(rewards);
-  if (tickets >= 6) {
-    return (
-      color >= minColor &&
-      (color >= 5 || racingTickets >= 4 || isBigPrize(rewards))
-    );
-  }
-  return color >= minColor || racingTickets >= 2 || isBigPrize(rewards);
+  if (color < Number(minColor || 4)) return false;
+  if (color >= Math.max(Number(minColor || 4), 6)) return true;
+  if (color === 5) return bigPrizeCount >= 1;
+  if (isOrangeCar) return bigPrizeCount >= 2;
+  return color >= minColor || bigPrizeCount >= 1;
 };
 
 /**
@@ -287,9 +303,6 @@ export function createCarManager({ tokenStore, connectionManager, batchSettings,
 
         try {
           // Check if we should send immediately
-          // 当启用金砖保底时，强制使用高票数的判断逻辑（严格模式），避免因票数不足而提前发车
-          const effectiveTickets = batchSettings.useGoldRefreshFallback ? 999 : refreshTickets;
-          
           const customConditions = {
             gold: batchSettings.smartDepartureGoldThreshold,
             recruit: batchSettings.smartDepartureRecruitThreshold,
@@ -297,7 +310,7 @@ export function createCarManager({ tokenStore, connectionManager, batchSettings,
             ticket: batchSettings.smartDepartureTicketThreshold,
           };
 
-          if (shouldSendCar(car, effectiveTickets, batchSettings.carMinColor, customConditions, batchSettings.useGoldRefreshFallback, batchSettings.smartDepartureMatchAll)) {
+          if (shouldSendCar(car, refreshTickets, batchSettings.carMinColor, customConditions, batchSettings.useGoldRefreshFallback, batchSettings.smartDepartureMatchAll)) {
             addLog({
               time: new Date().toLocaleTimeString(),
               message: `${token.name} 车辆[${gradeLabel(car.color)}]满足条件，直接发车`,
@@ -320,21 +333,39 @@ export function createCarManager({ tokenStore, connectionManager, batchSettings,
 
           // Try to refresh
           let shouldRefresh = false;
-          const free = Number(car.refreshCount ?? 0) === 0;
-          // 启用金砖刷新保底：当且仅当设置了保底且无免费次数、无刷新券时，允许继续刷新
-          const useGoldFallback = batchSettings.useGoldRefreshFallback && !free && refreshTickets < 6;
+          const refreshCount = Number(car.refreshCount ?? 0);
+          const free = refreshCount === 0;
+          const canRefreshMore = refreshCount < MAX_SINGLE_CAR_REFRESH_COUNT;
+          const useGoldFallback = batchSettings.useGoldRefreshFallback && !free && refreshTickets <= 0;
 
-          if (refreshTickets >= 6) shouldRefresh = true;
-          else if (free) shouldRefresh = true;
-          else if (useGoldFallback) {
+          if (canRefreshMore) shouldRefresh = true;
+          else if (canRefreshMore && useGoldFallback) {
             shouldRefresh = true;
             addLog({
               time: new Date().toLocaleTimeString(),
               message: `${token.name} 车辆[${gradeLabel(car.color)}]仍不满足条件且无刷新次数，将启用金砖刷新`,
               type: "warning",
             });
-          }
-          else {
+          } else if (!canRefreshMore) {
+            addLog({
+              time: new Date().toLocaleTimeString(),
+              message: `${token.name} 车辆[${gradeLabel(car.color)}]已刷新 ${refreshCount}/${MAX_SINGLE_CAR_REFRESH_COUNT} 次，达到上限，直接发车`,
+              type: "warning",
+            });
+            await tokenStore.sendMessageWithPromise(
+              tokenId,
+              "car_send",
+              {
+                carId: String(car.id),
+                helperId: 0,
+                text: "",
+                isUpgrade: false,
+              },
+              10000
+            );
+            await new Promise((r) => setTimeout(r, 500));
+            continue;
+          } else {
             // No tickets and not free, just send
             addLog({
               time: new Date().toLocaleTimeString(),
@@ -358,9 +389,10 @@ export function createCarManager({ tokenStore, connectionManager, batchSettings,
 
           // Refresh loop
           while (shouldRefresh && !shouldStop.value) {
+            const nextRefreshCount = Number(car.refreshCount ?? 0) + 1;
             addLog({
               time: new Date().toLocaleTimeString(),
-              message: `${token.name} 车辆[${gradeLabel(car.color)}]尝试刷新...`,
+              message: `${token.name} 车辆[${gradeLabel(car.color)}]尝试刷新 (${nextRefreshCount}/${MAX_SINGLE_CAR_REFRESH_COUNT})...`,
               type: "info",
             });
             const resp = await tokenStore.sendMessageWithPromise(
@@ -393,7 +425,7 @@ export function createCarManager({ tokenStore, connectionManager, batchSettings,
             } catch (_) {}
 
             // Check if good enough now
-            if (shouldSendCar(car, batchSettings.useGoldRefreshFallback ? 999 : refreshTickets, batchSettings.carMinColor, customConditions, batchSettings.useGoldRefreshFallback, batchSettings.smartDepartureMatchAll)) {
+            if (shouldSendCar(car, refreshTickets, batchSettings.carMinColor, customConditions, batchSettings.useGoldRefreshFallback, batchSettings.smartDepartureMatchAll)) {
               addLog({
                 time: new Date().toLocaleTimeString(),
                 message: `${token.name} 刷新后车辆[${gradeLabel(car.color)}]满足条件，发车`,
@@ -415,12 +447,31 @@ export function createCarManager({ tokenStore, connectionManager, batchSettings,
             }
 
             // Check if we should continue refreshing
-            const freeNow = Number(car.refreshCount ?? 0) === 0;
-            // 金砖保底：如果开启了金砖保底，则允许在无票时继续刷新
-            const useGoldFallbackNow = batchSettings.useGoldRefreshFallback && !freeNow && refreshTickets < 6;
+            const refreshCountNow = Number(car.refreshCount ?? 0);
+            const freeNow = refreshCountNow === 0;
+            const canRefreshMoreNow = refreshCountNow < MAX_SINGLE_CAR_REFRESH_COUNT;
+            const useGoldFallbackNow = batchSettings.useGoldRefreshFallback && !freeNow && refreshTickets <= 0;
 
-            if (refreshTickets >= 6) shouldRefresh = true;
-            else if (freeNow) shouldRefresh = true;
+            if (!canRefreshMoreNow) {
+              addLog({
+                time: new Date().toLocaleTimeString(),
+                message: `${token.name} 车辆[${gradeLabel(car.color)}]已刷新 ${refreshCountNow}/${MAX_SINGLE_CAR_REFRESH_COUNT} 次，达到上限，直接发车`,
+                type: "warning",
+              });
+              await tokenStore.sendMessageWithPromise(
+                tokenId,
+                "car_send",
+                {
+                  carId: String(car.id),
+                  helperId: 0,
+                  text: "",
+                  isUpgrade: false,
+                },
+                10000
+              );
+              await new Promise((r) => setTimeout(r, 500));
+              break;
+            } else if (canRefreshMoreNow) shouldRefresh = true;
             else if (useGoldFallbackNow) shouldRefresh = true;
             else {
               addLog({

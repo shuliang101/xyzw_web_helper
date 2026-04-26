@@ -93,7 +93,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import api from '@/api'
@@ -107,13 +107,21 @@ const tokenStore = useTokenStore()
 
 const loading = ref(false)
 const plans = ref([])
-const logs = ref([])
 const selectedTargetRoleId = ref(null)
 let refreshTimer = null
 const isAdmin = computed(() => authStore.user?.role === 'admin')
+
+const extractGameRoleId = () => String(
+  tokenStore.selectedTokenRoleInfo?.role?.roleId
+  || tokenStore.selectedTokenRoleInfo?.roleId
+  || tokenStore.gameData?.roleInfo?.role?.roleId
+  || tokenStore.gameData?.roleInfo?.roleId
+  || '',
+).trim()
+
 const currentRoleId = computed(() => {
   if (isAdmin.value) return ''
-  return String(tokenStore.selectedToken?.id || '')
+  return extractGameRoleId()
 })
 
 const weekdayOptions = [
@@ -123,6 +131,7 @@ const weekdayOptions = [
 ]
 
 const sendModeOptions = [
+  { label: '橙车', value: 'orange' },
   { label: '红车', value: 'red' },
   { label: '金车', value: 'gold' },
   { label: '不刷新', value: 'no_refresh' },
@@ -157,6 +166,7 @@ const sendModeLabel = (mode) =>
 
 const sendModeTagType = (mode) => {
   if (mode === 'gold') return 'warning'
+  if (mode === 'orange') return 'success'
   if (mode === 'no_refresh') return 'default'
   return 'error'
 }
@@ -202,41 +212,15 @@ const targetFilterOptions = computed(() => {
   return [...grouped.values()]
 })
 
-const todaySendLogs = computed(() => logs.value.filter((log) => {
-  if (!String(log.runType || '').startsWith('send')) return false
-  const createdAt = parseDateSafe(log.createdAt)
-  return createdAt ? isSameLocalDate(createdAt, now()) : false
-}))
-
-const latestAttemptMap = computed(() => {
-  const map = new Map()
-
-  for (const log of todaySendLogs.value) {
-    const createdAt = parseDateSafe(log.createdAt)
-    const items = Array.isArray(log?.detail?.detail) ? log.detail.detail : []
-    for (const item of items) {
-      const planId = Number(item.planId || 0)
-      if (!planId) continue
-      const current = map.get(planId)
-      if (!current || createdAt > current.createdAt) {
-        map.set(planId, {
-          createdAt,
-          item,
-        })
-      }
-    }
-  }
-
-  return map
-})
-
 const todayPlanCards = computed(() => {
   const current = now()
   const currentMinutes = (current.getHours() * 60) + current.getMinutes()
 
   return todayPlans.value.map((plan) => {
-    const latest = latestAttemptMap.value.get(Number(plan.id))
-    const item = latest?.item || null
+    const latestAttemptAt = parseDateSafe(plan.lastAttemptAt)
+    const item = latestAttemptAt && isSameLocalDate(latestAttemptAt, current)
+      ? plan.lastResultDetail
+      : null
     const sendMinutes = toMinutesOfDay(plan.sendTime)
 
     let status = 'pending'
@@ -263,7 +247,7 @@ const todayPlanCards = computed(() => {
       ...plan,
       senderName: plan.sender?.name || plan.senderRoleId || '-',
       targetName: plan.target?.name || plan.targetRoleId || '-',
-      latestAttemptAt: latest?.createdAt?.toISOString?.() || '',
+      latestAttemptAt: item ? plan.lastAttemptAt || '' : '',
       status,
       statusText,
     }
@@ -277,15 +261,33 @@ const filteredPlanCards = computed(() => {
 
 const timelinePlans = computed(() => filteredPlanCards.value)
 
+const ensureCurrentRoleId = async () => {
+  if (isAdmin.value) return ''
+  if (currentRoleId.value) return currentRoleId.value
+
+  const tokenId = String(tokenStore.selectedToken?.id || '').trim()
+  if (!tokenId) return ''
+
+  try {
+    await tokenStore.sendGetRoleInfo(tokenId)
+  } catch {
+    // Keep the existing empty-state behavior when the role context is unavailable.
+  }
+
+  return extractGameRoleId()
+}
+
 const fetchAll = async () => {
   loading.value = true
   try {
-    const [planData, logData] = await Promise.all([
-      api.clubCar.listSendPlans(currentRoleId.value),
-      api.clubCar.listLogs(50, currentRoleId.value),
-    ])
-    plans.value = planData
-    logs.value = logData
+    const roleId = await ensureCurrentRoleId()
+
+    if (!isAdmin.value && !roleId) {
+      plans.value = []
+      return
+    }
+
+    plans.value = await api.clubCar.listSendPlans(roleId)
   } catch (error) {
     message.error(error.message || '加载监视数据失败')
   } finally {
@@ -303,6 +305,20 @@ const formatDateTime = (value) => {
 const goManage = () => {
   router.push('/admin/club-car')
 }
+
+watch(() => tokenStore.selectedToken?.id, () => {
+  selectedTargetRoleId.value = null
+  if (!loading.value) {
+    fetchAll()
+  }
+})
+
+watch(currentRoleId, (nextRoleId, prevRoleId) => {
+  if (isAdmin.value || !nextRoleId || nextRoleId === prevRoleId) return
+  if (!loading.value) {
+    fetchAll()
+  }
+})
 
 onMounted(() => {
   fetchAll()

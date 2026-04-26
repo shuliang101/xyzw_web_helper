@@ -179,6 +179,9 @@ const formatTime = (timestamp) => {
 
 // 生命周期
 onMounted(async () => {
+  if (!tokenStore.hasTokens) {
+    await tokenStore.restoreTokensFromRemoteBins();
+  }
   // 确保有Token
   if (!tokenStore.hasTokens) {
     router.push("/tokens");

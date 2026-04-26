@@ -1,6 +1,8 @@
 import {
   getClubCarConfig,
   getClubCarClubInfo,
+  exportClubCarConfigPackage,
+  importClubCarConfigPackage,
   updateClubCarConfig,
   saveMasterBin,
   getClubCarMembers,
@@ -31,6 +33,20 @@ export const getClubCarConfigHandler = (req, res) => {
 
 export const getClubCarClubInfoHandler = (req, res) => {
   res.json({ success: true, data: getClubCarClubInfo() })
+}
+
+export const exportClubCarConfigPackageHandler = (req, res) => {
+  res.json({ success: true, data: exportClubCarConfigPackage() })
+}
+
+export const importClubCarConfigPackageHandler = (req, res, next) => {
+  try {
+    const data = importClubCarConfigPackage(req.body || {})
+    clubCarScheduler.reload()
+    res.json({ success: true, data })
+  } catch (error) {
+    next(error)
+  }
 }
 
 export const updateClubCarConfigHandler = (req, res) => {

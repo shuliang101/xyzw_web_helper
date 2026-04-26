@@ -216,6 +216,13 @@ const router = createRouter({
   },
 })
 
+const ensureUserTokensReady = async (authStore, tokenStore) => {
+  if (!authStore.isAuthenticated || authStore.user?.role === 'admin' || tokenStore.hasTokens) {
+    return
+  }
+  await tokenStore.restoreTokensFromRemoteBins()
+}
+
 router.beforeEach(async (to, from, next) => {
   const tokenStore = useTokenStore()
   const authStore = useAuthStore()
@@ -243,6 +250,8 @@ router.beforeEach(async (to, from, next) => {
     next({ path: '/login', query: { redirect: to.fullPath } })
     return
   }
+
+  await ensureUserTokensReady(authStore, tokenStore)
 
   if (to.meta.requiresAdmin && authStore.user?.role !== 'admin') {
     next('/admin/dashboard')

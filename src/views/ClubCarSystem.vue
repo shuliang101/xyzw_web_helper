@@ -9,6 +9,12 @@
         <n-button @click="$router.push('/club-car/monitor')">
           监视页
         </n-button>
+        <n-button @click="exportConfigPackage" :loading="exportingConfig">
+          导出配置
+        </n-button>
+        <n-button @click="openImportConfigPicker" :loading="importingConfig">
+          导入配置
+        </n-button>
         <n-button @click="fetchAll" :loading="loading">
           刷新
         </n-button>
@@ -48,6 +54,13 @@
             style="display: none"
             @change="handleMemberBinSelected"
           >
+          <input
+            ref="configPackageInputRef"
+            type="file"
+            accept=".json,application/json"
+            style="display: none"
+            @change="handleConfigPackageSelected"
+          >
           <n-space>
             <n-button @click="openMasterBinPicker" :loading="uploadingMasterBin">
               上传主 BIN
@@ -56,6 +69,9 @@
               同步成员
             </n-button>
           </n-space>
+          <div class="sub-text">
+            导入导出只包含发车配置、成员时刻和目标关系，不包含 BIN 文件与成员密码。
+          </div>
         </n-space>
       </n-card>
 
@@ -385,12 +401,15 @@ const uploadingMasterBin = ref(false)
 const loadingLogs = ref(false)
 const savingPlan = ref(false)
 const savingBatchClaim = ref(false)
+const exportingConfig = ref(false)
+const importingConfig = ref(false)
 const deletingSchemeTargetRoleId = ref(null)
 const editingSchemeTargetRoleId = ref(null)
 let logsAutoRefreshTimer = null
 
 const masterBinInputRef = ref(null)
 const memberBinInputRef = ref(null)
+const configPackageInputRef = ref(null)
 const bindingMemberId = ref(null)
 const selectedBindingMember = ref(null)
 const selectedClaimRoleIds = ref([])
@@ -418,6 +437,7 @@ const weekdayOptions = [
 ]
 
 const sendModeOptions = [
+  { label: '橙车', value: 'orange' },
   { label: '红车', value: 'red' },
   { label: '金车', value: 'gold' },
   { label: '不刷新', value: 'no_refresh' },
@@ -740,6 +760,32 @@ const openMasterBinPicker = () => {
   masterBinInputRef.value?.click?.()
 }
 
+const openImportConfigPicker = () => {
+  configPackageInputRef.value?.click?.()
+}
+
+const sanitizeDownloadName = (value = '') => {
+  const sanitized = String(value || '')
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/\s+/g, '_')
+  return sanitized || 'club-car'
+}
+
+const downloadJsonFile = (filename, payload) => {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: 'application/json;charset=utf-8',
+  })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
 const openMemberBinPicker = (member) => {
   selectedBindingMember.value = member
   memberBinInputRef.value?.click?.()
@@ -797,6 +843,52 @@ const syncMembers = async () => {
     message.error(error.message || '同步成员失败')
   } finally {
     syncingMembers.value = false
+  }
+}
+
+const exportConfigPackage = async () => {
+  exportingConfig.value = true
+  try {
+    const payload = await api.clubCar.exportConfigPackage()
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+    const clubName = sanitizeDownloadName(payload?.clubInfo?.clubName || config.masterBinName || 'club-car')
+    downloadJsonFile(`${clubName}-club-car-config-${timestamp}.json`, payload)
+    message.success('配置已导出')
+  } catch (error) {
+    message.error(error.message || '导出配置失败')
+  } finally {
+    exportingConfig.value = false
+  }
+}
+
+const handleConfigPackageSelected = async (event) => {
+  const file = event?.target?.files?.[0]
+  event.target.value = ''
+  if (!file) return
+
+  let payload = null
+  try {
+    const rawText = await file.text()
+    payload = JSON.parse(rawText)
+  } catch {
+    message.error('配置文件不是有效的 JSON')
+    return
+  }
+
+  if (!window.confirm('导入会覆盖当前俱乐部发车配置、成员时刻和发车方案，是否继续？')) {
+    return
+  }
+
+  importingConfig.value = true
+  try {
+    const result = await api.clubCar.importConfigPackage(payload)
+    resetSchemeForm()
+    await fetchAll()
+    message.success(`配置导入完成，成员 ${result.importedMembers}，方案 ${result.importedPlans}`)
+  } catch (error) {
+    message.error(error.message || '导入配置失败')
+  } finally {
+    importingConfig.value = false
   }
 }
 
@@ -875,6 +967,7 @@ const sendModeLabel = (mode) => {
 
 const sendModeTagType = (mode) => {
   if (mode === 'gold') return 'warning'
+  if (mode === 'orange') return 'success'
   if (mode === 'no_refresh') return 'default'
   return 'error'
 }

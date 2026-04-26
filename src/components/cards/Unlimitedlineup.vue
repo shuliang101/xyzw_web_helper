@@ -667,10 +667,93 @@ const buildLineupStorageContext = () => ({
   hasAuth: !!authStore.isAuthenticated,
 });
 
+const EQUIPMENT_PARTS = [1, 2, 3, 4];
+
+const getHeroEquipmentPart = (heroData, partId) => {
+  const equipment = heroData?.equipment;
+  if (!equipment || typeof equipment !== "object") {
+    return null;
+  }
+  return equipment[partId] || equipment[String(partId)] || null;
+};
+
+const buildHeroEquipmentState = (heroData) => {
+  if (!heroData?.equipment || typeof heroData.equipment !== "object") {
+    return null;
+  }
+
+  const equipmentState = {};
+  let hasEquipment = false;
+
+  for (const partId of EQUIPMENT_PARTS) {
+    const equipmentPart = getHeroEquipmentPart(heroData, partId);
+    if (equipmentPart) {
+      hasEquipment = true;
+    }
+    equipmentState[partId] = {
+      curQuenchId: Number(equipmentPart?.curQuenchId || 0),
+    };
+  }
+
+  return hasEquipment ? equipmentState : null;
+};
+
+const extractQuenchSeed = (result, heroId, partId) => {
+  if (result?.role?.heroes) {
+    const hero = result.role.heroes[String(heroId)];
+    const equipmentPart = getHeroEquipmentPart(hero, partId);
+    if (equipmentPart?.seed !== undefined && equipmentPart?.seed !== null) {
+      return Number(equipmentPart.seed || 0);
+    }
+  }
+
+  if (result?.seed !== undefined && result?.seed !== null) {
+    return Number(result.seed || 0);
+  }
+
+  if (result?.equipment?.seed !== undefined && result?.equipment?.seed !== null) {
+    return Number(result.equipment.seed || 0);
+  }
+
+  return 0;
+};
+
+const extractUpdatedEquipmentPart = (result, heroId, partId, currentPart) => {
+  if (result?.equipment) {
+    return result.equipment;
+  }
+
+  if (result?.role?.heroes) {
+    const hero = result.role.heroes[String(heroId)];
+    return getHeroEquipmentPart(hero, partId);
+  }
+
+  if (result?.quenches) {
+    return {
+      ...(currentPart || {}),
+      quenches: result.quenches,
+      curQuenchId:
+        result.curQuenchId !== undefined
+          ? Number(result.curQuenchId || 0)
+          : Number(currentPart?.curQuenchId || 0),
+    };
+  }
+
+  return null;
+};
+
+const normalizeSavedLineupHero = (hero = {}) => ({
+  ...hero,
+  equipment: buildHeroEquipmentState({ equipment: hero?.equipment }),
+});
+
 const normalizeSavedLineups = (lineups = []) =>
   Array.isArray(lineups)
     ? lineups.map((lineup) => ({
         ...lineup,
+        heroes: Array.isArray(lineup?.heroes)
+          ? lineup.heroes.map(normalizeSavedLineupHero)
+          : [],
         applying: false,
       }))
     : [];
@@ -1534,9 +1617,24 @@ const saveCurrentLineup = async () => {
       }
     }
 
+    const attachmentToHero = {};
+    for (const [heroId, heroData] of Object.entries(currentHeroes)) {
+      if (heroData?.attachmentUid && heroData.attachmentUid !== -1) {
+        attachmentToHero[String(heroData.attachmentUid)] = Number(heroId);
+      }
+    }
+
     const heroesData = editingHeroes.value.map((hero) => {
       const heroData = currentHeroes[String(hero.heroId)];
-      const artifactId = heroData?.artifactId || hero.artifactId || null;
+      const carrierHeroId = hero?.attachmentUid
+        ? attachmentToHero[String(hero.attachmentUid)]
+        : null;
+      const carrierHeroData = carrierHeroId
+        ? currentHeroes[String(carrierHeroId)]
+        : null;
+      const equipmentCarrier = carrierHeroData || heroData;
+      const artifactId =
+        equipmentCarrier?.artifactId || hero.artifactId || null;
       const teamHeroInfo = teamInfo[hero.position];
       const fishId = artifactId ? fishAssignments[artifactId] : null;
       const pearlId = teamHeroInfo?.pearlId || null;
@@ -1551,6 +1649,7 @@ const saveCurrentLineup = async () => {
         pearlId: pearlId,
         skillId: pearlData?.skillId || null,
         slotMap: slotMap,
+        equipment: buildHeroEquipmentState(equipmentCarrier),
         power: heroData?.power || null,
         attack: heroData?.attack || null,
         hp: heroData?.hp || null,
@@ -1751,6 +1850,146 @@ const applyHeroLevel = async (
   }
 
   return { success: true, message: `等级已升至 ${actualCurrentLevel}` };
+};
+
+const applyHeroEquipmentState = async (
+  tokenId,
+  heroId,
+  targetEquipment,
+  currentHeroData,
+) => {
+  if (!targetEquipment || !currentHeroData) {
+    return { applied: 0, errors: [] };
+  }
+
+  let applied = 0;
+  const errors = [];
+  let workingHeroData = currentHeroData;
+
+  for (const partId of EQUIPMENT_PARTS) {
+    const targetPart =
+      targetEquipment?.[partId] || targetEquipment?.[String(partId)];
+    if (!targetPart) {
+      continue;
+    }
+
+    const targetCurQuenchId = Number(targetPart.curQuenchId || 0);
+    const currentPart = getHeroEquipmentPart(workingHeroData, partId);
+    const currentCurQuenchId = Number(currentPart?.curQuenchId || 0);
+
+    if (!currentPart || currentCurQuenchId === targetCurQuenchId) {
+      continue;
+    }
+
+    if (!currentPart.quenches || Object.keys(currentPart.quenches).length === 0) {
+      errors.push(
+        `${getHeroName(heroId) || `武将${heroId}`} 的装备部位 ${partId} 缺少淬炼孔位数据，无法匹配`,
+      );
+      continue;
+    }
+
+    if (partId === 1 && Number(currentPart.level || 0) < 4000) {
+      errors.push(
+        `${getHeroName(heroId) || `武将${heroId}`} 的装备部位 ${partId} 等级不足 4000，无法匹配淬炼`,
+      );
+      continue;
+    }
+
+    let seed = Number(currentPart.seed || 0);
+    const requiresConfirm = Object.values(currentPart.quenches || {}).some(
+      (slot) => Number(slot?.attrNum || 0) > 50 && !slot?.isLocked,
+    );
+
+    if (!seed && requiresConfirm) {
+      try {
+        const confirmResult = await tokenStore.sendMessageWithPromise(
+          tokenId,
+          "equipment_confirm",
+          {
+            heroId,
+            part: partId,
+            quenchId: 0,
+            quenches: currentPart.quenches,
+          },
+          15000,
+        );
+        seed = extractQuenchSeed(confirmResult, heroId, partId);
+        await delay(COMMAND_DELAY);
+      } catch (error) {
+        errors.push(
+          `${getHeroName(heroId) || `武将${heroId}`} 的装备部位 ${partId} 获取淬炼种子失败: ${error.message}`,
+        );
+        continue;
+      }
+    }
+
+    try {
+      const quenchResult = await tokenStore.sendMessageWithPromise(
+        tokenId,
+        "equipment_quench",
+        {
+          heroId,
+          part: partId,
+          quenchId: targetCurQuenchId,
+          quenches: currentPart.quenches,
+          seed,
+          skipOrange: false,
+        },
+        15000,
+      );
+
+      const updatedPart = extractUpdatedEquipmentPart(
+        quenchResult,
+        heroId,
+        partId,
+        currentPart,
+      );
+      if (updatedPart) {
+        workingHeroData = {
+          ...workingHeroData,
+          equipment: {
+            ...(workingHeroData?.equipment || {}),
+            [partId]: updatedPart,
+          },
+        };
+      }
+      await delay(COMMAND_DELAY);
+
+      const verifiedPart = getHeroEquipmentPart(workingHeroData, partId);
+      if (Number(verifiedPart?.curQuenchId || 0) === targetCurQuenchId) {
+        applied++;
+        continue;
+      }
+
+      const roleInfo = await tokenStore.sendMessageWithPromise(
+        tokenId,
+        "role_getroleinfo",
+        {},
+        15000,
+      );
+      const latestRole = roleInfo?.role || roleInfo;
+      const latestHeroData = latestRole?.heroes?.[String(heroId)];
+      if (latestHeroData) {
+        workingHeroData = latestHeroData;
+      }
+      await delay(COMMAND_DELAY);
+
+      const latestPart = getHeroEquipmentPart(workingHeroData, partId);
+      if (Number(latestPart?.curQuenchId || 0) === targetCurQuenchId) {
+        applied++;
+      } else {
+        errors.push(
+          `${getHeroName(heroId) || `武将${heroId}`} 的装备部位 ${partId} 淬炼状态未切到目标值`,
+        );
+      }
+    } catch (error) {
+      errors.push(
+        `${getHeroName(heroId) || `武将${heroId}`} 的装备部位 ${partId} 淬炼匹配失败: ${error.message}`,
+      );
+    }
+  }
+
+  return { applied, errors };
 };
 
 const applyLineup = async (lineup) => {
@@ -2162,6 +2401,46 @@ const applyLineup = async (lineup) => {
 
       if (skillApplied > 0) {
         message.success(`已切换 ${skillApplied} 个鱼珠技能`);
+      }
+    }
+
+    const hasEquipmentData = lineup.heroes.some((h) => h.equipment);
+    if (hasEquipmentData) {
+      const equipmentData = await fetchLatestData();
+      const currentHeroesData = equipmentData.heroes || {};
+      let equipmentApplied = 0;
+      const equipmentErrors = [];
+
+      for (const targetHero of targetHeroes) {
+        if (!targetHero.equipment) continue;
+
+        const currentHeroData = currentHeroesData[String(targetHero.heroId)];
+        if (!currentHeroData) {
+          equipmentErrors.push(
+            `${getHeroName(targetHero.heroId) || `武将${targetHero.heroId}`} 当前数据不存在，无法匹配装备淬炼`,
+          );
+          continue;
+        }
+
+        const result = await applyHeroEquipmentState(
+          tokenId,
+          targetHero.heroId,
+          targetHero.equipment,
+          currentHeroData,
+        );
+        equipmentApplied += result.applied;
+        if (result.errors.length > 0) {
+          equipmentErrors.push(...result.errors);
+        }
+      }
+
+      if (equipmentApplied > 0) {
+        message.success(`已应用 ${equipmentApplied} 个装备淬炼配置`);
+      }
+
+      if (equipmentErrors.length > 0) {
+        errors.push(...equipmentErrors);
+        message.warning(`装备匹配存在部分问题:\n${equipmentErrors.join("\n")}`);
       }
     }
 
