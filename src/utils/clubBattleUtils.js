@@ -177,11 +177,8 @@ export function formatTimestamp1(timestamp) {
  * @returns {string} YYYY/MM/DD
  */
 export function getFirstSaturdayOfMonth() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth(); // 0-11
+  const { year, month } = getActiveRankCycleMonth();
 
-  // Create date for 1st day of month
   const date = new Date(year, month, 1);
   const day = date.getDay(); // 0(Sun) - 6(Sat)
 
@@ -197,31 +194,53 @@ export function getFirstSaturdayOfMonth() {
   return `${y}/${m}/${d}`;
 }
 
+function getFourthSundayOfMonth(year, month) {
+  const firstDay = new Date(year, month, 1);
+  const dayOfWeek = firstDay.getDay();
+  const firstSundayDate = 1 + ((7 - dayOfWeek) % 7);
+  return new Date(year, month, firstSundayDate + 21);
+}
+
+function getActiveRankCycleMonth() {
+  const today = new Date();
+  const todayDate = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+  );
+  const currentFourthSunday = getFourthSundayOfMonth(
+    today.getFullYear(),
+    today.getMonth(),
+  );
+
+  if (todayDate > currentFourthSunday) {
+    const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    return {
+      year: nextMonth.getFullYear(),
+      month: nextMonth.getMonth(),
+    };
+  }
+
+  return {
+    year: today.getFullYear(),
+    month: today.getMonth(),
+  };
+}
+
 /**
  * 获取榜单查询日期 (通常是当月第四周的周日)
  * 特殊规则: 2026年2月返回 "260301"
  * @returns {string} YYMMDD
  */
 export function getRankQueryDate() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth(); // 0-11
+  const { year, month } = getActiveRankCycleMonth();
 
   // Special case for Feb 2026
   if (year === 2026 && month === 1) {
     return "260301";
   }
 
-  // Calculate 4th Sunday
-  // First, find the first Sunday
-  const firstDay = new Date(year, month, 1);
-  const dayOfWeek = firstDay.getDay();
-  let firstSundayDate = 1 + ((7 - dayOfWeek) % 7);
-
-  // 4th Sunday is 3 weeks after first Sunday
-  const fourthSundayDate = firstSundayDate + 21;
-
-  const targetDate = new Date(year, month, fourthSundayDate);
+  const targetDate = getFourthSundayOfMonth(year, month);
 
   const y = String(targetDate.getFullYear()).slice(2);
   const m = String(targetDate.getMonth() + 1).padStart(2, "0");
@@ -264,7 +283,7 @@ export function getWarTypeName(warType) {
 export function getRankParams(warType) {
   // Bronze: 18, 19 -> 1-1000
   if (warType === 18 || warType === 19)
-    return { startRank: 1, endRank: 1000, name: "青铜岛" };
+    return { startRank: 1, endRank: 5000, name: "青铜岛" };
   // Blue: 20, 21 -> 1-500
   if (warType === 20 || warType === 21)
     return { startRank: 1, endRank: 500, name: "秘蓝岛" };

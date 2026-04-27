@@ -153,7 +153,7 @@ const connectstr = (str1, str2, str3) => {
 
 const allianceConfig = [
   {
-    keywords: ["大联盟"],
+    keywords: ["大联盟", "大"],
     value: "大联盟",
   },
   {
@@ -161,7 +161,7 @@ const allianceConfig = [
     value: "正义联盟",
   },
   {
-    keywords: ["龙盟", "龍盟"],
+    keywords: ["龙盟", "龍盟", "龙", "龍"],
     value: "龙盟",
   },
   {
@@ -169,14 +169,15 @@ const allianceConfig = [
     value: "梦盟",
   },
   {
-    keywords: ["曦盟"],
+    keywords: ["曦盟", "曦"],
     value: "曦盟",
   },
 ];
 
 export const allianceincludes = (str1) => {
+  const text = String(str1 || "");
   const matchedItem = allianceConfig.find((item) => {
-    return item.keywords.some((keyword) => str1.includes(keyword));
+    return item.keywords.some((keyword) => text.includes(keyword));
   });
 
   return matchedItem ? matchedItem.value : "未知联盟";

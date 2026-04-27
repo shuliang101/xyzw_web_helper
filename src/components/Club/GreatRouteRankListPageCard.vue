@@ -48,7 +48,8 @@
           <n-button
             type="primary"
             size="small"
-            :disabled="!battleRecords1 || loading1"
+            :disabled="fullRankList.length === 0 || loading1 || exportLoading"
+            :loading="exportLoading"
             @click="handleExport1"
             class="action-btn export-btn"
           >
@@ -56,7 +57,7 @@
               <n-icon>
                 <Copy />
               </n-icon> </template
-            >导出</n-button
+            >{{ exportLoading ? `导出中 ${exportProgress}` : "导出" }}</n-button
           >
         </div>
       </div>
@@ -666,44 +667,25 @@
 
 <script setup>
 import { ref, computed, onMounted, reactive } from "vue";
+import * as XLSX from "xlsx";
 import {
   useMessage,
-  NDatePicker,
-  NCheckboxGroup,
-  NCheckbox,
   NModal,
   NAvatar,
   NPagination,
 } from "naive-ui";
 import { useTokenStore } from "@/stores/tokenStore";
-import html2canvas from "html2canvas";
-import { downloadCanvasAsImage } from "@/utils/imageExport";
 import {
-  Trophy,
   Refresh,
   Copy,
-  ChevronDown,
-  ChevronUp,
   DocumentText,
 } from "@vicons/ionicons5";
 import {
-  getLastSaturday,
   getFirstSaturdayOfMonth,
   getRankQueryDate,
-  getWarTypeName,
   getRankParams,
-  formatTimestamp,
-  formatTimestamp1,
-  parseBattleResult,
-  parseAttackType,
-  formatBattleRecordsForExport,
-  copyToClipboard,
 } from "@/utils/clubBattleUtils";
-import {
-  gettoday,
-  formatWarrankRecordsForExport,
-  allianceincludes,
-} from "@/utils/clubWarrankUtils";
+import { allianceincludes } from "@/utils/clubWarrankUtils";
 import { HERO_DICT, HeroFillInfo, legacycolor } from "@/utils/HeroList";
 
 const ScoreShow = ref(1);
@@ -731,6 +713,8 @@ const showModal = computed({
 });
 
 const loading1 = ref(false);
+const exportLoading = ref(false);
+const exportProgress = ref("");
 const rankList = ref([]);
 const battleRecords1 = ref(null);
 const fullRankList = ref([]);
@@ -1343,6 +1327,84 @@ const getRedQuenchClass = (redQuench) => {
 };
 
 const pageCache = ref(new Map());
+const rankQueryBatchSize = 1000;
+const exportDetailRetryCount = 1;
+const exportDetailDelayMs = 100;
+const allianceNames = [
+  "大联盟",
+  "正义联盟",
+  "龙盟",
+  "梦盟",
+  "曦盟",
+  "未知联盟",
+];
+
+const firstText = (...values) => {
+  const value = values.find(
+    (item) => item !== undefined && item !== null && String(item).trim() !== "",
+  );
+  return value === undefined ? "" : String(value);
+};
+
+const normalizeRankClub = (item, detail = null, detailStatus = "") => {
+  const topHeroes = [];
+  const legionData = detail?.legionData || {};
+  const members = legionData.members || {};
+
+  for (const [roleId, memberData] of Object.entries(members)) {
+    topHeroes.push({
+      id: roleId,
+      name: memberData.name || memberData.custom?.name || "未知",
+      headImg: memberData.headImg || memberData.custom?.headImg || "",
+      power: memberData?.power || 0,
+      redQuench: memberData.custom?.red_quench_cnt || 0,
+      holyBeast: memberData.custom?.holy_beast_cnt || 0,
+    });
+  }
+
+  topHeroes.sort((a, b) => b.redQuench - a.redQuench);
+  const top3Heroes = topHeroes.slice(0, 3);
+  const redQuenchCounts = top3Heroes.map((hero) => hero.redQuench + "红");
+  const holyBeastCounts = top3Heroes.map((hero) => hero.holyBeast);
+  const announcement = firstText(
+    legionData.announcement,
+    legionData.notice,
+    legionData.description,
+    legionData.desc,
+    item.announcement,
+    item.notice,
+    item.description,
+    item.desc,
+  );
+
+  return {
+    ...item,
+    id: item.id,
+    rank: item.rank || 0,
+    serverId: legionData.serverId || item.serverId || 0,
+    name: legionData.name || item.name || "",
+    logo: legionData.logo || item.logo || "",
+    redQuench: legionData.quenchNum || item.redQuench || 0,
+    power: legionData.power || item.power || 0,
+    sRScore: item.score ?? item.sRScore ?? 0,
+    announcement,
+    rawAnnouncement: firstText(legionData.announcement, item.announcement),
+    rawNotice: firstText(legionData.notice, item.notice),
+    rawDescription: firstText(legionData.description, item.description),
+    rawDesc: firstText(legionData.desc, item.desc),
+    detailStatus: detailStatus || (detail ? "详情已获取" : "仅排行榜数据"),
+    alliance: allianceincludes(announcement),
+    redno: redQuenchCounts,
+    redno1: redQuenchCounts[0] || "0红",
+    redno2: redQuenchCounts[1] || "0红",
+    redno3: redQuenchCounts[2] || "0红",
+    hb1: holyBeastCounts[0] || 0,
+    hb2: holyBeastCounts[1] || 0,
+    hb3: holyBeastCounts[2] || 0,
+    topHeroes: top3Heroes,
+    level: legionData.level || item.level || 30,
+  };
+};
 
 // 分页加载数据
 const loadPageData = async (page) => {
@@ -1377,79 +1439,10 @@ const loadPageData = async (page) => {
           10000,
         );
 
-        if (!detail) {
-          return {
-            ...item,
-            id: item.id,
-            rank: item.rank || 0,
-            redQuench: item.redQuench || 0,
-            power: item.power || 0,
-            announcement: "未知",
-            redno: 0,
-            redno1: "0红",
-            redno2: "0红",
-            redno3: "0红",
-            hb1: 0,
-            hb2: 0,
-            hb3: 0,
-            topHeroes: [],
-            level: 30,
-          };
-        }
-
-        const topHeroes = [];
-        const members = detail?.legionData?.members || {};
-
-        for (const [roleId, memberData] of Object.entries(members)) {
-          topHeroes.push({
-            id: roleId,
-            name: memberData.name || memberData.custom?.name || "未知",
-            headImg: memberData.headImg || memberData.custom?.headImg || "",
-            power: memberData?.power || 0,
-            redQuench: memberData.custom?.red_quench_cnt || 0,
-            holyBeast: memberData.custom?.holy_beast_cnt || 0,
-          });
-        }
-
-        // Sort and slice top 3
-        topHeroes.sort((a, b) => b.redQuench - a.redQuench);
-        const top3Heroes = topHeroes.slice(0, 3);
-
-        const redQuenchCounts = top3Heroes.map((hero) => hero.redQuench + "红");
-        const HolyBeastNum = top3Heroes.map((hero) => hero.holyBeast);
-
-        return {
-          ...item,
-          id: item.id,
-          rank: item.rank || 0,
-          serverId: detail?.legionData?.serverId || item.serverId || 0,
-          name: detail?.legionData?.name || item.name,
-          logo: detail?.legionData?.logo || item.logo,
-          redQuench: detail?.legionData?.quenchNum || item.redQuench || 0,
-          power: detail?.legionData?.power || item.power || 0,
-          sRScore: item.score || 0,
-          announcement: detail?.legionData?.announcement || "",
-          redno: redQuenchCounts,
-          redno1: redQuenchCounts[0] || "0红",
-          redno2: redQuenchCounts[1] || "0红",
-          redno3: redQuenchCounts[2] || "0红",
-          hb1: HolyBeastNum[0] || 0,
-          hb2: HolyBeastNum[1] || 0,
-          hb3: HolyBeastNum[2] || 0,
-          topHeroes: top3Heroes,
-          level: detail?.legionData?.level || 30,
-        };
+        return normalizeRankClub(item, detail, "详情已获取");
       } catch (error) {
         console.error(`查询俱乐部${item.id}详情失败:`, error);
-        return {
-          ...item,
-          id: item.id,
-          redQuench: item.redQuench || 0,
-          power: item.power || 0,
-          topHeroes: [],
-          level: 30,
-          announcement: "",
-        };
+        return normalizeRankClub(item, null, "详情查询失败");
       }
     });
 
@@ -1514,8 +1507,11 @@ const fetchBattleRecords1 = async () => {
       firstSatDate.getMonth(),
       firstSatDate.getDate(),
     );
+    const isCurrentMonthCycle =
+      today.getFullYear() === firstSatDate.getFullYear() &&
+      today.getMonth() === firstSatDate.getMonth();
 
-    if (todayDate < targetDate) {
+    if (isCurrentMonthCycle && todayDate < targetDate) {
       message.warning(
         `当前日期在当月第一个周六(${firstSaturday})之前，不可查询`,
       );
@@ -1550,22 +1546,42 @@ const fetchBattleRecords1 = async () => {
     // 3. Get Rank List
     queryDate.value = getRankQueryDate();
 
-    const rankResult = await tokenStore.sendMessageWithPromise(
-      tokenId,
-      "saltroad_getsaltroadwartotalrank",
-      {
-        date: queryDate.value,
-        startRank: rankParams.startRank,
-        endRank: rankParams.endRank,
-      },
-      20000,
-    );
-
-    if (
-      !rankResult ||
-      !rankResult.legionList ||
-      rankResult.legionList.length === 0
+    const rankResults = [];
+    for (
+      let startRank = rankParams.startRank;
+      startRank <= rankParams.endRank;
+      startRank += rankQueryBatchSize
     ) {
+      const endRank = Math.min(
+        startRank + rankQueryBatchSize - 1,
+        rankParams.endRank,
+      );
+      const rankResult = await tokenStore.sendMessageWithPromise(
+        tokenId,
+        "saltroad_getsaltroadwartotalrank",
+        {
+          date: queryDate.value,
+          startRank,
+          endRank,
+        },
+        20000,
+      );
+      const legionList = Array.isArray(rankResult?.legionList)
+        ? rankResult.legionList
+        : [];
+
+      if (legionList.length === 0) {
+        break;
+      }
+
+      rankResults.push(...legionList);
+
+      if (legionList.length < endRank - startRank + 1) {
+        break;
+      }
+    }
+
+    if (rankResults.length === 0) {
       message.warning("未查询到榜单数据");
       battleRecords1.value = null;
       fullRankList.value = [];
@@ -1573,7 +1589,7 @@ const fetchBattleRecords1 = async () => {
       return;
     }
 
-    fullRankList.value = rankResult.legionList;
+    fullRankList.value = rankResults;
     rankList.value = fullRankList.value;
     pageCache.value.clear(); // Clear cache on new search
 
@@ -1604,81 +1620,252 @@ const scoreSort = async () => {
   // battleRecords1.legionRankList 按照 sRScore 降序
   battleRecords1.value.legionRankList.sort((a, b) => b.sRScore - a.sRScore);
 };
+
+const formatPercent = (count, total) => {
+  if (!total) return "0.00%";
+  return `${((count / total) * 100).toFixed(2)}%`;
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const getRedQuenchBucket = (redQuench) => {
+  const value = Number(redQuench) || 0;
+  if (value < 1000) return "1000以下";
+  if (value >= 2200) return "2200以上";
+  const start = Math.floor(value / 100) * 100;
+  return `${start}-${start + 99}`;
+};
+
+const createRankRows = (clubs) => [
+  [
+    "排名",
+    "ID",
+    "区服",
+    "俱乐部名",
+    "联盟",
+    "积分",
+    "红淬",
+    "战力",
+    "等级",
+    "前三红淬",
+    "公告",
+    "详情状态",
+  ],
+  ...clubs.map((club) => [
+    club.rank || "",
+    club.id || "",
+    club.serverId || "",
+    club.name || "",
+    club.alliance || allianceincludes(club.announcement),
+    club.sRScore || 0,
+    club.redQuench || 0,
+    club.power || 0,
+    club.level || 30,
+    [club.redno1, club.redno2, club.redno3].filter(Boolean).join(","),
+    club.announcement || "",
+    club.detailStatus || "",
+  ]),
+];
+
+const createRawRows = (clubs) => [
+  [
+    "排名",
+    "ID",
+    "俱乐部名",
+    "最终公告",
+    "rawAnnouncement",
+    "rawNotice",
+    "rawDescription",
+    "rawDesc",
+    "详情状态",
+  ],
+  ...clubs.map((club) => [
+    club.rank || "",
+    club.id || "",
+    club.name || "",
+    club.announcement || "",
+    club.rawAnnouncement || "",
+    club.rawNotice || "",
+    club.rawDescription || "",
+    club.rawDesc || "",
+    club.detailStatus || "",
+  ]),
+];
+
+const addWorksheet = (workbook, rows, name) => {
+  const worksheet = XLSX.utils.aoa_to_sheet(rows);
+  worksheet["!cols"] = rows[0].map((_, index) => {
+    if (index === rows[0].length - 2 || index === rows[0].length - 3) {
+      return { wch: 60 };
+    }
+    if (index === rows[0].length - 1) {
+      return { wch: 16 };
+    }
+    return { wch: 14 };
+  });
+  XLSX.utils.book_append_sheet(workbook, worksheet, name.slice(0, 31));
+};
+
+const addRankWorksheet = (workbook, rows, name) => {
+  const worksheet = XLSX.utils.aoa_to_sheet(rows);
+  worksheet["!cols"] = [
+    { wch: 8 },
+    { wch: 14 },
+    { wch: 10 },
+    { wch: 22 },
+    { wch: 12 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 14 },
+    { wch: 8 },
+    { wch: 18 },
+    { wch: 60 },
+    { wch: 16 },
+  ];
+  XLSX.utils.book_append_sheet(workbook, worksheet, name.slice(0, 31));
+};
+
+const createSummaryRows = (clubs) => {
+  const total = clubs.length;
+  const rows = [
+    ["汇总"],
+    ["总俱乐部数", total],
+    [],
+    ["联盟", "人数", "占比"],
+  ];
+
+  allianceNames.forEach((alliance) => {
+    const count = clubs.filter((club) => club.alliance === alliance).length;
+    rows.push([alliance, count, formatPercent(count, total)]);
+  });
+
+  const buckets = ["1000以下"];
+  for (let start = 1000; start < 2200; start += 100) {
+    buckets.push(`${start}-${start + 99}`);
+  }
+  buckets.push("2200以上");
+
+  rows.push([]);
+  rows.push(["红淬区间", "总数", "占比", ...allianceNames]);
+
+  buckets.forEach((bucket) => {
+    const bucketClubs = clubs.filter(
+      (club) => getRedQuenchBucket(club.redQuench) === bucket,
+    );
+    rows.push([
+      bucket,
+      bucketClubs.length,
+      formatPercent(bucketClubs.length, total),
+      ...allianceNames.map(
+        (alliance) =>
+          bucketClubs.filter((club) => club.alliance === alliance).length,
+      ),
+    ]);
+  });
+
+  return rows;
+};
+
+const fetchClubDetailForExport = async (item) => {
+  const cachedClub = Array.from(pageCache.value.values())
+    .flat()
+    .find((club) => String(club.id) === String(item.id));
+
+  if (cachedClub?.announcement) {
+    return cachedClub;
+  }
+
+  const tokenId = tokenStore.selectedToken.id;
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= exportDetailRetryCount; attempt += 1) {
+    try {
+      const detail = await tokenStore.sendMessageWithPromise(
+        tokenId,
+        "legion_getinfobyid",
+        { legionId: item.id },
+        12000,
+      );
+      return normalizeRankClub(
+        item,
+        detail,
+        attempt === 0 ? "详情已获取" : `详情重试${attempt}次后获取`,
+      );
+    } catch (error) {
+      lastError = error;
+      console.error(
+        `导出时查询俱乐部${item.id}详情失败，第${attempt + 1}次:`,
+        error,
+      );
+      if (attempt < exportDetailRetryCount) {
+        await sleep(500);
+      }
+    }
+  }
+
+  return normalizeRankClub(
+    item,
+    null,
+    `详情查询失败: ${lastError?.message || "未知错误"}`,
+  );
+};
+
+const fetchAllRankDetailsForExport = async () => {
+  const items = [...fullRankList.value];
+  const results = [];
+
+  for (let index = 0; index < items.length; index += 1) {
+    results.push(await fetchClubDetailForExport(items[index]));
+    exportProgress.value = `${index + 1}/${items.length}`;
+
+    if (index < items.length - 1) {
+      await sleep(exportDetailDelayMs);
+    }
+  }
+
+  return results
+    .filter(Boolean)
+    .sort((a, b) => (a.rank || 0) - (b.rank || 0));
+};
+
+const exportToExcel = async () => {
+  const clubs = await fetchAllRankDetailsForExport();
+  const workbook = XLSX.utils.book_new();
+
+  addRankWorksheet(workbook, createRankRows(clubs), "全部排行榜");
+
+  allianceNames.forEach((alliance) => {
+    const allianceClubs = clubs.filter((club) => club.alliance === alliance);
+    addRankWorksheet(workbook, createRankRows(allianceClubs), alliance);
+  });
+
+  addWorksheet(workbook, createSummaryRows(clubs), "汇总");
+  addWorksheet(workbook, createRawRows(clubs), "原始数据");
+
+  const year = `20${queryDate.value.slice(0, 2)}`;
+  const month = queryDate.value.slice(2, 4);
+  const islandName = getRankParams(currentWarType.value)?.name || "伟大航路";
+  XLSX.writeFile(workbook, `${year}年${month}月${islandName}.xlsx`);
+};
+
 // 导出战绩
 const handleExport1 = async () => {
-  if (!battleRecords1.value || !battleRecords1.value.legionRankList) {
+  if (fullRankList.value.length === 0) {
     message.warning("没有可导出的数据");
     return;
   }
 
   try {
-    exportToImage();
+    exportLoading.value = true;
+    exportProgress.value = `0/${fullRankList.value.length}`;
+    await exportToExcel();
     message.success("导出成功");
   } catch (error) {
     console.error("导出失败:", error);
     message.error("导出失败，请重试");
-  }
-};
-
-const exportToImage = async () => {
-  // 校验：确保DOM已正确绑定
-  if (!exportDom.value) {
-    alert("未找到要导出的DOM元素");
-    return;
-  }
-
-  try {
-    // 获取实际的滚动容器
-    const tableContainer = exportDom.value.querySelector(".table-container");
-    const realHeight = tableContainer
-      ? tableContainer.scrollHeight
-      : exportDom.value.scrollHeight;
-    const realWidth = tableContainer
-      ? tableContainer.scrollWidth
-      : exportDom.value.scrollWidth;
-
-    // 5. 用html2canvas渲染DOM为Canvas
-    const canvas = await html2canvas(exportDom.value, {
-      scale: 2, // 放大2倍，解决图片模糊问题
-      useCORS: true, // 允许跨域图片（若DOM内有远程图片，需开启）
-      backgroundColor: "#ffffff", // 避免透明背景（默认透明）
-      logging: false, // 关闭控制台日志
-      height: realHeight, // 确保捕获完整高度
-      width: realWidth, // 确保捕获完整宽度
-      windowWidth: realWidth, // 设置窗口宽度
-      windowHeight: realHeight, // 设置窗口高度
-      allowTaint: true, // 允许跨域图片污染画布
-      onclone: (clonedDoc) => {
-        // 处理外层容器
-        const clonedContent = clonedDoc.querySelector(".table-content");
-        if (clonedContent) {
-          clonedContent.style.height = "auto";
-          clonedContent.style.overflow = "visible";
-        }
-
-        // 处理滚动容器
-        const clonedContainer = clonedDoc.querySelector(".table-container");
-        if (clonedContainer) {
-          clonedContainer.style.height = "auto";
-          clonedContainer.style.overflow = "visible";
-        }
-
-        // 处理表头吸顶问题
-        const clonedHeader = clonedDoc.querySelector(".table-header");
-        if (clonedHeader) {
-          clonedHeader.style.position = "static";
-        }
-      },
-    });
-
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const filename = `${year}年${month}月${getRankParams(currentWarType.value).name}.png`;
-    downloadCanvasAsImage(canvas, filename);
-  } catch (err) {
-    console.error("DOM转图片失败：", err);
-    alert("导出图片失败，请重试");
+  } finally {
+    exportLoading.value = false;
+    exportProgress.value = "";
   }
 };
 
