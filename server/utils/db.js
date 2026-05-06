@@ -176,6 +176,22 @@ db.prepare(`
 `).run()
 
 db.prepare(`
+  CREATE TABLE IF NOT EXISTS club_car_plan_run_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plan_id INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    detail TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (plan_id) REFERENCES club_car_send_plans(id) ON DELETE CASCADE
+  )
+`).run()
+
+db.prepare(`
+  CREATE INDEX IF NOT EXISTS idx_club_car_plan_run_logs_plan_created
+  ON club_car_plan_run_logs(plan_id, created_at DESC, id DESC)
+`).run()
+
+db.prepare(`
   CREATE TABLE IF NOT EXISTS club_car_send_plans (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     weekday INTEGER NOT NULL,
@@ -259,5 +275,17 @@ const hasPlanLastResultDetail = clubPlanColumns.some(column => column.name === '
 if (!hasPlanLastResultDetail) {
   db.prepare('ALTER TABLE club_car_send_plans ADD COLUMN last_result_detail TEXT').run()
 }
+
+db.prepare(`
+  INSERT INTO club_car_plan_run_logs (plan_id, status, detail, created_at)
+  SELECT id, COALESCE(NULLIF(last_result_status, ''), 'waiting'), last_result_detail, last_attempt_at
+  FROM club_car_send_plans
+  WHERE last_attempt_at IS NOT NULL
+    AND last_attempt_at != ''
+    AND NOT EXISTS (
+      SELECT 1 FROM club_car_plan_run_logs
+      WHERE club_car_plan_run_logs.plan_id = club_car_send_plans.id
+    )
+`).run()
 
 export default db

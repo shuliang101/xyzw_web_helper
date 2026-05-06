@@ -285,6 +285,10 @@ const mapPlan = (row) => {
   if (!row) return null
   const sender = getMemberRowByRoleId(row.sender_role_id)
   const target = getMemberRowByRoleId(row.target_role_id)
+  const latestLog = getLatestPlanRunLog(row.id)
+  const latestDetail = latestLog?.detail
+    ? parseJsonSafe(latestLog.detail, null)
+    : parseJsonSafe(row.last_result_detail, null)
   return {
     id: row.id,
     weekday: Number(row.weekday || 1),
@@ -294,9 +298,9 @@ const mapPlan = (row) => {
     sendTime: normalizeTimeHHmm(row.send_time, '06:00'),
     isActive: row.is_active === 1,
     lastRunAt: row.last_run_at || '',
-    lastAttemptAt: row.last_attempt_at || '',
-    lastResultStatus: row.last_result_status || '',
-    lastResultDetail: parseJsonSafe(row.last_result_detail, null),
+    lastAttemptAt: latestLog?.created_at || row.last_attempt_at || '',
+    lastResultStatus: latestLog?.status || row.last_result_status || '',
+    lastResultDetail: latestDetail,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     sender: sender ? mapMember(sender) : null,
@@ -309,6 +313,12 @@ const getClubInfoRow = () => db.prepare('SELECT * FROM club_car_club_info WHERE 
 const getMemberRowById = (id) => db.prepare('SELECT * FROM club_car_members WHERE id = ?').get(id)
 const getMemberRowByRoleId = (roleId) => db.prepare('SELECT * FROM club_car_members WHERE role_id = ?').get(String(roleId))
 const getPlanRowById = (id) => db.prepare('SELECT * FROM club_car_send_plans WHERE id = ?').get(id)
+const getLatestPlanRunLog = (planId) => db.prepare(`
+  SELECT * FROM club_car_plan_run_logs
+  WHERE plan_id = ?
+  ORDER BY created_at DESC, id DESC
+  LIMIT 1
+`).get(planId)
 const getPlanRowsBySenderRoleId = (roleId) => db.prepare(`
   SELECT * FROM club_car_send_plans
   WHERE sender_role_id = ? AND is_active = 1
@@ -1776,24 +1786,44 @@ const updatePlanLastRunAt = (planId, isoText) => {
 }
 
 const getPlanExecutionStatus = (planEntry) => {
-  if (planEntry?.completed) return 'completed'
+  if (planEntry?.completed && Number(planEntry?.sent || 0) > 0) return 'completed'
   if (Number(planEntry?.sent || 0) > 0) return 'partial'
   if (Array.isArray(planEntry?.errors) && planEntry.errors.length > 0) return 'failed'
+  if (planEntry?.skippedReason) return 'failed'
   return 'waiting'
 }
 
 const updatePlanLastAttempt = (planId, isoText, planEntry) => {
+  const status = getPlanExecutionStatus(planEntry)
+  const detailText = JSON.stringify(planEntry || null)
+
   db.prepare(`
     UPDATE club_car_send_plans
     SET last_attempt_at = ?, last_result_status = ?, last_result_detail = ?, updated_at = ?
     WHERE id = ?
   `).run(
     isoText,
-    getPlanExecutionStatus(planEntry),
-    JSON.stringify(planEntry || null),
+    status,
+    detailText,
     isoText,
     planId,
   )
+
+  db.prepare(`
+    INSERT INTO club_car_plan_run_logs (plan_id, status, detail, created_at)
+    VALUES (?, ?, ?, ?)
+  `).run(planId, status, detailText, isoText)
+
+  db.prepare(`
+    DELETE FROM club_car_plan_run_logs
+    WHERE plan_id = ?
+      AND id NOT IN (
+        SELECT id FROM club_car_plan_run_logs
+        WHERE plan_id = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT 10
+      )
+  `).run(planId, planId)
 }
 
 const prepareCarForPlan = async ({
@@ -1931,29 +1961,33 @@ export const runClubCarSend = async (options = {}) => {
       sentCarsDetail: [],
       errors: [],
     }
+    const finishPlanAttempt = () => {
+      detail.push(planEntry)
+      updatePlanLastAttempt(plan.id, nowIso, planEntry)
+    }
 
     if (!senderRow || senderRow.is_active !== 1) {
       planEntry.skippedReason = 'sender is inactive'
-      detail.push(planEntry)
+      finishPlanAttempt()
       continue
     }
 
     if (!senderRow.bound_bin_path) {
       planEntry.skippedReason = 'sender bin is not bound'
-      detail.push(planEntry)
+      finishPlanAttempt()
       continue
     }
 
     if (!targetRow || targetRow.is_active !== 1) {
       planEntry.skippedReason = 'target is inactive'
-      detail.push(planEntry)
+      finishPlanAttempt()
       continue
     }
 
     const permission = checkSendPermission(senderRow, now)
     if (!permission.ok) {
       planEntry.skippedReason = permission.reason
-      detail.push(planEntry)
+      finishPlanAttempt()
       continue
     }
 
@@ -2070,8 +2104,7 @@ export const runClubCarSend = async (options = {}) => {
       planEntry.errors.push(String(error?.message || error))
     }
 
-    detail.push(planEntry)
-    updatePlanLastAttempt(plan.id, nowIso, planEntry)
+    finishPlanAttempt()
     await sleep(800)
   }
 

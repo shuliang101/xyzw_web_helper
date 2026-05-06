@@ -84,6 +84,16 @@
                 <span>护送人: {{ plan.targetName }}</span>
                 <span v-if="plan.latestAttemptAt">最近尝试: {{ formatDateTime(plan.latestAttemptAt) }}</span>
               </div>
+
+              <div v-if="plan.resultLines.length" class="timeline-result" :class="`is-${plan.status}`">
+                <div
+                  v-for="line in plan.resultLines"
+                  :key="line"
+                  class="timeline-result-line"
+                >
+                  {{ line }}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -107,6 +117,7 @@ const tokenStore = useTokenStore()
 
 const loading = ref(false)
 const plans = ref([])
+const runLogs = ref([])
 const selectedTargetRoleId = ref(null)
 let refreshTimer = null
 const isAdmin = computed(() => authStore.user?.role === 'admin')
@@ -181,6 +192,57 @@ const statusTagType = (status) => {
 
 const now = () => new Date()
 
+const reasonLabelMap = {
+  'sender is inactive': '发车人已不在俱乐部或未启用',
+  'sender bin is not bound': '发车人未绑定 bin',
+  'target is inactive': '护送人已不在俱乐部或未启用',
+  'no idle cars': '没有可发出的空闲车',
+  'claimed cars but still no idle cars': '已尝试收车，但仍没有可发出的空闲车',
+  'target quality not reached': '刷新后仍未达到目标品质',
+  'no suitable car found': '没有符合规则的车辆',
+}
+
+const normalizeReason = (value) => {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  if (reasonLabelMap[text]) return reasonLabelMap[text]
+  const partialMatch = text.match(/^partial sent (\d+)\/(\d+)$/)
+  if (partialMatch) return `只发出 ${partialMatch[1]}/${partialMatch[2]} 辆`
+  return text
+}
+
+const buildResultLines = (item) => {
+  if (!item) return []
+
+  const lines = []
+  if (Array.isArray(item.errors) && item.errors.length) {
+    item.errors.forEach(error => lines.push(`失败原因: ${normalizeReason(error)}`))
+  }
+  if (item.skippedReason) {
+    lines.push(`未发送原因: ${normalizeReason(item.skippedReason)}`)
+  }
+  if (item.sent !== undefined && item.totalIdleCars !== undefined) {
+    lines.push(`发车数量: ${Number(item.sent || 0)}/${Number(item.totalIdleCars || 0)}`)
+  }
+  if (item.refreshAttempts !== undefined) {
+    lines.push(`刷新次数: ${Number(item.refreshAttempts || 0)}`)
+  }
+  if (Array.isArray(item.sentCarsDetail) && item.sentCarsDetail.length) {
+    item.sentCarsDetail.forEach((car) => {
+      const detail = [`车辆 ${car.carId}`]
+      if (car.stopReason) {
+        detail.push(normalizeReason(car.stopReason))
+      }
+      if (Array.isArray(car.matchedRewards) && car.matchedRewards.length) {
+        detail.push(`奖励: ${car.matchedRewards.join('，')}`)
+      }
+      lines.push(detail.join('，'))
+    })
+  }
+
+  return [...new Set(lines.filter(Boolean))]
+}
+
 const todayWeekday = computed(() => getLocalWeekday(now()))
 const todayLabel = computed(() => todayWeekday.value ? weekdayLabel(todayWeekday.value) : '今天不是活动日')
 
@@ -212,21 +274,53 @@ const targetFilterOptions = computed(() => {
   return [...grouped.values()]
 })
 
+const latestLogPlanResultMap = computed(() => {
+  const current = now()
+  const grouped = new Map()
+
+  for (const log of runLogs.value) {
+    const createdAt = parseDateSafe(log?.createdAt)
+    if (!createdAt || !isSameLocalDate(createdAt, current)) continue
+
+    const detailItems = Array.isArray(log?.detail?.detail) ? log.detail.detail : []
+    for (const item of detailItems) {
+      const planId = Number(item?.planId || 0)
+      if (!planId) continue
+
+      const existing = grouped.get(planId)
+      if (!existing || createdAt > existing.createdAt) {
+        grouped.set(planId, {
+          createdAt,
+          createdAtText: log.createdAt,
+          item,
+        })
+      }
+    }
+  }
+
+  return grouped
+})
+
 const todayPlanCards = computed(() => {
   const current = now()
   const currentMinutes = (current.getHours() * 60) + current.getMinutes()
 
   return todayPlans.value.map((plan) => {
     const latestAttemptAt = parseDateSafe(plan.lastAttemptAt)
-    const item = latestAttemptAt && isSameLocalDate(latestAttemptAt, current)
+    const storedItem = latestAttemptAt && isSameLocalDate(latestAttemptAt, current)
       ? plan.lastResultDetail
       : null
+    const logResult = latestLogPlanResultMap.value.get(Number(plan.id))
+    const useLogResult = logResult
+      && (!latestAttemptAt || logResult.createdAt >= latestAttemptAt || !storedItem)
+    const item = useLogResult ? logResult.item : storedItem
+    const latestAttemptAtText = useLogResult ? logResult.createdAtText : plan.lastAttemptAt || ''
     const sendMinutes = toMinutesOfDay(plan.sendTime)
 
     let status = 'pending'
     let statusText = '待执行'
 
-    if (item?.completed) {
+    if (item?.completed && Number(item?.sent || 0) > 0) {
       status = 'completed'
       statusText = '成功'
     } else if (item?.sent > 0) {
@@ -236,8 +330,8 @@ const todayPlanCards = computed(() => {
       status = 'failed'
       statusText = '执行失败'
     } else if (item?.skippedReason) {
-      status = currentMinutes >= sendMinutes ? 'waiting' : 'pending'
-      statusText = '未发送'
+      status = currentMinutes >= sendMinutes ? 'failed' : 'pending'
+      statusText = currentMinutes >= sendMinutes ? '未发送' : '待执行'
     } else if (currentMinutes > sendMinutes) {
       status = 'waiting'
       statusText = '未发送'
@@ -247,9 +341,10 @@ const todayPlanCards = computed(() => {
       ...plan,
       senderName: plan.sender?.name || plan.senderRoleId || '-',
       targetName: plan.target?.name || plan.targetRoleId || '-',
-      latestAttemptAt: item ? plan.lastAttemptAt || '' : '',
+      latestAttemptAt: item ? latestAttemptAtText : '',
       status,
       statusText,
+      resultLines: buildResultLines(item),
     }
   })
 })
@@ -284,10 +379,12 @@ const fetchAll = async () => {
 
     if (!isAdmin.value && !roleId) {
       plans.value = []
+      runLogs.value = []
       return
     }
 
     plans.value = await api.clubCar.listSendPlans(roleId)
+    runLogs.value = await api.clubCar.listLogs(200, isAdmin.value ? null : roleId)
   } catch (error) {
     message.error(error.message || '加载监视数据失败')
   } finally {
@@ -496,6 +593,38 @@ onUnmounted(() => {
   margin-top: 12px;
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+.timeline-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  background: rgba(100, 116, 139, 0.08);
+  color: #334155;
+}
+
+.timeline-result.is-failed {
+  background: rgba(208, 48, 80, 0.08);
+  color: #9f1239;
+}
+
+.timeline-result.is-partial {
+  background: rgba(240, 160, 32, 0.12);
+  color: #92400e;
+}
+
+.timeline-result.is-completed {
+  background: rgba(24, 160, 88, 0.1);
+  color: #166534;
+}
+
+.timeline-result-line {
+  word-break: break-word;
 }
 
 @media (max-width: 768px) {
