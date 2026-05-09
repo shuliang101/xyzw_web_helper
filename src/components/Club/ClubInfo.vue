@@ -1625,14 +1625,50 @@ const formatNumber = (num) => {
 
 <style scoped lang="scss">
 .club-info {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+
   .toolbar {
     display: flex;
     justify-content: flex-end;
     margin-bottom: var(--spacing-sm);
+    min-width: 0;
   }
 
   .overview {
-    /* No specific styles needed for grid layout */
+    min-width: 0;
+  }
+
+  :deep(.n-tabs),
+  :deep(.n-tab-pane),
+  :deep(.n-card),
+  :deep(.n-thing),
+  :deep(.n-thing-main),
+  :deep(.n-thing-header),
+  :deep(.n-thing-header__title),
+  :deep(.n-thing-header__extra),
+  :deep(.n-statistic),
+  :deep(.n-alert) {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  :deep(.n-tabs-nav) {
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  :deep(.n-tabs-nav-scroll-wrapper) {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  :deep(.n-tabs-tab) {
+    flex-shrink: 0;
   }
 
   .members-list {
@@ -2135,6 +2171,32 @@ const formatNumber = (num) => {
 }
 
 @media (max-width: 768px) {
+  .club-info {
+    :deep(.n-card__content) {
+      min-width: 0;
+    }
+
+    :deep(.n-thing) {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--spacing-sm);
+    }
+
+    :deep(.n-thing-header) {
+      flex-wrap: wrap;
+      gap: var(--spacing-sm);
+    }
+
+    :deep(.n-thing-header__extra) {
+      margin-left: 0;
+    }
+
+    :deep(.n-space) {
+      max-width: 100%;
+      flex-wrap: wrap;
+    }
+  }
+
   .hero-detail-modal {
     :deep(.n-modal-content) {
       padding: 0 !important;

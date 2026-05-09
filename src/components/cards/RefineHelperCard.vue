@@ -1122,6 +1122,7 @@ const resetCount = () => {
 <style scoped lang="scss">
 .refine-container {
   padding: var(--spacing-sm);
+  min-width: 0;
 }
 
 .toolbar {
@@ -1138,6 +1139,7 @@ const resetCount = () => {
   gap: var(--spacing-md);
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
+  flex-wrap: wrap;
 }
 
 .hero-list-section,
@@ -1250,6 +1252,7 @@ h4 {
   display: flex;
   gap: var(--spacing-sm);
   margin-bottom: var(--spacing-md);
+  min-width: 0;
 }
 
 .equip-tab {
@@ -1291,6 +1294,7 @@ h4 {
   background: var(--bg-tertiary);
   border-radius: var(--border-radius-medium);
   margin-bottom: var(--spacing-md);
+  flex-wrap: wrap;
 }
 
 .stat-item {
@@ -1409,6 +1413,8 @@ h4 {
   justify-content: space-between;
   font-weight: var(--font-weight-medium);
   font-size: var(--font-size-sm);
+  min-width: 0;
+  gap: var(--spacing-sm);
 }
 
 .slot-empty {
@@ -1492,6 +1498,7 @@ h4 {
   align-items: center;
   gap: var(--spacing-sm);
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .password-label {
@@ -1515,10 +1522,55 @@ h4 {
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
+  min-width: 0;
 }
 
 .form-label {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+  .toolbar,
+  .jade-info,
+  .actions,
+  .auto-form,
+  .password-info,
+  .password-validated {
+    align-items: stretch;
+  }
+
+  .jade-info,
+  .count-info {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+
+  .hero-item {
+    min-width: 0;
+    flex: 1 1 calc(50% - var(--spacing-sm));
+  }
+
+  .equip-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .slot {
+    flex-wrap: wrap;
+  }
+
+  .slot-attr {
+    flex-basis: 100%;
+  }
+
+  .password-info :deep(.n-input),
+  .auto-form :deep(.n-select),
+  .auto-form :deep(.n-input-number),
+  .form-item,
+  .actions > * {
+    width: 100% !important;
+  }
 }
 </style>

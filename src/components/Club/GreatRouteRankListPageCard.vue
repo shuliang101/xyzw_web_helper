@@ -182,6 +182,63 @@
               {{ member.announcement || "" }}
             </div>
           </div>
+
+          <div class="mobile-club-list">
+            <div
+              v-for="(member, index) in filteredLegionList"
+              :key="`mobile-${member.id || index}`"
+              class="mobile-club-card"
+              :class="getAllianceClass(allianceincludes(member.announcement))"
+            >
+              <div class="mobile-club-header">
+                <div class="mobile-club-rank">#{{ member.rank || index + 1 }}</div>
+                <img
+                  v-if="member.logo"
+                  :src="member.logo"
+                  :alt="member.name"
+                  class="mobile-club-avatar"
+                  @error="handleImageError"
+                />
+                <div v-else class="mobile-club-avatar placeholder">
+                  {{ member.name?.charAt(0) || "?" }}
+                </div>
+                <div class="mobile-club-main">
+                  <div class="mobile-club-name">{{ member.name || "未知俱乐部" }}</div>
+                  <div class="mobile-club-meta">
+                    {{ member.serverId || 0 }}服 · {{ allianceincludes(member.announcement) || "未知联盟" }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="mobile-club-stats">
+                <div><span>红淬</span><strong>{{ member.redQuench || 0 }}</strong></div>
+                <div><span>积分</span><strong>{{ formatScore(member.sRScore) }}</strong></div>
+                <div><span>战力</span><strong>{{ formatPower(member.power) || 0 }}</strong></div>
+              </div>
+
+              <div v-if="member.topHeroes?.length" class="mobile-hero-list">
+                <button
+                  v-for="(hero, heroIndex) in member.topHeroes.slice(0, 3)"
+                  :key="`${member.id || index}-${heroIndex}`"
+                  class="mobile-hero-card"
+                  @click="handleHeroClick(hero)"
+                >
+                  <img
+                    v-if="hero.headImg"
+                    :src="hero.headImg"
+                    :alt="hero.name"
+                    class="mobile-hero-avatar"
+                  />
+                  <span class="mobile-hero-name">{{ hero.name || "未知" }}</span>
+                  <span class="mobile-hero-red">{{ hero.redQuench || 0 }}红</span>
+                </button>
+              </div>
+
+              <div v-if="member.announcement" class="mobile-announcement">
+                {{ member.announcement }}
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- 空状态 -->
@@ -3477,6 +3534,170 @@ onMounted(() => {
 
   :deep(.n-date-picker) {
     width: 180px !important;
+  }
+}
+
+.mobile-club-list {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .table-container {
+    overflow: visible;
+  }
+
+  .table-header,
+  .table-row {
+    display: none !important;
+  }
+
+  .mobile-club-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .mobile-club-card {
+    width: 100%;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    background: var(--bg-primary);
+  }
+
+  .mobile-club-header {
+    display: grid;
+    grid-template-columns: 42px 44px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mobile-club-rank {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+    color: var(--primary-color);
+    text-align: center;
+  }
+
+  .mobile-club-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid var(--border-light);
+
+    &.placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: var(--font-weight-bold);
+      background: var(--primary-color);
+    }
+  }
+
+  .mobile-club-main {
+    min-width: 0;
+  }
+
+  .mobile-club-name {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-club-meta {
+    margin-top: 3px;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-club-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+
+    > div {
+      min-width: 0;
+      padding: 8px;
+      border-radius: 6px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
+    }
+
+    span,
+    strong {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    span {
+      font-size: var(--font-size-xs);
+      color: var(--text-secondary);
+    }
+
+    strong {
+      margin-top: 3px;
+      font-size: var(--font-size-sm);
+      color: var(--text-primary);
+    }
+  }
+
+  .mobile-hero-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .mobile-hero-card {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 6px 8px;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+  }
+
+  .mobile-hero-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .mobile-hero-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+  }
+
+  .mobile-hero-red {
+    color: var(--error-color);
+    font-size: var(--font-size-xs);
+  }
+
+  .mobile-announcement {
+    margin-top: 10px;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    line-height: 1.5;
+    word-break: break-word;
   }
 }
 

@@ -331,6 +331,8 @@ onUnmounted(() => {
   min-height: 100dvh;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
   padding-bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom));
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 /* 深色主题下背景 */
@@ -445,6 +447,7 @@ onUnmounted(() => {
 .features-grid-section .container :deep(.game-status-container) {
   width: 100%;
   max-width: 1080px;
+  min-width: 0;
 }
 
 @media (max-width: 768px) {

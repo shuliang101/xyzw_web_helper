@@ -356,32 +356,40 @@ const formatTime = (ts) => new Date(ts).toLocaleTimeString("zh-CN");
   justify-content: flex-start;
   gap: var(--spacing-sm);
   margin-bottom: var(--spacing-md);
+  flex-wrap: wrap;
+  min-width: 0;
 }
 .setting-item {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
+  min-width: 0;
 }
 .setting-item .n-input-number {
   width: 110px;
+  max-width: 100%;
 }
 .status-row {
   display: flex;
   gap: var(--spacing-lg);
+  min-width: 0;
 }
 .progress-row {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 .progress-row .n-progress {
-  flex: 1;
+  flex: 1 1 160px;
+  min-width: 0;
 }
 .progress-text {
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .log-container {
   display: flex;
@@ -395,6 +403,13 @@ const formatTime = (ts) => new Date(ts).toLocaleTimeString("zh-CN");
 .action-row {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  width: 100%;
+
+  > * {
+    flex: 1 1 64px;
+    min-width: 0;
+  }
 }
 .log-item.success {
   color: var(--success-color);
@@ -408,5 +423,22 @@ const formatTime = (ts) => new Date(ts).toLocaleTimeString("zh-CN");
 }
 .msg {
   color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+  .settings,
+  .setting-item,
+  .status-row {
+    width: 100%;
+  }
+
+  .setting-item {
+    justify-content: space-between;
+  }
+
+  .progress-text {
+    width: 100%;
+    text-align: right;
+  }
 }
 </style>

@@ -107,7 +107,7 @@
       </div>
 
       <!-- 表格内容区 -->
-      <div ref="exportDom" class="table-content">
+      <div ref="exportDom" class="table-content" data-export-root="club-rank-export">
         <!-- 加载状态 -->
         <div v-if="loading1" class="loading-state">
           <n-spin size="large">
@@ -218,6 +218,63 @@
             </div>
             <div class="table-cell announcement">
               {{ member.announcement || "" }}
+            </div>
+          </div>
+
+          <div class="mobile-club-list">
+            <div
+              v-for="(member, index) in filteredLegionList"
+              :key="`mobile-${member.id || index}`"
+              class="mobile-club-card"
+              :class="getAllianceClass(allianceincludes(member.announcement))"
+            >
+              <div class="mobile-club-header">
+                <div class="mobile-club-rank">#{{ index + 1 }}</div>
+                <img
+                  v-if="member.logo"
+                  :src="member.logo"
+                  :alt="member.name"
+                  class="mobile-club-avatar"
+                  @error="handleImageError"
+                />
+                <div v-else class="mobile-club-avatar placeholder">
+                  {{ member.name?.charAt(0) || "?" }}
+                </div>
+                <div class="mobile-club-main">
+                  <div class="mobile-club-name">{{ member.name || "未知俱乐部" }}</div>
+                  <div class="mobile-club-meta">
+                    {{ member.serverId || 0 }}服 · {{ allianceincludes(member.announcement) || "未知联盟" }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="mobile-club-stats">
+                <div><span>红淬</span><strong>{{ member.redQuench || 0 }}</strong></div>
+                <div><span>积分</span><strong>{{ formatScore(member.score) || 0 }}</strong></div>
+                <div><span>战力</span><strong>{{ formatPower(member.power) || 0 }}</strong></div>
+              </div>
+
+              <div v-if="member.topHeroes?.length" class="mobile-hero-list">
+                <button
+                  v-for="(hero, heroIndex) in member.topHeroes.slice(0, 3)"
+                  :key="`${member.id || index}-${heroIndex}`"
+                  class="mobile-hero-card"
+                  @click="handleHeroClick(hero)"
+                >
+                  <img
+                    v-if="hero.headImg"
+                    :src="hero.headImg"
+                    :alt="hero.name"
+                    class="mobile-hero-avatar"
+                  />
+                  <span class="mobile-hero-name">{{ hero.name || "未知" }}</span>
+                  <span class="mobile-hero-red">{{ hero.redQuench || 0 }}红</span>
+                </button>
+              </div>
+
+              <div v-if="member.announcement" class="mobile-announcement">
+                {{ member.announcement }}
+              </div>
             </div>
           </div>
         </div>
@@ -744,6 +801,7 @@ const props = defineProps({
 const exportmethod = ref([""]);
 const exportBatchSize = ref(60);
 const exportDom = ref(null);
+const EXPORT_IMAGE_WIDTH = 1440;
 const emit = defineEmits(["update:visible"]);
 
 const message = useMessage();
@@ -1684,7 +1742,7 @@ const handleExport1 = async () => {
       if (!battleRecords1.value || !battleRecords1.value.legionRankList) {
         message.warning("当前没有可导出的图片数据");
       } else {
-        exportToImage();
+        await exportToImage();
         message.success("图片导出成功");
       }
     }
@@ -1702,17 +1760,28 @@ const exportToImage = async () => {
     return;
   }
 
+  let originalHeight = "";
+  let originalOverflow = "";
+  let originalWidth = "";
+  let originalMaxWidth = "";
+
   try {
     // 保存原始样式
-    const originalHeight = exportDom.value.style.height;
-    const originalOverflow = exportDom.value.style.overflow;
+    originalHeight = exportDom.value.style.height;
+    originalOverflow = exportDom.value.style.overflow;
+    originalWidth = exportDom.value.style.width;
+    originalMaxWidth = exportDom.value.style.maxWidth;
 
     // 临时调整表格容器高度，确保所有内容可见
+    exportDom.value.classList.add("export-desktop");
+    exportDom.value.style.width = `${EXPORT_IMAGE_WIDTH}px`;
+    exportDom.value.style.maxWidth = "none";
     exportDom.value.style.height = "auto";
     exportDom.value.style.overflow = "visible";
 
     // 等待DOM更新
     await new Promise((resolve) => setTimeout(resolve, 100));
+    const exportHeight = Math.max(exportDom.value.scrollHeight, exportDom.value.offsetHeight, 1);
 
     // 5. 用html2canvas渲染DOM为Canvas
     const canvas = await html2canvas(exportDom.value, {
@@ -1720,11 +1789,21 @@ const exportToImage = async () => {
       useCORS: true, // 允许跨域图片（若DOM内有远程图片，需开启）
       backgroundColor: "#ffffff", // 避免透明背景（默认透明）
       logging: false, // 关闭控制台日志
-      height: exportDom.value.scrollHeight, // 确保捕获完整高度
-      width: exportDom.value.scrollWidth, // 确保捕获完整宽度
-      windowWidth: exportDom.value.scrollWidth, // 设置窗口宽度
-      windowHeight: exportDom.value.scrollHeight, // 设置窗口高度
+      height: exportHeight, // 确保捕获完整高度
+      width: EXPORT_IMAGE_WIDTH, // 使用桌面宽度导出
+      windowWidth: EXPORT_IMAGE_WIDTH, // 设置桌面窗口宽度
+      windowHeight: exportHeight, // 设置窗口高度
       allowTaint: true, // 允许跨域图片污染画布
+      onclone: (clonedDoc) => {
+        const clonedExportDom = clonedDoc.querySelector('[data-export-root="club-rank-export"]');
+        if (clonedExportDom) {
+          clonedExportDom.classList.add("export-desktop");
+          clonedExportDom.style.width = `${EXPORT_IMAGE_WIDTH}px`;
+          clonedExportDom.style.maxWidth = "none";
+          clonedExportDom.style.height = "auto";
+          clonedExportDom.style.overflow = "visible";
+        }
+      },
     });
 
     // 6. Canvas转图片链接并下载
@@ -1737,6 +1816,9 @@ const exportToImage = async () => {
     alert("导出图片失败，请重试");
   } finally {
     // 恢复原始样式
+    exportDom.value.classList.remove("export-desktop");
+    exportDom.value.style.width = originalWidth;
+    exportDom.value.style.maxWidth = originalMaxWidth;
     exportDom.value.style.height = originalHeight;
     exportDom.value.style.overflow = originalOverflow;
   }
@@ -3347,6 +3429,189 @@ onMounted(() => {});
 
   :deep(.n-date-picker) {
     width: 180px !important;
+  }
+}
+
+.mobile-club-list {
+  display: none;
+}
+
+.table-content.export-desktop {
+  height: auto !important;
+  overflow: visible !important;
+
+  .table-container {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .table-header,
+  .table-row {
+    display: flex !important;
+  }
+
+  .mobile-club-list {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .table-container {
+    overflow: visible;
+  }
+
+  .table-header,
+  .table-row {
+    display: none !important;
+  }
+
+  .mobile-club-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .mobile-club-card {
+    width: 100%;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    background: var(--bg-primary);
+  }
+
+  .mobile-club-header {
+    display: grid;
+    grid-template-columns: 42px 44px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mobile-club-rank {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+    color: var(--primary-color);
+    text-align: center;
+  }
+
+  .mobile-club-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid var(--border-light);
+
+    &.placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: var(--font-weight-bold);
+      background: var(--primary-color);
+    }
+  }
+
+  .mobile-club-main {
+    min-width: 0;
+  }
+
+  .mobile-club-name {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-club-meta {
+    margin-top: 3px;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-club-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+
+    > div {
+      min-width: 0;
+      padding: 8px;
+      border-radius: 6px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
+    }
+
+    span,
+    strong {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    span {
+      font-size: var(--font-size-xs);
+      color: var(--text-secondary);
+    }
+
+    strong {
+      margin-top: 3px;
+      font-size: var(--font-size-sm);
+      color: var(--text-primary);
+    }
+  }
+
+  .mobile-hero-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .mobile-hero-card {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 6px 8px;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+  }
+
+  .mobile-hero-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .mobile-hero-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+  }
+
+  .mobile-hero-red {
+    color: var(--error-color);
+    font-size: var(--font-size-xs);
+  }
+
+  .mobile-announcement {
+    margin-top: 10px;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    line-height: 1.5;
+    word-break: break-word;
   }
 }
 </style>

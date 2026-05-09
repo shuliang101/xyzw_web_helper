@@ -92,7 +92,7 @@
         <!-- 战绩列表 -->
         <div v-else-if="battleRecords && battleRecords.roleDetailsList" class="records-wrapper">
          <!-- 样式一 -->
-          <div v-if="currentStyle === 'style1'" ref="exportDom" class="records-list style-1">
+          <div v-if="currentStyle === 'style1'" ref="exportDom" class="records-list style-1" data-export-root="club-battle-records">
              <!-- 头部信息 -->
              <div class="style1-header">
                 <h2>{{ queryDate }} {{ club.name || '俱乐部' }}盐场周报</h2>
@@ -217,7 +217,7 @@
           </div>
           
           <!-- 样式二 -->
-          <div v-else-if="currentStyle === 'style2'" ref="exportDom" class="records-list style-2">
+          <div v-else-if="currentStyle === 'style2'" ref="exportDom" class="records-list style-2" data-export-root="club-battle-records">
              <div class="style2-header">
                 <div class="style2-title">
                    <span class="trophy-icon">🏆</span>
@@ -460,6 +460,7 @@ watch(currentStyle, (newStyle) => {
 
 const exportmethod = ref(['2']);
 const exportDom = ref(null);
+const EXPORT_IMAGE_WIDTH = 1200;
 
 const message = useMessage()
 const tokenStore = useTokenStore()
@@ -715,7 +716,7 @@ const handleExport = async () => {
       const exportText = formatBattleRecordsForExport(battleRecords.value.roleDetailsList, queryDate.value)
     }
     if (exportmethod.value.includes('2')) {
-      exportToImage()
+      await exportToImage()
     }
     message.success('导出成功')
   } catch (error) {
@@ -751,7 +752,19 @@ const exportToImage = async () => {
       scale: 2, // 放大2倍，解决图片模糊问题
       useCORS: true, // 允许跨域图片（若DOM内有远程图片，需开启）
       backgroundColor: '#ffffff', // 避免透明背景（默认透明）
-      logging: false // 关闭控制台日志
+      logging: false, // 关闭控制台日志
+      windowWidth: EXPORT_IMAGE_WIDTH,
+      width: EXPORT_IMAGE_WIDTH,
+      scrollX: 0,
+      scrollY: 0,
+      onclone: (clonedDoc) => {
+        const clonedExportDom = clonedDoc.querySelector('[data-export-root="club-battle-records"]');
+        if (clonedExportDom) {
+          clonedExportDom.style.width = `${EXPORT_IMAGE_WIDTH}px`;
+          clonedExportDom.style.maxWidth = 'none';
+          clonedExportDom.style.overflow = 'visible';
+        }
+      }
     });
 
     // 恢复战神榜内容区域的原始样式

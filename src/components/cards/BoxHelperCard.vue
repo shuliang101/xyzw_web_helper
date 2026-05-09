@@ -178,11 +178,15 @@ const handleBoxHelper = async () => {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: var(--spacing-sm);
+    min-width: 0;
 
     .item {
       display: flex;
       flex-direction: column;
       align-items: center;
+      min-width: 0;
+      flex: 1 1 0;
 
       > img {
         width: 40px;
@@ -197,6 +201,8 @@ const handleBoxHelper = async () => {
         .box-type {
           font-weight: bold;
           margin-top: 4px;
+          text-align: center;
+          overflow-wrap: anywhere;
         }
 
         .box-count {
@@ -212,6 +218,12 @@ const handleBoxHelper = async () => {
     align-items: center;
     gap: 12px;
     margin-top: 12px;
+    min-width: 0;
+
+    :deep(.n-select) {
+      min-width: 0;
+      flex: 1 1 0;
+    }
   }
 
   .total-points {
@@ -232,6 +244,22 @@ const handleBoxHelper = async () => {
       color: var(--text-primary);
       font-size: var(--font-size-md);
       font-weight: var(--font-weight-semibold);
+    }
+  }
+}
+
+@media (max-width: 640px) {
+  .container {
+    .list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      justify-content: stretch;
+    }
+
+    .selects {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--spacing-sm);
     }
   }
 }

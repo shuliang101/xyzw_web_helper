@@ -205,6 +205,9 @@ body[data-theme="dark"] .n-popover-container {
 
 #app {
   min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
   background: var(--app-background);
   color: var(--text-color);
   transition:

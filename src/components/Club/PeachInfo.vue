@@ -1,5 +1,5 @@
 <template>
-  <div class="peach-info-card" ref="exportDom">
+  <div class="peach-info-card" ref="exportDom" data-export-root="peach-info">
     <div class="toolbar">
       <div class="left">
         <span class="title">查询日期:</span>
@@ -72,7 +72,62 @@
     <!-- Data Table -->
     <div v-else-if="opponentMembers.length > 0" class="members-table">
       <div class="table-title">敌方信息</div>
-      <n-data-table :columns="columns" :data="opponentMembers" :bordered="false" size="small" striped flex-height />
+      <div class="desktop-members-table">
+        <n-data-table :columns="columns" :data="opponentMembers" :bordered="false" size="small" striped flex-height />
+      </div>
+      <div class="mobile-member-list">
+        <div
+          v-for="(member, index) in opponentMembers"
+          :key="member.id || index"
+          class="mobile-member-card"
+          @click="fetchTargetInfo(member.id)"
+        >
+          <div class="mobile-member-header">
+            <div class="mobile-rank">{{ index + 1 }}</div>
+            <img
+              v-if="member.headImg"
+              :src="member.headImg"
+              :alt="member.name"
+              class="mobile-member-avatar"
+            />
+            <div v-else class="mobile-member-avatar placeholder">
+              {{ member.name?.charAt(0) || "?" }}
+            </div>
+            <div class="mobile-member-main">
+              <div class="mobile-member-name">{{ member.name || "未知玩家" }}</div>
+              <div class="mobile-member-id">ID: {{ member.id || "-" }}</div>
+            </div>
+            <n-tag size="small" :bordered="false">{{ member.lineupType || "未知" }}</n-tag>
+          </div>
+
+          <div class="mobile-member-stats">
+            <div>
+              <span>战力</span>
+              <strong>{{ formatPower(member.power) }}</strong>
+            </div>
+            <div>
+              <span>红淬</span>
+              <strong class="red">{{ member.redQuench || 0 }}</strong>
+            </div>
+            <div>
+              <span>传说</span>
+              <strong>{{ legacycolor[member.legacy]?.name || "-" }}</strong>
+            </div>
+          </div>
+
+          <div class="mobile-hero-line">
+            <span
+              v-for="(hero, heroIndex) in (member.heroList || []).slice(0, 6)"
+              :key="`${member.id || index}-${heroIndex}`"
+              class="mobile-hero-chip"
+            >
+              <span class="hero-name">{{ hero.heroName || "未知" }}</span>
+              <span class="hero-red">({{ hero.red || 0 }})</span>
+              <span v-if="hero.HolyBeast" class="hero-holy">[{{ hero.HBlevel || 0 }}]</span>
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Empty State -->
@@ -432,6 +487,7 @@ const tokenStore = useTokenStore();
 const info = computed(() => tokenStore.gameData?.legionInfo || null);
 const club = computed(() => info.value?.info || null);
 const exportDom = ref(null);
+const EXPORT_IMAGE_WIDTH = 1200;
 
 const getLastSunday = () => {
   const today = new Date();
@@ -1413,6 +1469,19 @@ const handleExportImage = async () => {
       backgroundColor: "#ffffff", // 避免透明背景
       logging: false, // 关闭控制台日志
       allowTaint: true, // 允许跨域图片污染画布
+      windowWidth: EXPORT_IMAGE_WIDTH,
+      width: EXPORT_IMAGE_WIDTH,
+      scrollX: 0,
+      scrollY: 0,
+      onclone: (clonedDoc) => {
+        const clonedExportDom = clonedDoc.querySelector('[data-export-root="peach-info"]');
+        if (clonedExportDom) {
+          clonedExportDom.style.width = `${EXPORT_IMAGE_WIDTH}px`;
+          clonedExportDom.style.maxWidth = 'none';
+          clonedExportDom.style.height = 'auto';
+          clonedExportDom.style.overflow = 'visible';
+        }
+      },
     });
 
     // 6. Canvas转图片链接并下载
@@ -1596,6 +1665,15 @@ onMounted(() => {
   /* Use NDataTable's scroll or auto here */
   display: flex;
   flex-direction: column;
+}
+
+.desktop-members-table {
+  flex: 1;
+  min-height: 0;
+}
+
+.mobile-member-list {
+  display: none;
 }
 
 .table-title {
@@ -1941,6 +2019,158 @@ onMounted(() => {
 
 /* 响应式设计 */
 @media (max-width: 768px) {
+  .peach-info-card {
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .members-table {
+    flex: 0 0 auto;
+    overflow: visible;
+    min-width: 0;
+  }
+
+  .desktop-members-table {
+    display: none;
+  }
+
+  .mobile-member-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .mobile-member-card {
+    width: 100%;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--border-light, #eee);
+    border-radius: 8px;
+    background: var(--bg-primary, #fff);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  }
+
+  .mobile-member-header {
+    display: grid;
+    grid-template-columns: 28px 42px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .mobile-rank {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--primary-color, #1890ff);
+    text-align: center;
+  }
+
+  .mobile-member-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid var(--border-light, #eee);
+
+    &.placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 700;
+      background: linear-gradient(135deg, #1890ff 0%, #69c0ff 100%);
+    }
+  }
+
+  .mobile-member-main {
+    min-width: 0;
+  }
+
+  .mobile-member-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary, #333);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-member-id {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--text-secondary, #666);
+  }
+
+  .mobile-member-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+
+    > div {
+      min-width: 0;
+      padding: 8px;
+      border-radius: 6px;
+      background: var(--bg-secondary, #f9f9f9);
+      border: 1px solid var(--border-light, #eee);
+    }
+
+    span,
+    strong {
+      display: block;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    span {
+      font-size: 11px;
+      color: var(--text-secondary, #666);
+    }
+
+    strong {
+      margin-top: 3px;
+      font-size: 13px;
+      color: var(--text-primary, #333);
+
+      &.red {
+        color: #ff4d4f;
+      }
+    }
+  }
+
+  .mobile-hero-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .mobile-hero-chip {
+    max-width: 100%;
+    padding: 3px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--border-light, #eee);
+    background: var(--bg-secondary, #f9f9f9);
+    font-size: 12px;
+    line-height: 1.4;
+
+    .hero-name {
+      color: #1677ff;
+    }
+
+    .hero-red {
+      color: #ff4d4f;
+    }
+
+    .hero-holy {
+      color: #52c41a;
+    }
+  }
+
   .hero-detail-modal {
     :deep(.n-modal-content) {
       padding: 0 !important;

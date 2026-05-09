@@ -46,7 +46,7 @@
         </div>
 
         <!-- 本月战绩列表 -->
-        <div v-else-if="monthlyBattleRecords && Object.keys(monthlyBattleRecords).length > 0" ref="exportDom" class="records-list">
+        <div v-else-if="monthlyBattleRecords && Object.keys(monthlyBattleRecords).length > 0" ref="exportDom" class="records-list" data-export-root="club-month-battle-records">
           
           <!-- Default Style -->
           <div v-if="currentStyle === 'default'">
@@ -489,6 +489,7 @@ const props = defineProps({
 })
 
 const exportDom = ref(null);
+const EXPORT_IMAGE_WIDTH = 1200;
 const emit = defineEmits(['update:visible'])
 
 const message = useMessage()
@@ -866,7 +867,7 @@ const handleExport = async () => {
 
   try {
     // 导出图片
-    exportToImage()
+    await exportToImage()
     message.success('导出成功')
   } catch (error) {
     console.error('导出失败:', error)
@@ -887,7 +888,19 @@ const exportToImage = async () => {
       scale: 2, // 放大2倍，解决图片模糊问题
       useCORS: true, // 允许跨域图片（若DOM内有远程图片，需开启）
       backgroundColor: '#ffffff', // 避免透明背景（默认透明）
-      logging: false // 关闭控制台日志
+      logging: false, // 关闭控制台日志
+      windowWidth: EXPORT_IMAGE_WIDTH,
+      width: EXPORT_IMAGE_WIDTH,
+      scrollX: 0,
+      scrollY: 0,
+      onclone: (clonedDoc) => {
+        const clonedExportDom = clonedDoc.querySelector('[data-export-root="club-month-battle-records"]');
+        if (clonedExportDom) {
+          clonedExportDom.style.width = `${EXPORT_IMAGE_WIDTH}px`;
+          clonedExportDom.style.maxWidth = 'none';
+          clonedExportDom.style.overflow = 'visible';
+        }
+      }
     });
 
     // Canvas转图片链接并下载

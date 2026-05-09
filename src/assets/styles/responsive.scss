@@ -72,17 +72,21 @@
   }
 
   .default-layout .nav-container {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: nowrap;
   }
 
   .default-layout .nav-user {
-    width: 100%;
-    justify-content: space-between;
+    width: auto;
+    margin-left: auto;
+    justify-content: flex-end;
   }
 
   .default-layout .main {
     padding: var(--spacing-lg) var(--spacing-sm);
+    max-width: 100vw;
+    overflow-x: hidden;
   }
 
   .token-import-page {

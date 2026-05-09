@@ -1,7 +1,7 @@
 <template>
   <div class="legion-war-statistics-container">
     <div class="legion-war-statistics-card">
-      <div v-if="!isAccessible" class="access-denied-container">
+      <div v-if="!canShowStatistics" class="access-denied-container">
         <n-result status="403" title="暂未开放" description="该功能仅在特定时间开放">
           <template #footer>
             <div class="access-denied-info">
@@ -270,6 +270,7 @@ const {
 const viewMode = ref("legion"); // legion | individual
 const exporting = ref(false);
 const tableMaxHeight = ref(600);
+const canShowStatistics = computed(() => isAccessible.value || Boolean(validData.value));
 const exportExcel = () => {
   if (!validData.value) {
     message.warning("无数据可导出");
@@ -634,6 +635,12 @@ const refreshData = () => {
 
 // 生命周期钩子
 onMounted(() => {
+  legionWarStore.loadCache();
+
+  if (!isAccessible.value) {
+    return;
+  }
+
   // 组件加载时尝试连接
   try {
     legionWarStore.connect().catch(e => {

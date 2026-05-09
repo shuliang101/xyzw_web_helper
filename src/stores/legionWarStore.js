@@ -8,6 +8,7 @@ import { getCurrentTimeByFormat } from "@/utils/DateTimeUtils";
 
 export const useLegionWarStore = defineStore("legionWar", () => {
   const tokenStore = useTokenStore();
+  const CACHE_PREFIX = "legion-war-statistics-cache";
 
   // 状态
   const isConnected = ref(false);
@@ -30,6 +31,59 @@ export const useLegionWarStore = defineStore("legionWar", () => {
   // 最佳实践：Store 处理逻辑和状态，UI 反馈由组件根据 Store 状态变化或 Action 返回结果来处理。
   // 但为了方便，我们可以返回 Promise，组件 catch 错误显示。
 
+  const getCacheKey = () => {
+    const tokenId = tokenStore.selectedToken?.id;
+    return tokenId ? `${CACHE_PREFIX}:${tokenId}` : null;
+  };
+
+  const saveCache = () => {
+    const key = getCacheKey();
+    if (!key || !validData.value) return;
+
+    try {
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          battlefieldId: battlefieldId.value,
+          validData: validData.value,
+          legionDetails: legionDetails.value,
+          lastUpdateTime: lastUpdateTime.value,
+          cachedAt: Date.now(),
+        }),
+      );
+    } catch (error) {
+      console.warn("保存盐场战况缓存失败", error);
+    }
+  };
+
+  const loadCache = () => {
+    const key = getCacheKey();
+    if (!key) return false;
+
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return false;
+
+      const cached = JSON.parse(raw);
+      validData.value = cached.validData || null;
+      legionDetails.value = cached.legionDetails || {};
+      lastUpdateTime.value = cached.lastUpdateTime
+        ? `${cached.lastUpdateTime}（缓存）`
+        : "已恢复缓存";
+      battlefieldId.value = cached.battlefieldId || null;
+      return Boolean(validData.value);
+    } catch (error) {
+      console.warn("读取盐场战况缓存失败", error);
+      localStorage.removeItem(key);
+      return false;
+    }
+  };
+
+  const clearCache = () => {
+    const key = getCacheKey();
+    if (key) localStorage.removeItem(key);
+  };
+
   // 连接 WebSocket
   const connect = async () => {
     subscriberCount.value++;
@@ -45,6 +99,8 @@ export const useLegionWarStore = defineStore("legionWar", () => {
       subscriberCount.value--;
       throw new Error("请先选择一个Token");
     }
+
+    loadCache();
 
     if (isConnected.value) {
       // 已经连接，如果还没进入战场（可能是之前的连接还在但状态不对），尝试重新进入
@@ -113,6 +169,7 @@ export const useLegionWarStore = defineStore("legionWar", () => {
           if (extracted) {
             validData.value = extracted;
             lastUpdateTime.value = getCurrentTimeByFormat("HH:mm:ss");
+            saveCache();
 
             // 获取俱乐部详情以获取公告
             Object.values(extracted.legionInfo).forEach((legion) => {
@@ -227,6 +284,7 @@ export const useLegionWarStore = defineStore("legionWar", () => {
 
       if (response && (response.legionData || response.info)) {
         legionDetails.value[legionId] = response.legionData || response.info;
+        saveCache();
       }
     } catch (error) {
       console.error(`获取俱乐部[${legionId}]详情失败`, error);
@@ -248,5 +306,7 @@ export const useLegionWarStore = defineStore("legionWar", () => {
     disconnect,
     refreshData,
     fetchLegionDetail,
+    loadCache,
+    clearCache,
   };
 });

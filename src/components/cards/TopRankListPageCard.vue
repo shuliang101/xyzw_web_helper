@@ -64,7 +64,7 @@
 
         <!-- 巅峰数据列表 -->
         <div v-else-if="topranklist" class="table-container">
-          <div ref="exportDom" class="export-container">
+          <div ref="exportDom" class="export-container" data-export-root="rank-export">
             <!-- 表格标题行 -->
             <div class="table-header">
               <div class="table-cell rank">排名</div>
@@ -132,6 +132,52 @@
               </div>
               <div class="table-cell power">{{ memberData.power }}</div>
               <div class="table-cell score">{{ memberData.score }}</div>
+            </div>
+
+            <div class="mobile-rank-list">
+              <div
+                v-for="(memberData, memberId) in currentPageData"
+                :key="`mobile-${memberId}`"
+                class="mobile-rank-card"
+              >
+                <div class="mobile-rank-header">
+                  <div class="mobile-rank-no">#{{ memberData.rank }}</div>
+                  <img
+                    v-if="memberData.headImg"
+                    :src="memberData.headImg"
+                    :alt="memberData.name"
+                    class="mobile-rank-avatar"
+                    @error="handleImageError"
+                  />
+                  <div v-else class="mobile-rank-avatar placeholder">
+                    {{ memberData.name?.charAt(0) || "?" }}
+                  </div>
+                  <div class="mobile-rank-main">
+                    <div class="mobile-rank-name">
+                      {{ memberData.name || "未知玩家" }}
+                      <n-tag
+                        v-if="memberData.legacy > 0"
+                        :style="{
+                          color: '#fff',
+                          backgroundColor:
+                            legacycolor[memberData.legacy]?.value,
+                        }"
+                        size="small"
+                      >
+                        {{ legacycolor[memberData.legacy]?.name || "未知" }}
+                      </n-tag>
+                    </div>
+                    <button class="mobile-role-link" @click="fetchTargetInfo(memberData.roleId)">
+                      ID: {{ memberData.roleId }}
+                    </button>
+                  </div>
+                </div>
+                <div class="mobile-rank-stats">
+                  <div><span>服务器</span><strong>{{ memberData.serverId }}</strong></div>
+                  <div><span>战力</span><strong>{{ memberData.power }}</strong></div>
+                  <div><span>积分</span><strong>{{ memberData.score }}</strong></div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -639,6 +685,7 @@ const loading1 = ref(false);
 const topranklist = ref(null);
 const expandedMembers = ref(new Set());
 const exportDom = ref(null);
+const EXPORT_IMAGE_WIDTH = 1440;
 const queryDate = ref(gettoday());
 
 // 分页状态
@@ -1214,18 +1261,26 @@ const exportToImage = async () => {
 
   let originalHeight = "";
   let originalOverflow = "";
+  let originalWidth = "";
+  let originalMaxWidth = "";
 
   try {
     // 保存原始样式
     originalHeight = exportDom.value.style.height;
     originalOverflow = exportDom.value.style.overflow;
+    originalWidth = exportDom.value.style.width;
+    originalMaxWidth = exportDom.value.style.maxWidth;
 
     // 临时调整表格容器高度，确保所有内容可见
+    exportDom.value.classList.add("export-desktop");
+    exportDom.value.style.width = `${EXPORT_IMAGE_WIDTH}px`;
+    exportDom.value.style.maxWidth = "none";
     exportDom.value.style.height = "auto";
     exportDom.value.style.overflow = "visible";
 
     // 等待DOM更新
     await new Promise((resolve) => setTimeout(resolve, 100));
+    const exportHeight = Math.max(exportDom.value.scrollHeight, exportDom.value.offsetHeight, 1);
 
     // 5. 用html2canvas渲染DOM为Canvas
     const canvas = await html2canvas(exportDom.value, {
@@ -1233,11 +1288,21 @@ const exportToImage = async () => {
       useCORS: true, // 允许跨域图片（若DOM内有远程图片，需开启）
       backgroundColor: "#ffffff", // 避免透明背景（默认透明）
       logging: false, // 关闭控制台日志
-      height: exportDom.value.scrollHeight, // 确保捕获完整高度
-      width: exportDom.value.scrollWidth, // 确保捕获完整宽度
-      windowWidth: exportDom.value.scrollWidth, // 设置窗口宽度
-      windowHeight: exportDom.value.scrollHeight, // 设置窗口高度
+      height: exportHeight, // 确保捕获完整高度
+      width: EXPORT_IMAGE_WIDTH, // 使用桌面宽度导出
+      windowWidth: EXPORT_IMAGE_WIDTH, // 设置桌面窗口宽度
+      windowHeight: exportHeight, // 设置窗口高度
       allowTaint: true, // 允许跨域图片污染画布
+      onclone: (clonedDoc) => {
+        const clonedExportDom = clonedDoc.querySelector('[data-export-root="rank-export"]');
+        if (clonedExportDom) {
+          clonedExportDom.classList.add("export-desktop");
+          clonedExportDom.style.width = `${EXPORT_IMAGE_WIDTH}px`;
+          clonedExportDom.style.maxWidth = "none";
+          clonedExportDom.style.height = "auto";
+          clonedExportDom.style.overflow = "visible";
+        }
+      },
     });
 
     // 6. Canvas转图片链接并下载
@@ -1248,6 +1313,9 @@ const exportToImage = async () => {
     alert("导出图片失败，请重试");
   } finally {
      if (exportDom.value) {
+        exportDom.value.classList.remove("export-desktop");
+        exportDom.value.style.width = originalWidth;
+        exportDom.value.style.maxWidth = originalMaxWidth;
         exportDom.value.style.height = originalHeight;
         exportDom.value.style.overflow = originalOverflow;
      }
@@ -2342,5 +2410,139 @@ onMounted(() => {
 .player-id {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
+}
+
+.export-container.export-desktop {
+  .table-header,
+  .table-row {
+    display: flex !important;
+  }
+
+  .mobile-rank-list {
+    display: none !important;
+  }
+}
+
+.mobile-rank-list {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .export-container {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .table-container {
+    overflow: visible;
+  }
+
+  .table-header,
+  .table-row {
+    display: none !important;
+  }
+
+  .mobile-rank-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .mobile-rank-card {
+    width: 100%;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    background: var(--bg-primary);
+  }
+
+  .mobile-rank-header {
+    display: grid;
+    grid-template-columns: 42px 44px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mobile-rank-no {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+    color: var(--primary-color);
+    text-align: center;
+  }
+
+  .mobile-rank-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid var(--border-light);
+
+    &.placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: var(--font-weight-bold);
+      background: var(--primary-color);
+    }
+  }
+
+  .mobile-rank-main {
+    min-width: 0;
+  }
+
+  .mobile-rank-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+    overflow: hidden;
+  }
+
+  .mobile-role-link {
+    margin: 3px 0 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--primary-color);
+    font-size: var(--font-size-xs);
+  }
+
+  .mobile-rank-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+
+    > div {
+      min-width: 0;
+      padding: 8px;
+      border-radius: 6px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
+    }
+
+    span,
+    strong {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    span {
+      font-size: var(--font-size-xs);
+      color: var(--text-secondary);
+    }
+
+    strong {
+      margin-top: 3px;
+      font-size: var(--font-size-sm);
+      color: var(--text-primary);
+    }
+  }
 }
 </style>

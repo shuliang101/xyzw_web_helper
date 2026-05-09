@@ -164,6 +164,13 @@ const handleUserAction = (key) => {
 </script>
 
 <style scoped lang="scss">
+.default-layout {
+  width: 100%;
+  max-width: 100vw;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
 .dashboard-nav {
   background: var(--bg-primary);
   border-bottom: 1px solid var(--border-light);
@@ -171,6 +178,7 @@ const handleUserAction = (key) => {
   top: 0;
   z-index: var(--z-sticky);
   padding: 0 var(--spacing-lg);
+  max-width: 100vw;
 }
 
 .nav-container {
@@ -181,6 +189,7 @@ const handleUserAction = (key) => {
   margin: 0 auto;
   width: 100%;
   padding: 0 var(--spacing-md);
+  min-width: 0;
 }
 
 .nav-brand {
@@ -188,6 +197,7 @@ const handleUserAction = (key) => {
   align-items: center;
   margin-right: var(--spacing-xl);
   gap: var(--spacing-sm);
+  min-width: 0;
 }
 
 .brand-logo {
@@ -205,12 +215,16 @@ const handleUserAction = (key) => {
   align-items: center;
   gap: var(--spacing-xs);
   cursor: pointer;
+  min-width: 0;
 }
 
 .brand-text {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nav-menu {
@@ -251,6 +265,14 @@ const handleUserAction = (key) => {
   display: flex;
   align-items: center;
   gap: var(--spacing-md);
+  flex-shrink: 0;
+}
+
+.main {
+  width: 100%;
+  max-width: 100vw;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .user-info {
@@ -311,10 +333,19 @@ const handleUserAction = (key) => {
   .nav-container {
     height: 58px;
     padding: 0;
+    min-width: 0;
   }
 
   .brand-logo {
     display: none;
+  }
+
+  .nav-brand {
+    margin-right: var(--spacing-sm);
+  }
+
+  .brand-toggle {
+    max-width: calc(100vw - 96px);
   }
 
   .username {

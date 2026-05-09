@@ -172,25 +172,46 @@
     <div class="salt-field-group" v-if="activeSection === 'saltFieldGroup'">
       <div
         class="sub-nav"
-        style="
-          padding: 8px;
-          background: var(--n-color);
-          display: flex;
-          justify-content: center;
-        "
+        @pointerdown="startSubNavDrag"
+        @wheel="handleSubNavWheel"
       >
-        <n-tabs
-          type="segment"
-          animated
-          v-model:value="saltFieldSubTab"
-          size="small"
-        >
-          <n-tab-pane name="warrank" tab="盐场" />
-          <n-tab-pane name="weekBattle" tab="本周盐场战绩" />
-          <n-tab-pane name="monthBattle" tab="本月盐场战绩" />
-          <n-tab-pane name="legionWarMap" tab="盐场地图" />
-          <n-tab-pane name="legionWarStatistics" tab="盐场战况" />
-        </n-tabs>
+        <div class="mobile-sub-tabs">
+          <button
+            class="mobile-sub-tab"
+            :class="{ active: saltFieldSubTab === 'warrank' }"
+            @click="selectSubTab('salt', 'warrank', $event)"
+          >
+            盐场
+          </button>
+          <button
+            class="mobile-sub-tab"
+            :class="{ active: saltFieldSubTab === 'weekBattle' }"
+            @click="selectSubTab('salt', 'weekBattle', $event)"
+          >
+            本周盐场战绩
+          </button>
+          <button
+            class="mobile-sub-tab"
+            :class="{ active: saltFieldSubTab === 'monthBattle' }"
+            @click="selectSubTab('salt', 'monthBattle', $event)"
+          >
+            本月盐场战绩
+          </button>
+          <button
+            class="mobile-sub-tab"
+            :class="{ active: saltFieldSubTab === 'legionWarMap' }"
+            @click="selectSubTab('salt', 'legionWarMap', $event)"
+          >
+            盐场地图
+          </button>
+          <button
+            class="mobile-sub-tab"
+            :class="{ active: saltFieldSubTab === 'legionWarStatistics' }"
+            @click="selectSubTab('salt', 'legionWarStatistics', $event)"
+          >
+            盐场战况
+          </button>
+        </div>
       </div>
 
       <div
@@ -229,22 +250,25 @@
     <div class="peach-group" v-if="activeSection === 'peachGroup'">
       <div
         class="sub-nav"
-        style="
-          padding: 8px;
-          background: var(--n-color);
-          display: flex;
-          justify-content: center;
-        "
+        @pointerdown="startSubNavDrag"
+        @wheel="handleSubNavWheel"
       >
-        <n-tabs
-          type="segment"
-          animated
-          v-model:value="peachSubTab"
-          size="small"
-        >
-          <n-tab-pane name="peach" tab="蟠桃园信息" />
-          <n-tab-pane name="peachBattle" tab="蟠桃园战绩" />
-        </n-tabs>
+        <div class="mobile-sub-tabs">
+          <button
+            class="mobile-sub-tab"
+            :class="{ active: peachSubTab === 'peach' }"
+            @click="selectSubTab('peach', 'peach', $event)"
+          >
+            蟠桃园信息
+          </button>
+          <button
+            class="mobile-sub-tab"
+            :class="{ active: peachSubTab === 'peachBattle' }"
+            @click="selectSubTab('peach', 'peachBattle', $event)"
+          >
+            蟠桃园战绩
+          </button>
+        </div>
       </div>
 
       <div class="warrank-full-container" v-if="peachSubTab === 'peachBattle'">
@@ -260,20 +284,46 @@
     <div class="rank-group" v-if="activeSection === 'rankGroup'">
       <div
         class="sub-nav"
-        style="
-          padding: 8px;
-          background: var(--n-color);
-          display: flex;
-          justify-content: center;
-        "
+        @pointerdown="startSubNavDrag"
+        @wheel="handleSubNavWheel"
       >
-        <n-tabs type="segment" animated v-model:value="rankSubTab" size="small">
-          <n-tab-pane name="serverrank" tab="区服榜" />
-          <n-tab-pane name="toprank" tab="巅峰榜" />
-          <n-tab-pane name="topclubrank" tab="俱乐部榜" />
-          <n-tab-pane name="goldclubrank" tab="黄金积分榜" />
-          <n-tab-pane name="greatRouteRank" tab="伟大航路积分榜" />
-        </n-tabs>
+        <div class="mobile-sub-tabs">
+          <button
+            class="mobile-sub-tab"
+            :class="{ active: rankSubTab === 'serverrank' }"
+            @click="selectSubTab('rank', 'serverrank', $event)"
+          >
+            区服榜
+          </button>
+          <button
+            class="mobile-sub-tab"
+            :class="{ active: rankSubTab === 'toprank' }"
+            @click="selectSubTab('rank', 'toprank', $event)"
+          >
+            巅峰榜
+          </button>
+          <button
+            class="mobile-sub-tab"
+            :class="{ active: rankSubTab === 'topclubrank' }"
+            @click="selectSubTab('rank', 'topclubrank', $event)"
+          >
+            俱乐部榜
+          </button>
+          <button
+            class="mobile-sub-tab"
+            :class="{ active: rankSubTab === 'goldclubrank' }"
+            @click="selectSubTab('rank', 'goldclubrank', $event)"
+          >
+            黄金积分榜
+          </button>
+          <button
+            class="mobile-sub-tab"
+            :class="{ active: rankSubTab === 'greatRouteRank' }"
+            @click="selectSubTab('rank', 'greatRouteRank', $event)"
+          >
+            伟大航路积分榜
+          </button>
+        </div>
       </div>
 
       <div class="warrank-full-container" v-if="rankSubTab === 'serverrank'">
@@ -356,6 +406,77 @@ const activeSection = ref("daily");
 const saltFieldSubTab = ref("warrank");
 const peachSubTab = ref("peach");
 const rankSubTab = ref("serverrank");
+
+const subNavDrag = {
+  active: false,
+  moved: false,
+  startX: 0,
+  scrollLeft: 0,
+  el: null,
+  pointerId: null,
+};
+
+const startSubNavDrag = (event) => {
+  const el = event.currentTarget;
+  subNavDrag.active = true;
+  subNavDrag.moved = false;
+  subNavDrag.startX = event.clientX;
+  subNavDrag.scrollLeft = el.scrollLeft;
+  subNavDrag.el = el;
+  subNavDrag.pointerId = event.pointerId;
+  el.classList.add("dragging");
+  window.addEventListener("pointermove", moveSubNavDrag);
+  window.addEventListener("pointerup", endSubNavDrag);
+  window.addEventListener("pointercancel", endSubNavDrag);
+};
+
+const moveSubNavDrag = (event) => {
+  if (!subNavDrag.active) return;
+  const el = subNavDrag.el;
+  if (!el) return;
+  const deltaX = event.clientX - subNavDrag.startX;
+  if (Math.abs(deltaX) > 3) {
+    subNavDrag.moved = true;
+    event.preventDefault();
+  }
+  el.scrollLeft = subNavDrag.scrollLeft - deltaX;
+};
+
+const endSubNavDrag = () => {
+  subNavDrag.active = false;
+  subNavDrag.el?.classList.remove("dragging");
+  subNavDrag.el = null;
+  subNavDrag.pointerId = null;
+  window.removeEventListener("pointermove", moveSubNavDrag);
+  window.removeEventListener("pointerup", endSubNavDrag);
+  window.removeEventListener("pointercancel", endSubNavDrag);
+  window.setTimeout(() => {
+    subNavDrag.moved = false;
+  }, 0);
+};
+
+const handleSubNavWheel = (event) => {
+  const el = event.currentTarget;
+  const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+  if (!delta) return;
+  el.scrollLeft += delta;
+  event.preventDefault();
+};
+
+const selectSubTab = (group, value, event) => {
+  if (subNavDrag.moved) {
+    event.preventDefault();
+    return;
+  }
+
+  if (group === "salt") {
+    saltFieldSubTab.value = value;
+  } else if (group === "peach") {
+    peachSubTab.value = value;
+  } else if (group === "rank") {
+    rankSubTab.value = value;
+  }
+};
 
 // 活动开放时间：仅周一到周三可参与
 const isActivityOpen = computed(() => {
@@ -701,6 +822,9 @@ onUnmounted(() => {
   if (timer) {
     clearInterval(timer);
   }
+  window.removeEventListener("pointermove", moveSubNavDrag);
+  window.removeEventListener("pointerup", endSubNavDrag);
+  window.removeEventListener("pointercancel", endSubNavDrag);
 });
 </script>
 
@@ -710,6 +834,10 @@ onUnmounted(() => {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: var(--spacing-lg);
   padding: var(--spacing-lg);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
 
   // 在大屏幕上限制最大列数以确保卡片有足够宽度
   @media (min-width: 1400px) {
@@ -779,11 +907,94 @@ onUnmounted(() => {
   margin: 0 var(--spacing-sm) var(--spacing-md) var(--spacing-sm);
   grid-column: 1 / -1;
   border-bottom: 1px solid var(--border-light);
-  overflow: auto;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 .section-tabs :deep(.n-tabs-pane-wrapper) {
   display: none;
+}
+
+.section-tabs :deep(.n-tabs-nav),
+.section-tabs :deep(.n-tabs-nav-scroll-wrapper),
+.section-tabs :deep(.n-tabs-nav-scroll-content) {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.section-tabs :deep(.n-tabs-nav-scroll-content) {
+  width: max-content;
+  min-width: max-content;
+}
+
+.section-tabs :deep(.n-tabs-tab-wrapper),
+.section-tabs :deep(.n-tabs-tab) {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.sub-nav {
+  display: block;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: 8px 0;
+  background: var(--n-color);
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  cursor: grab;
+  user-select: none;
+  scrollbar-width: none;
+}
+
+.sub-nav.dragging {
+  cursor: grabbing;
+}
+
+.sub-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.mobile-sub-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  min-width: max-content;
+  padding: 0 8px;
+}
+
+.mobile-sub-tab {
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  line-height: 32px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mobile-sub-tab.active {
+  background: var(--bg-primary);
+  color: var(--primary-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.mobile-sub-tab:active {
+  background: var(--bg-secondary);
 }
 
 .warrank-full-container {
@@ -796,6 +1007,9 @@ onUnmounted(() => {
   @media (max-width: 768px) {
     height: calc(100vh - 180px);
     min-height: 500px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }
 
@@ -804,8 +1018,11 @@ onUnmounted(() => {
 .rank-group {
   grid-column: 1 / -1;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .monthly-tasks .description.muted {
@@ -946,14 +1163,17 @@ onUnmounted(() => {
   .card-header {
     flex-wrap: wrap;
     gap: var(--spacing-sm);
+    min-width: 0;
 
     .status-info {
       flex: 1;
-      min-width: 120px;
+      min-width: 0;
     }
 
     .status-badge {
       margin-left: auto;
+      max-width: 100%;
+      white-space: normal;
     }
   }
 }

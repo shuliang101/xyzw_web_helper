@@ -83,7 +83,7 @@
       </div>
 
       <!-- 战绩列表 -->
-      <div v-else-if="battleRecords && battleRecords.ownClub && battleRecords.opponentClub" ref="exportDom" class="records-wrapper">
+      <div v-else-if="battleRecords && battleRecords.ownClub && battleRecords.opponentClub" ref="exportDom" class="records-wrapper" data-export-root="peach-battle-records">
         <div v-if="currentStyle === 'default'" class="style-default">
           <!-- 头部对战信息 -->
           <div class="battle-header">
@@ -249,11 +249,11 @@
                     <div v-else class="player-avatar-placeholder">{{ player.roleInfo.name?.charAt(0) || '?' }}</div>
                   </div>
                   <span class="header-player">{{ player.roleInfo.name }}</span>
-                  <span class="player-stat">{{ player.killCnt || 0 }}</span>
-                  <span class="player-stat">{{ player.mCKCnt || 0 }}</span>
-                  <span class="player-stat">{{ player.carCnt || 0 }}</span>
-                  <span class="player-stat">{{ player.reviveCnt || 0 }}</span>
-                  <span class="player-stat">{{ player.kd || 0 }}</span>
+                  <span class="player-stat" data-label="击杀">{{ player.killCnt || 0 }}</span>
+                  <span class="player-stat" data-label="连杀">{{ player.mCKCnt || 0 }}</span>
+                  <span class="player-stat" data-label="抢船">{{ player.carCnt || 0 }}</span>
+                  <span class="player-stat" data-label="复活">{{ player.reviveCnt || 0 }}</span>
+                  <span class="player-stat" data-label="K/D">{{ player.kd || 0 }}</span>
                 </div>
               </div>
             </div>
@@ -277,11 +277,11 @@
                     <div v-else class="player-avatar-placeholder">{{ player.roleInfo.name?.charAt(0) || '?' }}</div>
                   </div>
                   <span class="header-player">{{ player.roleInfo.name }}</span>
-                  <span class="player-stat">{{ player.killCnt || 0 }}</span>
-                  <span class="player-stat">{{ player.mCKCnt || 0 }}</span>
-                  <span class="player-stat">{{ player.carCnt || 0 }}</span>
-                  <span class="player-stat">{{ player.reviveCnt || 0 }}</span>
-                  <span class="player-stat">{{ player.kd || 0 }}</span>
+                  <span class="player-stat" data-label="击杀">{{ player.killCnt || 0 }}</span>
+                  <span class="player-stat" data-label="连杀">{{ player.mCKCnt || 0 }}</span>
+                  <span class="player-stat" data-label="抢船">{{ player.carCnt || 0 }}</span>
+                  <span class="player-stat" data-label="复活">{{ player.reviveCnt || 0 }}</span>
+                  <span class="player-stat" data-label="K/D">{{ player.kd || 0 }}</span>
                 </div>
               </div>
             </div>
@@ -833,6 +833,7 @@ watch(currentStyle, (newStyle) => {
 
 const exportmethod = ref(['1']);
 const exportDom = ref(null);
+const EXPORT_IMAGE_WIDTH = 1440;
 
 const message = useMessage()
 const tokenStore = useTokenStore()
@@ -1124,7 +1125,7 @@ const handleExport = async () => {
   }
 
   try {
-    exportToImage()
+    await exportToImage()
     message.success('导出成功')
   } catch (error) {
     console.error('导出失败:', error)
@@ -1139,10 +1140,22 @@ const exportToImage = async () => {
     return;
   }
 
+  const originalStyles = [];
+  const playerStatLabels = [];
+
   try {
+    exportDom.value.classList.add('export-desktop');
+
+    exportDom.value.querySelectorAll('.player-stat[data-label]').forEach((stat) => {
+      playerStatLabels.push({
+        element: stat,
+        label: stat.getAttribute('data-label')
+      });
+      stat.removeAttribute('data-label');
+    });
+
     // 临时移除战神榜内容区域的最大高度限制，确保所有内容都可见
     const godRankingContents = exportDom.value.querySelectorAll('.god-ranking-content');
-    const originalStyles = [];
     
     godRankingContents.forEach(content => {
       originalStyles.push({
@@ -1154,18 +1167,64 @@ const exportToImage = async () => {
       content.style.overflow = 'visible';
     });
 
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
     // 5. 用html2canvas渲染DOM为Canvas
     const canvas = await html2canvas(exportDom.value, {
       scale: 2, // 放大2倍，解决图片模糊问题
       useCORS: true, // 允许跨域图片（若DOM内有远程图片，需开启）
       backgroundColor: '#ffffff', // 避免透明背景（默认透明）
-      logging: false // 关闭控制台日志
-    });
-
-    // 恢复战神榜内容区域的原始样式
-    originalStyles.forEach(({ element, maxHeight, overflow }) => {
-      element.style.maxHeight = maxHeight;
-      element.style.overflow = overflow;
+      logging: false, // 关闭控制台日志
+      windowWidth: EXPORT_IMAGE_WIDTH,
+      width: EXPORT_IMAGE_WIDTH,
+      scrollX: 0,
+      scrollY: 0,
+      onclone: (clonedDoc) => {
+        const clonedExportDom = clonedDoc.querySelector('[data-export-root="peach-battle-records"]');
+        if (clonedExportDom) {
+          clonedExportDom.classList.add('export-desktop');
+          clonedExportDom.style.width = `${EXPORT_IMAGE_WIDTH}px`;
+          clonedExportDom.style.maxWidth = 'none';
+          clonedExportDom.style.overflow = 'visible';
+          clonedExportDom.querySelectorAll('.player-stat').forEach((stat) => {
+            stat.removeAttribute('data-label');
+          });
+        }
+        const style = clonedDoc.createElement('style');
+        style.textContent = `
+          [data-export-root="peach-battle-records"] .overall-stats,
+          [data-export-root="peach-battle-records"] .ranking-content,
+          [data-export-root="peach-battle-records"] .god-rankings {
+            grid-template-columns: 1fr 1fr !important;
+          }
+          [data-export-root="peach-battle-records"] .club-info {
+            flex-direction: row !important;
+          }
+          [data-export-root="peach-battle-records"] .god-ranking-header {
+            display: flex !important;
+          }
+          [data-export-root="peach-battle-records"] .god-ranking-item {
+            display: flex !important;
+            align-items: center !important;
+          }
+          [data-export-root="peach-battle-records"] .god-ranking-item .header-player {
+            width: 140px !important;
+            padding-left: 8px !important;
+          }
+          [data-export-root="peach-battle-records"] .god-ranking-item .player-stat {
+            width: 50px !important;
+            padding: 0 !important;
+            background: transparent !important;
+            border: 0 !important;
+            text-align: center !important;
+          }
+          [data-export-root="peach-battle-records"] .god-ranking-item .player-stat::before {
+            content: none !important;
+            display: none !important;
+          }
+        `;
+        clonedDoc.head.appendChild(style);
+      }
     });
 
     // 6. Canvas转图片链接并下载
@@ -1174,6 +1233,18 @@ const exportToImage = async () => {
   } catch (err) {
     console.error('DOM转图片失败：', err);
     alert('导出图片失败，请重试');
+  } finally {
+    exportDom.value.classList.remove('export-desktop');
+
+    playerStatLabels.forEach(({ element, label }) => {
+      element.setAttribute('data-label', label);
+    });
+
+    // 恢复战神榜内容区域的原始样式
+    originalStyles.forEach(({ element, maxHeight, overflow }) => {
+      element.style.maxHeight = maxHeight;
+      element.style.overflow = overflow;
+    });
   }
 };
 
@@ -1797,6 +1868,54 @@ onMounted(() => {
   background: var(--text-secondary);
 }
 
+.records-wrapper.export-desktop {
+  .overall-stats,
+  .ranking-content,
+  .god-rankings {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .club-info {
+    flex-direction: row !important;
+    gap: var(--spacing-xl) !important;
+  }
+
+  .club-side.own {
+    align-items: flex-end !important;
+  }
+
+  .club-side.opponent {
+    align-items: flex-start !important;
+  }
+
+  .god-ranking-header {
+    display: flex !important;
+  }
+
+  .god-ranking-item {
+    display: flex !important;
+    align-items: center !important;
+  }
+
+  .god-ranking-item .header-player {
+    width: 140px !important;
+    padding-left: var(--spacing-sm) !important;
+  }
+
+  .god-ranking-item .player-stat {
+    width: 50px !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    text-align: center !important;
+  }
+
+  .god-ranking-item .player-stat::before {
+    content: none !important;
+    display: none !important;
+  }
+}
+
 /* 响应式设计 */
 @media (max-width: 1200px) {
   .overall-stats {
@@ -1826,6 +1945,58 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
+  .records-container {
+    min-width: 0;
+  }
+
+  .header-section {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+  }
+
+  .function-section {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  .function-left,
+  .function-right {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .function-left .export-options {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .function-left .export-options :deep(.n-radio-group) {
+    flex: 0 0 auto;
+  }
+
+  .function-right {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .function-right :deep(.n-date-picker) {
+    width: 100% !important;
+    min-width: 0;
+  }
+
+  .function-right .action-btn {
+    min-width: 64px;
+    padding: 0 10px;
+  }
+
   .inline-header {
     flex-direction: column;
     align-items: flex-start;
@@ -1842,20 +2013,120 @@ onMounted(() => {
   }
   
   .ranking-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--spacing-xs);
+    display: grid;
+    grid-template-columns: 28px 34px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .ranking-item .rank-number {
+    width: 24px;
+    height: 24px;
+  }
+
+  .ranking-item .player-avatar,
+  .ranking-item .player-avatar-placeholder {
+    width: 32px;
+    height: 32px;
+  }
+
+  .ranking-item .player-name {
+    width: auto;
+    min-width: 0;
+    padding-left: 0;
+    flex: initial;
+  }
+
+  .ranking-item .player-value {
+    min-width: 32px;
+    text-align: right;
   }
   
   .god-ranking-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--spacing-xs);
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+    align-items: center;
+    padding: 10px 12px;
+    border: 1px solid var(--border-light);
+    box-shadow: none;
+  }
+
+  .god-ranking-item .god-rank-number {
+    grid-column: 1 / 2;
+    justify-self: center;
+  }
+
+  .god-ranking-item .player-avatar-cell {
+    grid-column: 2 / 3;
+    width: 32px;
+    justify-self: center;
+  }
+
+  .god-ranking-header {
+    display: none;
+  }
+
+  .god-ranking-content {
+    overflow: visible;
+    max-height: none;
+  }
+
+  .god-ranking-item .header-player {
+    min-width: 0;
+    width: auto;
+    grid-column: 3 / 6;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-left: 2px;
+    font-weight: var(--font-weight-medium);
   }
   
-  .player-stat {
-    min-width: auto;
-    text-align: left;
+  .god-ranking-item .player-stat {
+    width: auto;
+    min-width: 0;
+    text-align: center;
+    padding: 6px 4px 5px;
+    border-radius: 6px;
+    background: #f6f8fb;
+    border: 1px solid #edf0f5;
+    font-size: var(--font-size-xs);
+    line-height: 1.2;
+    color: var(--text-primary);
+  }
+
+  .god-ranking-item .player-stat::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    color: var(--text-secondary);
+    font-weight: var(--font-weight-normal);
+  }
+
+  .god-ranking-item .player-stat {
+    grid-column: span 1;
+  }
+
+  .god-ranking-item .player-stat[data-label="击杀"] {
+    grid-column: 1 / 2;
+  }
+
+  .god-ranking-item .player-stat[data-label="连杀"] {
+    grid-column: 2 / 3;
+  }
+
+  .god-ranking-item .player-stat[data-label="抢船"] {
+    grid-column: 3 / 4;
+  }
+
+  .god-ranking-item .player-stat[data-label="复活"] {
+    grid-column: 4 / 5;
+  }
+
+  .god-ranking-item .player-stat[data-label="K/D"] {
+    grid-column: 5 / 6;
   }
 }
 

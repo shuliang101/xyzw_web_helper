@@ -37,6 +37,8 @@ const $props = defineProps<{
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   transition: all var(--transition-normal);
   min-height: 200px;
+  max-width: 100%;
+  min-width: 0;
 
   &:hover {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
@@ -112,6 +114,7 @@ const $props = defineProps<{
 
   .status-title {
     flex: 1;
+    min-width: 0;
 
     h3 {
       font-size: var(--font-size-md);
@@ -137,6 +140,7 @@ const $props = defineProps<{
     font-weight: var(--font-weight-medium);
     background: var(--bg-color);
     color: var(--font-color);
+    flex-shrink: 0;
   }
 
   .status-dot {
@@ -151,6 +155,7 @@ const $props = defineProps<{
   flex: 1;
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
+  min-width: 0;
 
   h3 {
     font-size: var(--font-size-md);
@@ -226,6 +231,7 @@ const $props = defineProps<{
 .card-action {
   display: flex;
   gap: var(--spacing-sm);
+  min-width: 0;
 
   > button {
     cursor: pointer;
@@ -258,19 +264,32 @@ const $props = defineProps<{
   .status-card {
     padding: var(--spacing-md);
     min-height: auto;
+    overflow: hidden;
   }
 
   .card-header {
     flex-wrap: wrap;
     gap: var(--spacing-sm);
     margin-bottom: var(--spacing-md);
+    min-width: 0;
 
     .status-title {
-      min-width: 100px;
+      flex: 1 1 120px;
+      min-width: 0;
     }
 
     .status-badge {
       margin-left: auto;
+      max-width: 100%;
+      white-space: normal;
+    }
+  }
+
+  .card-action {
+    flex-wrap: wrap;
+
+    > * {
+      min-width: 0;
     }
   }
 }
