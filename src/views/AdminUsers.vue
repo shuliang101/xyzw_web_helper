@@ -290,9 +290,17 @@ const pemToArrayBuffer = (pem) => {
 }
 
 const encryptPassword = async (text) => {
+  const subtle = globalThis.crypto?.subtle
+  if (!subtle) {
+    return {
+      password: text,
+      encrypted: false
+    }
+  }
+
   const pem = await fetchPublicKey()
   const binaryDer = pemToArrayBuffer(pem)
-  const cryptoKey = await window.crypto.subtle.importKey(
+  const cryptoKey = await subtle.importKey(
     'spki',
     binaryDer,
     {
@@ -303,13 +311,16 @@ const encryptPassword = async (text) => {
     ['encrypt']
   )
   const encoded = new TextEncoder().encode(text)
-  const encrypted = await window.crypto.subtle.encrypt({ name: 'RSA-OAEP' }, cryptoKey, encoded)
+  const encrypted = await subtle.encrypt({ name: 'RSA-OAEP' }, cryptoKey, encoded)
   const bytes = new Uint8Array(encrypted)
   let binary = ''
   bytes.forEach(byte => {
     binary += String.fromCharCode(byte)
   })
-  return window.btoa(binary)
+  return {
+    password: window.btoa(binary),
+    encrypted: true
+  }
 }
 
 const openPasswordModal = (user) => {
@@ -333,8 +344,8 @@ const submitPassword = async () => {
   }
   savingPassword.value = true
   try {
-    const encrypted = await encryptPassword(passwordForm.password)
-    await api.admin.updateUserPassword(passwordTarget.value.id, { password: encrypted })
+    const passwordPayload = await encryptPassword(passwordForm.password)
+    await api.admin.updateUserPassword(passwordTarget.value.id, passwordPayload)
     message.success('密码已重置')
     closePasswordModal()
   } catch (error) {

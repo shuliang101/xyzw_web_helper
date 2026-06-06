@@ -20,6 +20,10 @@
               <n-icon><CarSport /></n-icon>
               <span>俱乐部收发车</span>
             </router-link>
+            <router-link to="/club-car/revive-pill-stats" class="nav-item" active-class="active">
+              <n-icon><StatsChart /></n-icon>
+              <span>复活丹统计</span>
+            </router-link>
           </template>
           <template v-else>
             <router-link to="/admin/dashboard" class="nav-item" active-class="active">
@@ -76,6 +80,10 @@
             <n-icon><CarSport /></n-icon>
             <span>俱乐部收发车</span>
           </router-link>
+          <router-link to="/club-car/revive-pill-stats" class="drawer-item" @click="isMobileMenuOpen = false">
+            <n-icon><StatsChart /></n-icon>
+            <span>复活丹统计</span>
+          </router-link>
         </template>
         <template v-else>
           <router-link to="/admin/dashboard" class="drawer-item" @click="isMobileMenuOpen = false">
@@ -131,6 +139,7 @@ import {
   People,
   PersonCircle,
   Settings,
+  StatsChart,
   Timer,
 } from '@vicons/ionicons5'
 import { useAuthStore } from '@/stores/auth'

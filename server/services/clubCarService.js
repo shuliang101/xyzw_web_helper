@@ -17,6 +17,7 @@ const CLUB_CAR_CONFIG_PACKAGE_VERSION = 1
 const SEND_MODE_VALUES = new Set(['orange', 'red', 'gold', 'no_refresh'])
 const SEND_WINDOW_START_MINUTES = 6 * 60
 const SEND_WINDOW_END_MINUTES = 20 * 60
+const REVIVE_PILL_ITEM_ID = 1017
 const CAR_RESEARCH_PART_COSTS = [
   20, 21, 22, 23, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 47, 50, 53, 56,
   59, 62, 65, 68, 71, 74, 78, 82, 86, 90, 94, 99, 104, 109, 114, 119, 126, 133,
@@ -65,6 +66,32 @@ const isPathInsideDir = (targetPath, dirPath) => {
 }
 
 const isClubCarManagedMemberBinPath = (targetPath) => isPathInsideDir(targetPath, CLUB_MEMBER_BIN_DIR)
+
+const resolveExistingClubCarBinPath = (targetPath = '') => {
+  const rawPath = String(targetPath || '').trim()
+  if (!rawPath) return ''
+  if (fs.existsSync(rawPath)) return rawPath
+
+  const filename = path.basename(rawPath)
+  if (!filename) return ''
+
+  const candidates = [
+    path.join(CLUB_MEMBER_BIN_DIR, filename),
+    path.join(CLUB_MASTER_BIN_DIR, filename),
+  ]
+
+  return candidates.find(candidate => fs.existsSync(candidate)) || ''
+}
+
+const updateMemberBinPathIfMoved = (row, resolvedPath) => {
+  if (!row?.id || !resolvedPath) return
+  if (normalizePathForCompare(row.bound_bin_path) === normalizePathForCompare(resolvedPath)) return
+  db.prepare(`
+    UPDATE club_car_members
+    SET bound_bin_path = ?, updated_at = ?
+    WHERE id = ?
+  `).run(resolvedPath, new Date().toISOString(), row.id)
+}
 
 const persistManagedMemberBin = ({
   roleId,
@@ -278,6 +305,22 @@ const mapRunLog = (row) => {
     message: row.message,
     detail: row.detail ? JSON.parse(row.detail) : null,
     createdAt: row.created_at,
+  }
+}
+
+const mapRevivePillDailyStat = (row) => {
+  if (!row) return null
+  return {
+    id: row.id,
+    statDate: row.stat_date,
+    roleId: String(row.role_id),
+    name: row.name || String(row.role_id),
+    revivePillCount: Number(row.revive_pill_count || 0),
+    sampledAt: row.sampled_at || '',
+    runType: row.run_type || '',
+    planId: row.plan_id ? Number(row.plan_id) : null,
+    createdAt: row.created_at || '',
+    updatedAt: row.updated_at || '',
   }
 }
 
@@ -672,6 +715,106 @@ const readRefreshTicketCount = (roleInfoResp) =>
 const readCarPartCount = (roleInfoResp) =>
   Number(roleInfoResp?.role?.items?.[35009]?.quantity || 0)
 
+const readItemCount = (roleInfoResp, itemId) => {
+  const items = roleInfoResp?.role?.items
+  if (!items) return 0
+
+  const direct = items[itemId] ?? items[String(itemId)]
+  if (direct !== undefined && direct !== null) {
+    if (typeof direct === 'number') return Number(direct || 0)
+    return Number(direct.quantity ?? direct.count ?? direct.num ?? 0)
+  }
+
+  if (Array.isArray(items)) {
+    const matched = items.find(item => Number(item?.itemId ?? item?.id) === Number(itemId))
+    return Number(matched?.quantity ?? matched?.count ?? matched?.num ?? 0)
+  }
+
+  return 0
+}
+
+const readRevivePillCount = (roleInfoResp) => readItemCount(roleInfoResp, REVIVE_PILL_ITEM_ID)
+
+const formatLocalDate = (date = new Date()) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const recordRevivePillDailyStat = ({
+  roleId,
+  name,
+  count,
+  sampledAt,
+  runType = '',
+  planId = null,
+}) => {
+  const normalizedRoleId = String(roleId || '').trim()
+  if (!normalizedRoleId) return null
+
+  const sampledDate = parseDateSafe(sampledAt) || new Date()
+  const sampledAtText = sampledDate.toISOString()
+  const statDate = formatLocalDate(sampledDate)
+  const nowIso = new Date().toISOString()
+
+  db.prepare(`
+    INSERT INTO club_car_revive_pill_daily_stats (
+      stat_date, role_id, name, revive_pill_count, sampled_at, run_type, plan_id, created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(stat_date, role_id) DO UPDATE SET
+      name = excluded.name,
+      revive_pill_count = excluded.revive_pill_count,
+      sampled_at = excluded.sampled_at,
+      run_type = excluded.run_type,
+      plan_id = excluded.plan_id,
+      updated_at = excluded.updated_at
+  `).run(
+    statDate,
+    normalizedRoleId,
+    String(name || normalizedRoleId),
+    Number(count || 0),
+    sampledAtText,
+    runType || null,
+    planId ? Number(planId) : null,
+    nowIso,
+    nowIso,
+  )
+
+  return {
+    statDate,
+    roleId: normalizedRoleId,
+    name: String(name || normalizedRoleId),
+    revivePillCount: Number(count || 0),
+    sampledAt: sampledAtText,
+  }
+}
+
+const sampleRevivePillDailyStatFromRoleInfo = ({
+  roleInfoResp,
+  roleId,
+  name,
+  sampledAt,
+  runType,
+  planId = null,
+}) => {
+  const revivePillCount = readRevivePillCount(roleInfoResp)
+  const stat = recordRevivePillDailyStat({
+    roleId,
+    name,
+    count: revivePillCount,
+    sampledAt,
+    runType,
+    planId,
+  })
+
+  return {
+    revivePillCount,
+    sampledAt: stat?.sampledAt || sampledAt,
+  }
+}
+
 const readCarResearchLevel = (carResp) =>
   Number(carResp?.body?.roleCar?.research?.[1] || carResp?.roleCar?.research?.[1] || 0)
 
@@ -759,7 +902,13 @@ const prepareCarsBeforeSend = async (client, planEntry, nowIso) => {
 }
 
 const withWsClientFromBin = async (binPath, fn) => {
-  const tokenStr = await transformBinToToken(binPath)
+  const resolvedBinPath = resolveExistingClubCarBinPath(binPath)
+  if (!resolvedBinPath) {
+    const err = new Error('member bin file not found, please rebind BIN')
+    err.status = 404
+    throw err
+  }
+  const tokenStr = await transformBinToToken(resolvedBinPath)
   const wsUrl = buildGameWsUrl(tokenStr)
   const wsClient = new GameWebSocketClient(wsUrl, { autoReconnect: false })
   await wsClient.connect()
@@ -1757,6 +1906,157 @@ export const getClubCarRunLogsByRoleId = (roleId, limit = 50) => {
     })
 }
 
+const normalizeStatDate = (value = '') => {
+  const text = String(value || '').trim()
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : ''
+}
+
+export const getClubCarRevivePillDailyStats = ({
+  date = '',
+  startDate = '',
+  endDate = '',
+  roleId = '',
+  limit = 200,
+} = {}) => {
+  const safeLimit = Math.max(1, Math.min(1000, Number(limit) || 200))
+  const statDate = normalizeStatDate(date)
+  const normalizedStartDate = normalizeStatDate(startDate)
+  const normalizedEndDate = normalizeStatDate(endDate)
+  const normalizedRoleId = String(roleId || '').trim()
+
+  let sql = `
+    SELECT * FROM club_car_revive_pill_daily_stats
+  `
+  const conditions = []
+  const params = []
+
+  if (statDate) {
+    conditions.push('stat_date = ?')
+    params.push(statDate)
+  } else {
+    if (normalizedStartDate) {
+      conditions.push('stat_date >= ?')
+      params.push(normalizedStartDate)
+    }
+    if (normalizedEndDate) {
+      conditions.push('stat_date <= ?')
+      params.push(normalizedEndDate)
+    }
+  }
+
+  if (normalizedRoleId) {
+    conditions.push('role_id = ?')
+    params.push(normalizedRoleId)
+  }
+
+  if (conditions.length) {
+    sql += ` WHERE ${conditions.join(' AND ')}`
+  }
+
+  sql += `
+    ORDER BY stat_date DESC, revive_pill_count DESC, sampled_at DESC, id DESC
+    LIMIT ?
+  `
+  params.push(safeLimit)
+
+  const rows = db.prepare(sql).all(...params)
+  return rows.map(mapRevivePillDailyStat)
+}
+
+export const getClubCarRevivePillDailyStatsByRoleId = ({ roleId, date = '', startDate = '', endDate = '', limit = 200 } = {}) => {
+  const normalizedRoleId = String(roleId || '').trim()
+  if (!normalizedRoleId) return []
+
+  return getClubCarRevivePillDailyStats({
+    roleId: normalizedRoleId,
+    date,
+    startDate,
+    endDate,
+    limit,
+  })
+}
+
+export const sampleClubCarMemberRevivePillCount = async (memberIdOrRoleId, options = {}) => {
+  const key = String(memberIdOrRoleId || '').trim()
+  if (!key) {
+    const err = new Error('member is required')
+    err.status = 400
+    throw err
+  }
+
+  const row = getMemberRowById(key) || getMemberRowByRoleId(key)
+  if (!row || row.is_active !== 1) {
+    const err = new Error('member not found or inactive')
+    err.status = 404
+    throw err
+  }
+  if (!row.bound_bin_path) {
+    const err = new Error('member bin is not bound')
+    err.status = 400
+    throw err
+  }
+  const resolvedBinPath = resolveExistingClubCarBinPath(row.bound_bin_path)
+  if (!resolvedBinPath) {
+    const err = new Error('member bin file not found, please rebind BIN')
+    err.status = 404
+    throw err
+  }
+  updateMemberBinPathIfMoved(row, resolvedBinPath)
+
+  const sampledAt = options.now instanceof Date ? options.now : new Date()
+  const sampledAtIso = sampledAt.toISOString()
+  const roleInfoResp = await withWsClientFromBin(resolvedBinPath, async (client) => {
+    return client.sendWithPromise('role_getroleinfo', {}, 10000)
+  })
+  const revivePillCount = readRevivePillCount(roleInfoResp)
+  return recordRevivePillDailyStat({
+    roleId: row.role_id,
+    name: row.name,
+    count: revivePillCount,
+    sampledAt: sampledAtIso,
+    runType: options.runType || 'revive_pill_manual',
+    planId: null,
+  })
+}
+
+export const sampleAllClubCarMemberRevivePillCounts = async (options = {}) => {
+  const memberRows = getActiveBoundMemberRows()
+  const detail = []
+  let successCount = 0
+
+  for (const row of memberRows) {
+    try {
+      const stat = await sampleClubCarMemberRevivePillCount(row.id, {
+        ...options,
+        runType: options.runType || 'revive_pill_manual_batch',
+      })
+      detail.push({
+        roleId: String(row.role_id),
+        name: row.name,
+        success: true,
+        revivePillCount: stat.revivePillCount,
+        sampledAt: stat.sampledAt,
+      })
+      successCount += 1
+    } catch (error) {
+      detail.push({
+        roleId: String(row.role_id),
+        name: row.name,
+        success: false,
+        error: error?.message || String(error),
+      })
+    }
+    await sleep(500)
+  }
+
+  return {
+    totalMembers: memberRows.length,
+    successCount,
+    failedCount: detail.filter(item => !item.success).length,
+    detail,
+  }
+}
+
 const sortCarsForSend = (cars = []) => [...cars]
   .filter(car => Number(car?.sendAt || 0) === 0)
   .sort((left, right) => {
@@ -1954,6 +2254,8 @@ export const runClubCarSend = async (options = {}) => {
       completed: false,
       skippedReason: '',
       refreshAttempts: 0,
+      revivePillCount: null,
+      revivePillSampledAt: '',
       preSendClaimed: 0,
       preSendResearchLevel: 0,
       preSendResearchUpgraded: 0,
@@ -1998,6 +2300,16 @@ export const runClubCarSend = async (options = {}) => {
         try {
           roleInfoResp = await client.sendWithPromise('role_getroleinfo', {}, 10000)
           tickets = readRefreshTicketCount(roleInfoResp)
+          const stat = sampleRevivePillDailyStatFromRoleInfo({
+            roleInfoResp,
+            roleId: plan.senderRoleId,
+            name: plan.sender?.name || senderRow?.name || plan.senderRoleId,
+            sampledAt: nowIso,
+            runType,
+            planId: plan.id,
+          })
+          planEntry.revivePillCount = stat.revivePillCount
+          planEntry.revivePillSampledAt = stat.sampledAt
         } catch {
           tickets = 0
         }
@@ -2126,6 +2438,7 @@ export const runClubCarSend = async (options = {}) => {
 
 export const runClubCarClaim = async (options = {}) => {
   const now = options.now instanceof Date ? options.now : new Date()
+  const nowIso = now.toISOString()
   const runType = options.runType || 'claim'
   const memberRows = getActiveBoundMemberRows(options.memberRoleIds)
   const members = memberRows.map(mapMember)
@@ -2147,6 +2460,8 @@ export const runClubCarClaim = async (options = {}) => {
       researchLevel: 0,
       researchUpgraded: 0,
       researchRewardClaimed: false,
+      revivePillCount: null,
+      revivePillSampledAt: '',
       skippedReason: '',
       errors: [],
     }
@@ -2165,6 +2480,21 @@ export const runClubCarClaim = async (options = {}) => {
 
     try {
       await withWsClientFromBin(rawMember.bound_bin_path, async (client) => {
+        try {
+          const roleInfoResp = await client.sendWithPromise('role_getroleinfo', {}, 10000)
+          const stat = sampleRevivePillDailyStatFromRoleInfo({
+            roleInfoResp,
+            roleId: member.roleId,
+            name: member.name,
+            sampledAt: nowIso,
+            runType,
+          })
+          memberEntry.revivePillCount = stat.revivePillCount
+          memberEntry.revivePillSampledAt = stat.sampledAt
+        } catch (error) {
+          memberEntry.errors.push(`read revive pill count failed: ${error?.message || error}`)
+        }
+
         const carResp = await client.sendWithPromise('car_getrolecar', {}, 10000)
         memberEntry.researchLevel = readCarResearchLevel(carResp)
         const cars = normalizeCars(carResp?.body ?? carResp)
@@ -2188,7 +2518,7 @@ export const runClubCarClaim = async (options = {}) => {
         }
       })
 
-      updateMemberClaimAt(member.roleId, now.toISOString())
+      updateMemberClaimAt(member.roleId, nowIso)
     } catch (error) {
       memberEntry.errors.push(String(error?.message || error))
     }

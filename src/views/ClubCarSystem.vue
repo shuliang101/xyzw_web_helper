@@ -9,6 +9,9 @@
         <n-button @click="$router.push('/club-car/monitor')">
           监视页
         </n-button>
+        <n-button @click="$router.push('/club-car/revive-pill-stats')">
+          复活丹统计
+        </n-button>
         <n-button @click="exportConfigPackage" :loading="exportingConfig">
           导出配置
         </n-button>
@@ -257,6 +260,14 @@
                     <n-button @click="clearClaimSelection">
                       清空勾选
                     </n-button>
+                    <n-button
+                      type="primary"
+                      ghost
+                      :loading="samplingAllRevivePills"
+                      @click="sampleAllMemberRevivePillCounts"
+                    >
+                      一键获取复活丹
+                    </n-button>
                     <n-button type="primary" :loading="savingBatchClaim" @click="saveBatchClaimSchedule">
                       保存自动收车
                     </n-button>
@@ -274,7 +285,7 @@
                     <th>成员</th>
                     <th style="width: 180px">BIN 绑定</th>
                     <th style="width: 170px">自动收车</th>
-                    <th style="width: 160px">操作</th>
+                    <th style="width: 260px">操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -317,6 +328,16 @@
                         </n-button>
                         <n-button size="small" @click="copyBindLink(member)">
                           复制绑定链接
+                        </n-button>
+                        <n-button
+                          size="small"
+                          type="primary"
+                          ghost
+                          :disabled="!member.boundBinName"
+                          :loading="samplingRevivePillMemberId === member.id"
+                          @click="sampleMemberRevivePillCount(member)"
+                        >
+                          获取复活丹
                         </n-button>
                         <n-popconfirm
                           v-if="member.boundBinName"
@@ -403,6 +424,7 @@ const savingPlan = ref(false)
 const savingBatchClaim = ref(false)
 const exportingConfig = ref(false)
 const importingConfig = ref(false)
+const samplingAllRevivePills = ref(false)
 const deletingSchemeTargetRoleId = ref(null)
 const editingSchemeTargetRoleId = ref(null)
 let logsAutoRefreshTimer = null
@@ -411,6 +433,7 @@ const masterBinInputRef = ref(null)
 const memberBinInputRef = ref(null)
 const configPackageInputRef = ref(null)
 const bindingMemberId = ref(null)
+const samplingRevivePillMemberId = ref(null)
 const selectedBindingMember = ref(null)
 const selectedClaimRoleIds = ref([])
 const batchClaimTimeTs = ref(null)
@@ -692,7 +715,11 @@ const submitSchemeForm = async () => {
       }))
       .filter(slot => slot.senderRoleId && slot.sendTime)
 
-    const existingPlans = plans.value.filter(plan => String(plan.targetRoleId) === String(targetRoleId))
+    const replacedTargetRoleIds = new Set([String(targetRoleId)])
+    if (editingSchemeTargetRoleId.value) {
+      replacedTargetRoleIds.add(String(editingSchemeTargetRoleId.value))
+    }
+    const existingPlans = plans.value.filter(plan => replacedTargetRoleIds.has(String(plan.targetRoleId)))
     for (const plan of existingPlans) {
       await api.clubCar.deleteSendPlan(plan.id)
     }
@@ -942,6 +969,47 @@ const copyBindLink = async (member) => {
     message.success('绑定链接已复制')
   } catch {
     message.error('复制失败，请检查浏览器权限')
+  }
+}
+
+const sampleMemberRevivePillCount = async (member) => {
+  if (!member?.boundBinName) {
+    message.warning('该成员还没有绑定 BIN')
+    return
+  }
+
+  samplingRevivePillMemberId.value = member.id
+  try {
+    const stat = await api.clubCar.sampleMemberRevivePillCount(member.id)
+    message.success(`${member.name} 当前复活丹：${stat.revivePillCount ?? 0}`)
+  } catch (error) {
+    message.error(error.message || '获取复活丹数量失败')
+  } finally {
+    samplingRevivePillMemberId.value = null
+  }
+}
+
+const sampleAllMemberRevivePillCounts = async () => {
+  const boundCount = members.value.filter(member => member.boundBinName).length
+  if (!boundCount) {
+    message.warning('当前没有已绑定 BIN 的成员')
+    return
+  }
+
+  samplingAllRevivePills.value = true
+  try {
+    const result = await api.clubCar.sampleAllMemberRevivePillCounts()
+    const failedCount = Number(result.failedCount || 0)
+    const successCount = Number(result.successCount || 0)
+    if (failedCount > 0) {
+      message.warning(`复活丹获取完成：成功 ${successCount}，失败 ${failedCount}`)
+    } else {
+      message.success(`复活丹获取完成：成功 ${successCount}`)
+    }
+  } catch (error) {
+    message.error(error.message || '一键获取复活丹失败')
+  } finally {
+    samplingAllRevivePills.value = false
   }
 }
 

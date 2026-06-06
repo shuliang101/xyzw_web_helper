@@ -23,6 +23,10 @@ import {
   bindClubMemberBinByRoleId,
   getClubCarRunLogs,
   getClubCarRunLogsByRoleId,
+  getClubCarRevivePillDailyStats,
+  getClubCarRevivePillDailyStatsByRoleId,
+  sampleClubCarMemberRevivePillCount,
+  sampleAllClubCarMemberRevivePillCounts,
   getClubCarSendPlansByRoleId,
 } from '../services/clubCarService.js'
 import { clubCarScheduler } from '../services/clubCarScheduler.js'
@@ -172,6 +176,24 @@ export const bindClubCarMemberBinByAdminHandler = (req, res, next) => {
   }
 }
 
+export const sampleClubCarMemberRevivePillCountHandler = async (req, res, next) => {
+  try {
+    const data = await sampleClubCarMemberRevivePillCount(req.params.id)
+    res.json({ success: true, data })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export const sampleAllClubCarMemberRevivePillCountsHandler = async (req, res, next) => {
+  try {
+    const data = await sampleAllClubCarMemberRevivePillCounts()
+    res.json({ success: true, data })
+  } catch (error) {
+    next(error)
+  }
+}
+
 export const runClubCarSendNowHandler = async (req, res, next) => {
   try {
     const data = await clubCarScheduler.runSendNow()
@@ -197,6 +219,18 @@ export const listClubCarRunLogsHandler = (req, res) => {
     ? getClubCarRunLogs(limit)
     : getClubCarRunLogsByRoleId(roleId, limit)
   res.json({ success: true, data: logs })
+}
+
+export const listClubCarRevivePillDailyStatsHandler = (req, res) => {
+  const limit = Number(req.query.limit || 200)
+  const date = String(req.query.date || '').trim()
+  const startDate = String(req.query.startDate || '').trim()
+  const endDate = String(req.query.endDate || '').trim()
+  const roleId = String(req.query.roleId || '').trim()
+  const stats = req.user?.role === 'admin'
+    ? getClubCarRevivePillDailyStats({ roleId, date, startDate, endDate, limit })
+    : getClubCarRevivePillDailyStatsByRoleId({ roleId, date, startDate, endDate, limit })
+  res.json({ success: true, data: stats })
 }
 
 export const memberClubCarLoginHandler = async (req, res, next) => {

@@ -208,6 +208,8 @@ const api = {
     updateMemberSchedule: (memberId, body) => request.put(`/club-car/members/${memberId}/schedule`, body),
     batchUpdateMemberClaimSchedule: body => request.put('/club-car/members/claim-schedule', body),
     updateMemberTarget: (memberId, body) => request.put(`/club-car/members/${memberId}/target`, body),
+    sampleMemberRevivePillCount: memberId => request.post(`/club-car/members/${memberId}/revive-pill-count`),
+    sampleAllMemberRevivePillCounts: () => request.post('/club-car/members/revive-pill-count'),
     bindMemberBin: (roleId, formData) => request.post(`/club-car/members/${roleId}/bind-bin`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
@@ -216,6 +218,15 @@ const api = {
     runClaimNow: () => request.post('/club-car/run/claim'),
     listLogs: (limit = 50, roleId = null) => request.get('/club-car/logs', {
       params: roleId ? { limit, roleId } : { limit },
+    }),
+    listRevivePillStats: ({ date = '', startDate = '', endDate = '', limit = 200, roleId = null } = {}) => request.get('/club-car/revive-pill-stats', {
+      params: {
+        limit,
+        ...(date ? { date } : {}),
+        ...(startDate ? { startDate } : {}),
+        ...(endDate ? { endDate } : {}),
+        ...(roleId ? { roleId } : {}),
+      },
     }),
 
     memberLogin: body => request.post('/club-car/member/login', body),

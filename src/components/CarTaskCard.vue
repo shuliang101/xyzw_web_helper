@@ -489,26 +489,8 @@ const countRacingRefreshTickets = (rewards) => {
 
 // 判断车辆是否符合发车条件
 const shouldSendCar = (carInfo, refreshTickets) => {
-  const color = carInfo.color || 0;
-  const rewards = carInfo.rewards || [];
-
-  // 计算奖励中的赛车刷新券数量
-  const bigPrizeCount = countBigPrizes(rewards);
-  const isOrangeCar = Number(color) === 4;
-
-  // 如果刷新券充足（>=6），寻找红车以上或大奖车
-  if (refreshTickets >= 6) {
-    return (
-      color >= 5 || // 神话以上
-      (isOrangeCar ? bigPrizeCount >= 2 : bigPrizeCount >= 1)
-    ); // 大奖车
-  } else {
-    // 刷新券不足，寻找金车/带大奖的红车/双大奖橙车
-    if (color >= 6) return true;
-    if (color === 5) return bigPrizeCount >= 1;
-    if (isOrangeCar) return bigPrizeCount >= 2;
-    return isBigPrize(rewards);
-  }
+  const color = Number(carInfo?.color || 0);
+  return color === 5 || color === 6;
 };
 
 // 智能发车方法
@@ -516,15 +498,7 @@ const MAX_SINGLE_CAR_REFRESH_COUNT = 6;
 
 const shouldSendCarPure = (carInfo) => {
   const color = Number(carInfo?.color || 0);
-  const rewards = Array.isArray(carInfo?.rewards) ? carInfo.rewards : [];
-  const bigPrizeCount = countBigPrizes(rewards);
-  const isOrangeCar = color === 4;
-
-  if (color < 4) return false;
-  if (color >= 6) return true;
-  if (color === 5) return bigPrizeCount >= 1;
-  if (isOrangeCar) return bigPrizeCount >= 2;
-  return isBigPrize(rewards);
+  return color === 5 || color === 6;
 };
 
 const smartSendCar = async () => {

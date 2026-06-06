@@ -229,7 +229,7 @@
             <p>俱乐部: {{ playerInfo.legionName || "无" }}</p>
             <p>
               总红数: {{ playerInfo.totalRedCount || 0 }} | 总开孔数:
-              {{ playerInfo.totalHoleCount || 0 }} | 四圣数:
+              {{ formatHoleCount(playerInfo.totalHoleCount, playerInfo.holeCountReliable) }} | 四圣数:
               {{ playerInfo.holyBeast || 0 }}
             </p>
           </div>
@@ -443,7 +443,7 @@
                   <span>战力: {{ formatPower(hero.power || 0) }}</span>
                   <span>星级: {{ hero.star || 0 }}</span>
                   <span>红数: {{ hero.red || 0 }}</span>
-                  <span>开孔: {{ hero.hole || 0 }}</span>
+                  <span>开孔: {{ formatHoleCount(hero.hole, hero.holeCountReliable) }}</span>
                   <span :class="hero.HolyBeast ? 'opened' : 'closed'">
                     {{ hero.HolyBeast ? "已开四圣" : "未开四圣" }}
                   </span>
@@ -516,7 +516,7 @@
               {{ heroModealTemp.star }}
             </n-descriptions-item>
             <n-descriptions-item label="开孔数">
-              {{ heroModealTemp.hole }}
+              {{ formatHoleCount(heroModealTemp.hole, heroModealTemp.holeCountReliable) }}
             </n-descriptions-item>
             <n-descriptions-item label="红孔数">
               {{ heroModealTemp.red }}
@@ -646,6 +646,7 @@ import { downloadCanvasAsImage } from "@/utils/imageExport";
 import { Refresh, Copy } from "@vicons/ionicons5";
 import { gettoday } from "@/utils/clubWarrankUtils";
 import { HERO_DICT, HeroFillInfo, legacycolor } from "@/utils/HeroList";
+import { getEquipmentStats, isRankHoleCountReliable, formatHoleCount } from "@/utils/equipmentStats";
 
 const props = defineProps({
   visible: {
@@ -769,19 +770,7 @@ const selectHeroInfo = (heroInfo) => {
 
 // 获取装备信息红数和孔数
 const getEquipment = (equipment) => {
-  let redCount = 0;
-  let holeCount = 0;
-  //遍历4件装备
-  Object.values(equipment).forEach((equ) => {
-    //遍历每件装备的属性
-    Object.values(equ.quenches).forEach((item) => {
-      holeCount++;
-      if (item.colorId == 6) {
-        redCount++;
-      }
-    });
-  });
-  return { redCount, holeCount };
+  return getEquipmentStats(equipment);
 };
 
 // 提取英雄信息
@@ -790,6 +779,7 @@ const getHeroInfo = (heroObj) => {
   let redCount = 0;
   let holeCount = 0;
   let heroList = [];
+  let holeCountReliable = isRankHoleCountReliable(heroObj);
 
   try {
     // 检查英雄数据结构，确保可以遍历
@@ -803,7 +793,7 @@ const getHeroInfo = (heroObj) => {
       heroesToProcess = Object.values(heroObj);
     } else {
       console.error("英雄数据格式错误:", typeof heroObj);
-      return { redCount, holeCount, heroList };
+      return { redCount, holeCount, heroList, holeCountReliable };
     }
 
     console.log("待处理的英雄数量:", heroesToProcess.length);
@@ -832,6 +822,7 @@ const getHeroInfo = (heroObj) => {
         level: hero.level || 0, //英雄等级
         hole: equipmentInfo.holeCount, //英雄开孔数量
         red: equipmentInfo.redCount, //英雄红数
+        holeCountReliable,
         HolyBeast: hero.hB?.active === true, //激活四圣
         HBlevel: hero.hB?.order || 0, //四圣等级
         // 添加英雄详情信息
@@ -852,7 +843,7 @@ const getHeroInfo = (heroObj) => {
     heroList = [];
   }
   heroList.sort((a, b) => a.battleTeamSlot - b.battleTeamSlot);
-  return { redCount, holeCount, heroList };
+  return { redCount, holeCount, heroList, holeCountReliable };
 };
 
 // 验证切磋次数
@@ -1001,6 +992,7 @@ const fetchTargetInfo = async (roleId) => {
       // 总红数和总开孔数
       totalRedCount: totalRedCount,
       totalHoleCount: totalHoleCount,
+      holeCountReliable: heroAndholdAndRed.holeCountReliable !== false,
       // 俱乐部红淬数据
       legionRedQuench: legionRedQuench,
       legionMaxRed: legionMaxRed,

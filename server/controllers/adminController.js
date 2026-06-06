@@ -90,15 +90,17 @@ export const downloadUserBin = (req, res, next) => {
 
 export const updateUserPassword = async (req, res, next) => {
   try {
-    const { password } = req.body
+    const { password, encrypted = true } = req.body
     if (!password) {
       return res.status(400).json({ message: '请输入新密码' })
     }
-    let decryptedPassword
-    try {
-      decryptedPassword = decryptWithPrivateKey(password)
-    } catch (error) {
-      return res.status(400).json({ message: '密码解密失败' })
+    let decryptedPassword = password
+    if (encrypted !== false) {
+      try {
+        decryptedPassword = decryptWithPrivateKey(password)
+      } catch (error) {
+        return res.status(400).json({ message: '密码解密失败' })
+      }
     }
     if (!decryptedPassword) {
       return res.status(400).json({ message: '密码不能为空' })

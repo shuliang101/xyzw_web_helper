@@ -23,6 +23,7 @@ declare module 'vue-router/auto-routes' {
     '/Changelog': RouteRecordInfo<'/Changelog', '/Changelog', Record<never, never>, Record<never, never>>,
     '/ClubCarMemberBind': RouteRecordInfo<'/ClubCarMemberBind', '/ClubCarMemberBind', Record<never, never>, Record<never, never>>,
     '/ClubCarMonitor': RouteRecordInfo<'/ClubCarMonitor', '/ClubCarMonitor', Record<never, never>, Record<never, never>>,
+    '/ClubCarRevivePillStats': RouteRecordInfo<'/ClubCarRevivePillStats', '/ClubCarRevivePillStats', Record<never, never>, Record<never, never>>,
     '/ClubCarSystem': RouteRecordInfo<'/ClubCarSystem', '/ClubCarSystem', Record<never, never>, Record<never, never>>,
     '/DailyTasks': RouteRecordInfo<'/DailyTasks', '/DailyTasks', Record<never, never>, Record<never, never>>,
     '/Dashboard': RouteRecordInfo<'/Dashboard', '/Dashboard', Record<never, never>, Record<never, never>>,

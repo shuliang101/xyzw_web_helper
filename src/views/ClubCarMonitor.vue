@@ -10,6 +10,9 @@
         <n-button v-if="isAdmin" @click="goManage">
           管理页
         </n-button>
+        <n-button @click="goReviveStats">
+          复活丹统计
+        </n-button>
         <n-button type="primary" :loading="loading" @click="fetchAll">
           刷新
         </n-button>
@@ -401,6 +404,10 @@ const formatDateTime = (value) => {
 
 const goManage = () => {
   router.push('/admin/club-car')
+}
+
+const goReviveStats = () => {
+  router.push('/club-car/revive-pill-stats')
 }
 
 watch(() => tokenStore.selectedToken?.id, () => {

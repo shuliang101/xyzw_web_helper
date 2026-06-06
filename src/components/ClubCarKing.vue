@@ -565,14 +565,7 @@ const MAX_SINGLE_CAR_REFRESH_COUNT = 6;
 
 const shouldSendCar = (car, tickets) => {
   const color = Number(car?.color || 0);
-  const rewards = Array.isArray(car?.rewards) ? car.rewards : [];
-  const bigPrizeCount = countBigPrizes(rewards);
-  const isOrangeCar = color === 4;
-  if (color < 4) return false;
-  if (color >= 6) return true;
-  if (color === 5) return bigPrizeCount >= 1;
-  if (isOrangeCar) return bigPrizeCount >= 2;
-  return color >= 4 || isBigPrize(rewards);
+  return color === 5 || color === 6;
 };
 
 const fetchCarInfo = async () => {

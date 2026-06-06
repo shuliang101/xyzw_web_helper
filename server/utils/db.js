@@ -176,6 +176,27 @@ db.prepare(`
 `).run()
 
 db.prepare(`
+  CREATE TABLE IF NOT EXISTS club_car_revive_pill_daily_stats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    stat_date TEXT NOT NULL,
+    role_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    revive_pill_count INTEGER NOT NULL DEFAULT 0,
+    sampled_at TEXT NOT NULL,
+    run_type TEXT,
+    plan_id INTEGER,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(stat_date, role_id)
+  )
+`).run()
+
+db.prepare(`
+  CREATE INDEX IF NOT EXISTS idx_club_car_revive_pill_stats_date
+  ON club_car_revive_pill_daily_stats(stat_date DESC, revive_pill_count DESC)
+`).run()
+
+db.prepare(`
   CREATE TABLE IF NOT EXISTS club_car_plan_run_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     plan_id INTEGER NOT NULL,

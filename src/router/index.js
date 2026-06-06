@@ -163,6 +163,16 @@ const myRoutes = [
     },
   },
   {
+    path: '/club-car/revive-pill-stats',
+    name: 'ClubCarRevivePillStats',
+    component: () => import('@/views/ClubCarRevivePillStats.vue'),
+    meta: {
+      title: 'Revive Pill Stats',
+      requiresAuth: true,
+      requiresAdmin: true,
+    },
+  },
+  {
     path: '/websocket-test',
     name: 'WebSocketTest',
     component: () => import('@/components/Test/WebSocketTester.vue'),

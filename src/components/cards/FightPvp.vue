@@ -157,7 +157,7 @@
                       <span class="red-count">红数: {{ memberData.red }}</span>
                       <span class="separator">/</span>
                       <span class="hole-count"
-                        >孔数: {{ memberData.hole }}</span
+                        >孔数: {{ formatHoleCount(memberData.hole, memberData.holeCountReliable) }}</span
                       >
                     </td>
                   </tr>
@@ -403,7 +403,7 @@
               {{ heroModealTemp.star }}
             </n-descriptions-item>
             <n-descriptions-item label="开孔数">
-              {{ heroModealTemp.hole }}
+              {{ formatHoleCount(heroModealTemp.hole, heroModealTemp.holeCountReliable) }}
             </n-descriptions-item>
             <n-descriptions-item label="红孔数">
               {{ heroModealTemp.red }}
@@ -842,6 +842,7 @@ const fetchTargetInfo = async () => {
     teamData.power = formatPower(result.roleInfo.power);
     teamData.serverName = result.roleInfo.serverName;
     teamData.hole = heroAndholdAndRed.holeCount;
+    teamData.holeCountReliable = heroAndholdAndRed.holeCountReliable !== false;
     teamData.red = heroAndholdAndRed.redCount;
     teamData.legacy = result.roleInfo.legacy?.color || 0; // 功法等级
     memberData.value = teamData;
@@ -865,6 +866,7 @@ const getHeroInfo = (heroObj) => {
   let redCount = 0;
   let holeCount = 0;
   let heroList = [];
+  let holeCountReliable = isRankHoleCountReliable(heroObj);
   Object.values(heroObj).forEach((hero) => {
     let heroInfo = HERO_DICT[hero.heroId];
     let equipmentInfo = getEquipment(hero.equipment);
@@ -880,6 +882,7 @@ const getHeroInfo = (heroObj) => {
       level: hero.level, //英雄等级
       hole: equipmentInfo.holeCount, //英雄开孔数量
       red: equipmentInfo.redCount, //英雄红数
+        holeCountReliable,
       HolyBeast: hero.hB?.active, //激活四圣
       HBlevel: hero.hB?.order || 0, //四圣等级
     };
@@ -898,20 +901,7 @@ const getHeroInfo = (heroObj) => {
 
 //获取装备信息红数和孔数
 const getEquipment = (equipment) => {
-  let redCount = 0;
-  let holeCount = 0;
-  let equipArr = [];
-  //此处遍历4件装备
-  Object.values(equipment).forEach((equ) => {
-    //遍历每件装备的属性
-    Object.values(equ.quenches).forEach((item) => {
-      holeCount++;
-      if (item.colorId == 6) {
-        redCount++;
-      }
-    });
-  });
-  return { redCount, holeCount };
+  return getEquipmentStats(equipment);
 };
 
 // 处理分页大小改变

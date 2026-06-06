@@ -173,9 +173,8 @@ const checkRewardConditions = (rewards, conditions, matchAll = false) => {
  */
 export const shouldSendCar = (car, tickets, minColor = 4, customConditions = {}, useGoldRefreshFallback = false, matchAll = false) => {
   const color = Number(car?.color || 0);
+  const isTargetColor = color === 5 || color === 6;
   const rewards = Array.isArray(car?.rewards) ? car.rewards : [];
-  const bigPrizeCount = countBigPrizes(rewards);
-  const isOrangeCar = color === 4 && Number(minColor || 4) <= 4;
   
   // 检查自定义条件
   const customConditionsMet = checkRewardConditions(rewards, customConditions, matchAll);
@@ -183,42 +182,22 @@ export const shouldSendCar = (car, tickets, minColor = 4, customConditions = {},
   // 如果开启了保底（严格模式），必须同时满足车辆颜色要求和自定义条件
   if (useGoldRefreshFallback) {
     // 1. 必须达到保底颜色
-    if (color < minColor) {
-      return false;
-    }
     // 2. 如果设置了自定义条件，必须满足
     const hasConditions = (customConditions.gold > 0 || customConditions.recruit > 0 || customConditions.jade > 0 || customConditions.ticket > 0);
     
     if (hasConditions) {
-      return customConditionsMet;
+      return isTargetColor && customConditionsMet;
     }
     
-    if (color >= 6) {
-      return true;
-    }
-
-    if (color === 5) {
-      return bigPrizeCount >= 1;
-    }
-
-    if (isOrangeCar) {
-      return bigPrizeCount >= 2;
-    }
-
-    // 如果没有设置自定义条件，只要颜色满足即可
-    return true;
+    return isTargetColor;
   }
 
   // 非严格模式：只要满足自定义条件，直接发车（视作大奖）
   if (customConditionsMet) {
-    return true;
+    return isTargetColor;
   }
 
-  if (color < Number(minColor || 4)) return false;
-  if (color >= Math.max(Number(minColor || 4), 6)) return true;
-  if (color === 5) return bigPrizeCount >= 1;
-  if (isOrangeCar) return bigPrizeCount >= 2;
-  return color >= minColor || bigPrizeCount >= 1;
+  return isTargetColor;
 };
 
 /**

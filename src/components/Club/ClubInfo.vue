@@ -369,7 +369,9 @@
             <span
               >总开孔:
               <span class="blue-text">{{
-                playerInfo.totalHoleCount
+                playerInfo.holeCountReliable
+                  ? playerInfo.totalHoleCount
+                  : "接口未返回"
               }}</span></span
             >
             <span
@@ -411,7 +413,12 @@
                 <span>战力: {{ formatNumber(hero.power || 0) }}</span>
                 <span>星级: {{ hero.star || 0 }}</span>
                 <span>红数: {{ hero.red || 0 }}</span>
-                <span>开孔: {{ hero.hole || 0 }}</span>
+                <span>
+                  开孔:
+                  {{
+                    playerInfo.holeCountReliable ? hero.hole || 0 : "接口未返回"
+                  }}
+                </span>
                 <span :class="hero.HolyBeast ? 'opened' : 'closed'">
                   {{ hero.HolyBeast ? "已开四圣" : "未开四圣" }}
                 </span>
@@ -476,7 +483,7 @@
       </div>
 
       <div class="hero-modal-details">
-        <n-descriptions label-placement="left" column="3" bordered>
+        <n-descriptions label-placement="left" :column="3" bordered>
           <n-descriptions-item label="战力">
             {{ formatNumber(heroModealTemp.power) }}
           </n-descriptions-item>
@@ -487,7 +494,7 @@
             {{ heroModealTemp.star }}
           </n-descriptions-item>
           <n-descriptions-item label="开孔数">
-            {{ heroModealTemp.hole }}
+            {{ playerInfo?.holeCountReliable ? heroModealTemp.hole : "接口未返回" }}
           </n-descriptions-item>
           <n-descriptions-item label="红孔数">
             {{ heroModealTemp.red }}
@@ -731,7 +738,7 @@ const getEquipment = (equipment) => {
   //遍历4件装备
   Object.values(equipment).forEach((equ) => {
     //遍历每件装备的属性
-    Object.values(equ.quenches).forEach((item) => {
+    Object.values(equ.quenches || {}).forEach((item) => {
       holeCount++;
       if (item.colorId == 6) {
         redCount++;
@@ -739,6 +746,113 @@ const getEquipment = (equipment) => {
     });
   });
   return { redCount, holeCount };
+};
+
+const summarizeEquipmentData = (heroObj) => {
+  const heroes = Array.isArray(heroObj)
+    ? heroObj
+    : heroObj && typeof heroObj === "object"
+      ? Object.values(heroObj)
+      : [];
+
+  let slotCount = 0;
+  let redCount = 0;
+  const sample = [];
+
+  heroes.forEach((hero) => {
+    Object.entries(hero?.equipment || {}).forEach(([part, equ]) => {
+      const quenches = equ?.quenches || {};
+      const keys = Object.keys(quenches);
+      keys.forEach((key) => {
+        const item = quenches[key];
+        slotCount++;
+        if (item?.colorId == 6) {
+          redCount++;
+        }
+      });
+      if (sample.length < 8 && keys.length) {
+        sample.push({
+          heroId: hero?.heroId || hero?.id,
+          part,
+          keys,
+          colors: keys.map((key) => quenches[key]?.colorId),
+        });
+      }
+    });
+  });
+
+  return {
+    heroCount: heroes.length,
+    slotCount,
+    redCount,
+    allReturnedSlotsAreRed: slotCount > 0 && slotCount === redCount,
+    sample,
+  };
+};
+
+const isHeroCollection = (value) => {
+  if (!value || typeof value !== "object") return false;
+  const heroes = Array.isArray(value) ? value : Object.values(value);
+  return heroes.some((hero) => hero?.equipment && (hero.heroId || hero.id));
+};
+
+const collectHeroCollections = (value, path = "body", depth = 0, result = []) => {
+  if (!value || typeof value !== "object" || depth > 6) return result;
+
+  if (isHeroCollection(value)) {
+    const heroes = Array.isArray(value) ? value : Object.values(value);
+    const summary = summarizeEquipmentData(heroes);
+    result.push({ path, heroes, summary });
+  }
+
+  Object.entries(value).forEach(([key, child]) => {
+    if (child && typeof child === "object") {
+      collectHeroCollections(child, `${path}.${key}`, depth + 1, result);
+    }
+  });
+
+  return result;
+};
+
+const findBestHeroCollection = (value) => {
+  const collections = collectHeroCollections(value);
+  return collections.sort((a, b) => b.summary.slotCount - a.summary.slotCount)[0] || null;
+};
+
+const fetchTargetTeamHeroes = async (tokenId, roleId, rankSummary) => {
+  try {
+    console.log("[ClubInfo] trying role_gettargetteam fallback", {
+      roleId,
+      rankSummary,
+    });
+    const targetTeamResult = await tokenStore.sendMessageWithPromise(
+      tokenId,
+      "role_gettargetteam",
+      {
+        roleId: Number(roleId),
+        targetId: Number(roleId),
+      },
+      8000,
+    );
+    const best = findBestHeroCollection(targetTeamResult);
+    console.log("[ClubInfo role_gettargetteam equipment]", {
+      bestPath: best?.path,
+      bestSummary: best?.summary,
+      bodyKeys: Object.keys(targetTeamResult || {}),
+    });
+
+    if (
+      best?.heroes &&
+      best.summary.slotCount > rankSummary.slotCount &&
+      !best.summary.allReturnedSlotsAreRed
+    ) {
+      return best.heroes;
+    }
+  } catch (error) {
+    console.warn("[ClubInfo] role_gettargetteam fallback failed:", error);
+  }
+
+  return null;
 };
 
 const selectHeroInfo = (heroInfo) => {
@@ -950,12 +1064,33 @@ const fetchTargetInfo = async (roleId) => {
 
     // 获取英雄信息
     let heroAndholdAndRed = { redCount: 0, holeCount: 0, heroList: [] };
+    let holeCountReliable = true;
     if (result.roleInfo.heroes) {
       try {
-        heroAndholdAndRed = getHeroInfo(result.roleInfo.heroes);
+        const equipmentSummary = summarizeEquipmentData(result.roleInfo.heroes);
+        console.debug("[ClubInfo rank_getroleinfo equipment]", equipmentSummary);
+        let heroesForCount = result.roleInfo.heroes;
+        if (equipmentSummary.allReturnedSlotsAreRed) {
+          console.warn(
+            "[ClubInfo] rank_getroleinfo returned only red quench slots. Total hole count cannot be derived reliably from this response.",
+            equipmentSummary,
+          );
+          const targetTeamHeroes = await fetchTargetTeamHeroes(
+            tokenId,
+            roleId,
+            equipmentSummary,
+          );
+          if (targetTeamHeroes) {
+            heroesForCount = targetTeamHeroes;
+          } else {
+            holeCountReliable = false;
+          }
+        }
+        heroAndholdAndRed = getHeroInfo(heroesForCount);
       } catch (error) {
         console.error("处理英雄信息失败:", error);
         heroAndholdAndRed = { redCount: 0, holeCount: 0, heroList: [] };
+        holeCountReliable = false;
       }
     }
 
@@ -1010,6 +1145,7 @@ const fetchTargetInfo = async (roleId) => {
       maxRedDrum: roleMaxRed,
       totalRedCount: totalRedCount,
       totalHoleCount: totalHoleCount,
+      holeCountReliable,
       legionRedQuench: legionRedQuench,
       legionMaxRed: legionMaxRed,
       heroList: heroAndholdAndRed.heroList,

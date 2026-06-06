@@ -21,9 +21,12 @@ import {
   updateClubCarMemberTargetHandler,
   unbindClubCarMemberBinHandler,
   bindClubCarMemberBinByAdminHandler,
+  sampleClubCarMemberRevivePillCountHandler,
+  sampleAllClubCarMemberRevivePillCountsHandler,
   runClubCarSendNowHandler,
   runClubCarClaimNowHandler,
   listClubCarRunLogsHandler,
+  listClubCarRevivePillDailyStatsHandler,
   memberClubCarLoginHandler,
   memberClubCarSetPasswordHandler,
   memberClubCarChangePasswordHandler,
@@ -52,6 +55,7 @@ router.use(authenticate)
 
 router.get('/send-plans', listClubCarSendPlansHandler)
 router.get('/logs', listClubCarRunLogsHandler)
+router.get('/revive-pill-stats', listClubCarRevivePillDailyStatsHandler)
 
 router.use(requireAdmin)
 
@@ -69,6 +73,8 @@ router.delete('/send-plans/:id', deleteClubCarSendPlanHandler)
 router.put('/members/:id/schedule', updateClubCarMemberScheduleHandler)
 router.put('/members/claim-schedule', batchUpdateClubCarMemberClaimScheduleHandler)
 router.put('/members/:id/target', updateClubCarMemberTargetHandler)
+router.post('/members/revive-pill-count', sampleAllClubCarMemberRevivePillCountsHandler)
+router.post('/members/:id/revive-pill-count', sampleClubCarMemberRevivePillCountHandler)
 router.post('/members/:roleId/bind-bin', upload.single('bin'), bindClubCarMemberBinByAdminHandler)
 router.delete('/members/:id/bound-bin', unbindClubCarMemberBinHandler)
 router.post('/run/send', runClubCarSendNowHandler)

@@ -202,6 +202,8 @@ const displayServerListData = computed(() => {
   );
 });
 
+const encodeNormalBin = (data: any) => g_utils.encode(data, "lx") as ArrayBuffer;
+
 const handleDownload = (roleInfo: any) => {
   if (!originalBinData.value) {
     message.error("Bin数据丢失，请重新扫码");
@@ -210,7 +212,7 @@ const handleDownload = (roleInfo: any) => {
   try {
     const newData = { ...originalBinData.value };
     newData.serverId = roleInfo.serverId; // 确保类型一致
-    const newBinBuffer = g_utils.encode(newData) as ArrayBuffer;
+    const newBinBuffer = encodeNormalBin(newData);
     
     // 构造文件名: bin-{server}-0-{roleId}-{name}.bin
     let sid = Number(roleInfo.serverId);
@@ -253,7 +255,7 @@ const addSelectedRole = async (roleInfo: any) => {
   try {
     const newData = { ...originalBinData.value };
     newData.serverId = roleInfo.serverId; // 确保类型一致
-    const newBinBuffer = g_utils.encode(newData) as ArrayBuffer;
+    const newBinBuffer = encodeNormalBin(newData);
     const tokenId = getTokenId(newBinBuffer);
     const roleToken = await transformToken(newBinBuffer);
     const roleName = roleInfo.name || `角色_${roleInfo.roleId}`;
@@ -751,11 +753,30 @@ const saveAccount = async (arrBuf: ArrayBuffer, nickname = "") => {
   console.log("name:", name);
 
   const bin = new Uint8Array(arrBuf);
-  // console.log("bin:", bin);
-  currentBinData.value = bin.buffer;
 
   try {
-    const listStr = await getServerList(bin.buffer);
+    const binMsg = g_utils.parse(bin.buffer.slice(0));
+    let binData = binMsg.getData();
+    if (!binData && (binMsg as any)._raw) {
+      console.log("Bin文件 getData() 为空，尝试使用 _raw");
+      binData = { ...(binMsg as any)._raw };
+    }
+    if (!binData?.info) {
+      throw new Error("扫码 BIN 缺少登录信息 info，不能生成普通 BIN");
+    }
+
+    console.log("Bin文件解析:", binData);
+    binDecodedResult.value = JSON.stringify(binData, null, 2);
+    originalBinData.value = binData;
+    currentBinData.value = encodeNormalBin(binData);
+  } catch (err: any) {
+    console.error("Bin文件解析失败", err);
+    binDecodedResult.value = "Bin文件解析失败: " + (err.message || err);
+    currentBinData.value = bin.buffer;
+  }
+
+  try {
+    const listStr = await getServerList(currentBinData.value || bin.buffer);
     const parsedList = JSON.parse(listStr);
     // 转换为数组并排序
     if (parsedList && typeof parsedList === 'object') {
@@ -781,22 +802,6 @@ const saveAccount = async (arrBuf: ArrayBuffer, nickname = "") => {
     console.error("Failed to get server list", err);
     message.warning("获取服务器角色列表失败");
     serverListData.value = [];
-  }
-  // 尝试解析 bin 文件内容
-  try {
-    const binMsg = g_utils.parse(bin.buffer);
-    let binData = binMsg.getData();
-    if (!binData && (binMsg as any)._raw) {
-      console.log("Bin文件 getData() 为空，尝试使用 _raw");
-      binData = { ...(binMsg as any)._raw };
-    }
-
-    console.log("Bin文件解析:", binData);
-    binDecodedResult.value = JSON.stringify(binData, null, 2);
-    originalBinData.value = binData;
-  } catch (err: any) {
-    console.error("Bin文件解析失败", err);
-    binDecodedResult.value = "Bin文件解析失败: " + (err.message || err);
   }
 };
 

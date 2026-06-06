@@ -75,6 +75,10 @@ ChatPlugin(evmInst);
 
 HangupPlugin(evmInst);
 
+onSome(['rank_getroleinforesp'], (data: XyzwSession) => {
+  gameLogger.verbose(`收到玩家详情事件: ${data.tokenId}`, data);
+});
+
 onSome(['evotowerinforesp', 'evotower_getinfo', 'evotower_getinforesp'], (data: XyzwSession) => {
   gameLogger.verbose(`收到怪异塔信息事件: ${data.tokenId}`, data);
   const { body } = data;

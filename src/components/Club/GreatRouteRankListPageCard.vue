@@ -309,7 +309,7 @@
             <p>俱乐部: {{ playerInfo.legionName || "无" }}</p>
             <p>
               总红数: {{ playerInfo.totalRedCount || 0 }} | 总开孔数:
-              {{ playerInfo.totalHoleCount || 0 }} | 四圣数:
+              {{ formatHoleCount(playerInfo.totalHoleCount, playerInfo.holeCountReliable) }} | 四圣数:
               {{ playerInfo.holyBeast || 0 }}
             </p>
           </div>
@@ -531,7 +531,7 @@
                   <span>战力: {{ formatPower(hero.power || 0) }}</span>
                   <span>星级: {{ hero.star || 0 }}</span>
                   <span>红数: {{ hero.red || 0 }}</span>
-                  <span>开孔: {{ hero.hole || 0 }}</span>
+                  <span>开孔: {{ formatHoleCount(hero.hole, hero.holeCountReliable) }}</span>
                   <span :class="hero.HolyBeast ? 'opened' : 'closed'">
                     {{ hero.HolyBeast ? "已开四圣" : "未开四圣" }}
                   </span>
@@ -614,7 +614,7 @@
               {{ heroModealTemp.star }}
             </n-descriptions-item>
             <n-descriptions-item label="开孔数">
-              {{ heroModealTemp.hole }}
+              {{ formatHoleCount(heroModealTemp.hole, heroModealTemp.holeCountReliable) }}
             </n-descriptions-item>
             <n-descriptions-item label="红孔数">
               {{ heroModealTemp.red }}
@@ -744,6 +744,7 @@ import {
 } from "@/utils/clubBattleUtils";
 import { allianceincludes } from "@/utils/clubWarrankUtils";
 import { HERO_DICT, HeroFillInfo, legacycolor } from "@/utils/HeroList";
+import { getEquipmentStats, isRankHoleCountReliable, formatHoleCount } from "@/utils/equipmentStats";
 
 const ScoreShow = ref(1);
 
@@ -841,19 +842,7 @@ const selectHeroInfo = (heroInfo) => {
 
 // 获取装备信息红数和孔数
 const getEquipment = (equipment) => {
-  let redCount = 0;
-  let holeCount = 0;
-  //遍历4件装备
-  Object.values(equipment).forEach((equ) => {
-    //遍历每件装备的属性
-    Object.values(equ.quenches).forEach((item) => {
-      holeCount++;
-      if (item.colorId == 6) {
-        redCount++;
-      }
-    });
-  });
-  return { redCount, holeCount };
+  return getEquipmentStats(equipment);
 };
 
 // 提取英雄信息
@@ -862,6 +851,7 @@ const getHeroInfo = (heroObj) => {
   let redCount = 0;
   let holeCount = 0;
   let heroList = [];
+  let holeCountReliable = isRankHoleCountReliable(heroObj);
 
   try {
     // 检查英雄数据结构，确保可以遍历
@@ -875,7 +865,7 @@ const getHeroInfo = (heroObj) => {
       heroesToProcess = Object.values(heroObj);
     } else {
       console.error("英雄数据格式错误:", typeof heroObj);
-      return { redCount, holeCount, heroList };
+      return { redCount, holeCount, heroList, holeCountReliable };
     }
 
     console.log("待处理的英雄数量:", heroesToProcess.length);
@@ -906,6 +896,7 @@ const getHeroInfo = (heroObj) => {
         level: hero.level || 0, //英雄等级
         hole: equipmentInfo.holeCount, //英雄开孔数量
         red: equipmentInfo.redCount, //英雄红数
+        holeCountReliable,
         HolyBeast: hero.hB?.active === true, //激活四圣
         HBlevel: hero.hB?.order || 0, //四圣等级
         // 添加英雄详情信息
@@ -931,7 +922,7 @@ const getHeroInfo = (heroObj) => {
     heroList = [];
   }
   heroList.sort((a, b) => a.battleTeamSlot - b.battleTeamSlot);
-  return { redCount, holeCount, heroList };
+  return { redCount, holeCount, heroList, holeCountReliable };
 };
 
 // 新增查询对手信息功能
@@ -1064,6 +1055,7 @@ const fetchTargetInfo = async (roleId) => {
       // 总红数和总开孔数
       totalRedCount: totalRedCount,
       totalHoleCount: totalHoleCount,
+      holeCountReliable: heroAndholdAndRed.holeCountReliable !== false,
       // 俱乐部红淬数据
       legionRedQuench: legionRedQuench,
       legionMaxRed: legionMaxRed,
@@ -1396,6 +1388,209 @@ const allianceNames = [
   "未知联盟",
 ];
 
+const opponentConfigs = {
+  18: { selectedCount: 720, label: "青铜" },
+  19: { selectedCount: 720, label: "青铜" },
+  20: { selectedCount: 400, label: "秘蓝" },
+  21: { selectedCount: 400, label: "秘蓝" },
+  22: { selectedCount: 120, label: "月宫" },
+  23: { selectedCount: 120, label: "月宫" },
+};
+
+const opponentTeamSize = 20;
+
+const getOpponentConfig = () => opponentConfigs[currentWarType.value] || null;
+
+const getCurrentLegionId = async () => {
+  const roleLegionId = tokenStore.gameData?.roleInfo?.role?.legionId;
+  if (roleLegionId) return String(roleLegionId);
+
+  const cachedLegionId = tokenStore.gameData?.legionInfo?.info?.id;
+  if (cachedLegionId) return String(cachedLegionId);
+
+  const tokenId = tokenStore.selectedToken?.id;
+  if (!tokenId) return "";
+
+  try {
+    const result = await tokenStore.sendMessageWithPromise(
+      tokenId,
+      "legion_getinfo",
+      {},
+      10000,
+    );
+    const legionId = result?.body?.info?.id || result?.info?.id;
+    return legionId ? String(legionId) : "";
+  } catch (error) {
+    console.warn("获取当前俱乐部ID失败:", error);
+    return "";
+  }
+};
+
+const getRankNumber = (item, fallbackIndex = 0) =>
+  Number(item?.rank || fallbackIndex + 1);
+
+const getOpponentTeamIndex = (rank, config) => {
+  if (!config || rank < 1 || rank > config.selectedCount) return null;
+  const teamCount = config.selectedCount / opponentTeamSize;
+  const segmentSize = teamCount * 2;
+  const positionInSegment = ((rank - 1) % segmentSize) + 1;
+  return positionInSegment <= teamCount
+    ? positionInSegment
+    : segmentSize - positionInSegment + 1;
+};
+
+const getOpponentTeamRanks = (teamIndex, config) => {
+  if (!config || !teamIndex) return [];
+  const teamCount = config.selectedCount / opponentTeamSize;
+  const ranks = [];
+
+  for (let intervalIndex = 0; intervalIndex < opponentTeamSize; intervalIndex += 1) {
+    const isReverse = intervalIndex % 2 === 1;
+    const positionInInterval = isReverse
+      ? teamCount - teamIndex + 1
+      : teamIndex;
+    ranks.push(intervalIndex * teamCount + positionInInterval);
+  }
+
+  return ranks;
+};
+
+const createOpponentRows = async (clubs) => {
+  const config = getOpponentConfig();
+  if (!config) {
+    return [["说明"], ["当前岛屿不生成当前小队完整信息，仅支持青铜、秘蓝、月宫"]];
+  }
+
+  const currentLegionId = await getCurrentLegionId();
+  if (!currentLegionId) {
+    return [["说明"], ["未识别到当前俱乐部ID，无法生成当前小队完整信息"]];
+  }
+
+  const rankItems = fullRankList.value.map((item, index) => ({
+    ...item,
+    id: item.id ?? item.legionId ?? item.legionID,
+    rank: getRankNumber(item, index),
+  }));
+  const currentRankItem = rankItems.find(
+    (item) => String(item.id ?? item.legionId ?? item.legionID) === currentLegionId,
+  );
+  if (!currentRankItem) {
+    return [["说明"], [`当前俱乐部 ${currentLegionId} 不在当前排行榜中`]];
+  }
+
+  const currentRank = getRankNumber(currentRankItem);
+  const teamIndex = getOpponentTeamIndex(currentRank, config);
+  if (!teamIndex) {
+    return [["说明"], [`当前俱乐部排名 ${currentRank} 不在前 ${config.selectedCount} 入选区间内`]];
+  }
+
+  const byRank = new Map();
+  clubs.forEach((club) => {
+    byRank.set(Number(club.rank || 0), club);
+  });
+  rankItems.forEach((item) => {
+    if (!byRank.has(Number(item.rank))) {
+      byRank.set(Number(item.rank), item);
+    }
+  });
+
+  const rows = [
+    ["岛屿", config.label],
+    ["当前俱乐部ID", currentLegionId],
+    ["当前排名", currentRank],
+    ["所在小队", teamIndex],
+    [],
+    [
+      "队内序号",
+      "小队",
+      "排名",
+      "ID",
+      "区服",
+      "俱乐部名",
+      "联盟",
+      "积分",
+      "红淬",
+      "战力",
+      "等级",
+      "前三红淬",
+      "公告",
+      "详情状态",
+      "是否自己",
+    ],
+  ];
+
+  getOpponentTeamRanks(teamIndex, config).forEach((rank, index) => {
+    const club = byRank.get(rank) || {};
+    rows.push([
+      index + 1,
+      teamIndex,
+      rank,
+      club.id || "",
+      club.serverId || "",
+      club.name || "",
+      club.alliance || allianceincludes(club.announcement),
+      club.sRScore ?? club.score ?? "",
+      club.redQuench || "",
+      formatExcelIntegerText(club.power),
+      club.level || "",
+      [club.redno1, club.redno2, club.redno3].filter(Boolean).join(","),
+      club.announcement || "",
+      club.detailStatus || "",
+      String(club.id || "") === currentLegionId ? "是" : "",
+    ]);
+  });
+
+  return rows;
+};
+
+const createAllOpponentGroupRows = (clubs) => {
+  const config = getOpponentConfig();
+  if (!config) {
+    return [["说明"], ["当前岛屿不生成全部分组简表，仅支持青铜、秘蓝、月宫"]];
+  }
+
+  const byRank = new Map();
+  clubs.forEach((club) => {
+    byRank.set(Number(club.rank || 0), club);
+  });
+  fullRankList.value.forEach((item, index) => {
+    const rank = getRankNumber(item, index);
+    if (!byRank.has(rank)) {
+      byRank.set(rank, {
+        ...item,
+        id: item.id ?? item.legionId ?? item.legionID,
+        rank,
+      });
+    }
+  });
+
+  const teamCount = config.selectedCount / opponentTeamSize;
+  const rows = [
+    ["岛屿", config.label],
+    ["入选人数", config.selectedCount],
+    ["小队数", teamCount],
+    [],
+    ["小队", "队内序号", "排名", "区服", "俱乐部名", "红数", "联盟"],
+  ];
+
+  for (let teamIndex = 1; teamIndex <= teamCount; teamIndex += 1) {
+    getOpponentTeamRanks(teamIndex, config).forEach((rank, index) => {
+      const club = byRank.get(rank) || {};
+      rows.push([
+        teamIndex,
+        index + 1,
+        rank,
+        club.serverId || "",
+        club.name || "",
+        club.redQuench || "",
+        club.alliance || allianceincludes(club.announcement),
+      ]);
+    });
+  }
+
+  return rows;
+};
+
 const firstText = (...values) => {
   const value = values.find(
     (item) => item !== undefined && item !== null && String(item).trim() !== "",
@@ -1693,6 +1888,11 @@ const getRedQuenchBucket = (redQuench) => {
   return `${start}-${start + 99}`;
 };
 
+const formatExcelIntegerText = (value) => {
+  if (value === undefined || value === null || value === "") return "";
+  return String(Math.trunc(Number(value) || 0));
+};
+
 const createRankRows = (clubs) => [
   [
     "排名",
@@ -1716,7 +1916,7 @@ const createRankRows = (clubs) => [
     club.alliance || allianceincludes(club.announcement),
     club.sRScore || 0,
     club.redQuench || 0,
-    club.power || 0,
+    formatExcelIntegerText(club.power),
     club.level || 30,
     [club.redno1, club.redno2, club.redno3].filter(Boolean).join(","),
     club.announcement || "",
@@ -1749,36 +1949,37 @@ const createRawRows = (clubs) => [
   ]),
 ];
 
+const getTextWidth = (value) => {
+  const text = value === undefined || value === null ? "" : String(value);
+  return Array.from(text).reduce((width, char) => {
+    return width + (char.charCodeAt(0) > 255 ? 2 : 1);
+  }, 0);
+};
+
+const getAutoColumns = (rows, options = {}) => {
+  const maxWidth = options.maxWidth || 60;
+  const minWidth = options.minWidth || 10;
+  const extraWidth = options.extraWidth || 2;
+  const columnCount = Math.max(...rows.map((row) => row.length));
+
+  return Array.from({ length: columnCount }, (_, index) => {
+    const contentWidth = Math.max(
+      minWidth,
+      ...rows.map((row) => getTextWidth(row[index]) + extraWidth),
+    );
+    return { wch: Math.min(contentWidth, maxWidth) };
+  });
+};
+
 const addWorksheet = (workbook, rows, name) => {
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
-  worksheet["!cols"] = rows[0].map((_, index) => {
-    if (index === rows[0].length - 2 || index === rows[0].length - 3) {
-      return { wch: 60 };
-    }
-    if (index === rows[0].length - 1) {
-      return { wch: 16 };
-    }
-    return { wch: 14 };
-  });
+  worksheet["!cols"] = getAutoColumns(rows, { maxWidth: 80, minWidth: 10 });
   XLSX.utils.book_append_sheet(workbook, worksheet, name.slice(0, 31));
 };
 
 const addRankWorksheet = (workbook, rows, name) => {
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
-  worksheet["!cols"] = [
-    { wch: 8 },
-    { wch: 14 },
-    { wch: 10 },
-    { wch: 22 },
-    { wch: 12 },
-    { wch: 10 },
-    { wch: 10 },
-    { wch: 14 },
-    { wch: 8 },
-    { wch: 18 },
-    { wch: 60 },
-    { wch: 16 },
-  ];
+  worksheet["!cols"] = getAutoColumns(rows, { maxWidth: 80, minWidth: 10 });
   XLSX.utils.book_append_sheet(workbook, worksheet, name.slice(0, 31));
 };
 
@@ -1897,7 +2098,12 @@ const exportToExcel = async () => {
   });
 
   addWorksheet(workbook, createSummaryRows(clubs), "汇总");
-  addWorksheet(workbook, createRawRows(clubs), "原始数据");
+
+  const opponentRows = await createOpponentRows(clubs);
+  addWorksheet(workbook, opponentRows, "当前小队完整信息");
+
+  const allOpponentGroupRows = createAllOpponentGroupRows(clubs);
+  addWorksheet(workbook, allOpponentGroupRows, "全部分组简表");
 
   const year = `20${queryDate.value.slice(0, 2)}`;
   const month = queryDate.value.slice(2, 4);
