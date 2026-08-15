@@ -78,6 +78,25 @@
         </n-space>
       </n-card>
 
+      <n-card title="微信公众号推送设置" class="panel-card form-card">
+        <n-form label-placement="top">
+          <n-form-item label="Spug 微信公众号推送 URL">
+            <n-input
+              v-model:value="config.smsPushUrl"
+              placeholder="https://push.spug.cc/send/xxxx"
+            />
+          </n-form-item>
+          <n-space justify="end">
+            <n-button :loading="testingWechat" @click="testWechatNotification">
+              测试推送
+            </n-button>
+            <n-button type="primary" :loading="savingWechatConfig" @click="saveWechatConfig">
+              保存推送设置
+            </n-button>
+          </n-space>
+        </n-form>
+      </n-card>
+
       <n-card title="护送方案设置" class="panel-card form-card">
         <n-alert
           v-if="!members.length"
@@ -425,6 +444,8 @@ const savingBatchClaim = ref(false)
 const exportingConfig = ref(false)
 const importingConfig = ref(false)
 const samplingAllRevivePills = ref(false)
+const savingWechatConfig = ref(false)
+const testingWechat = ref(false)
 const deletingSchemeTargetRoleId = ref(null)
 const editingSchemeTargetRoleId = ref(null)
 let logsAutoRefreshTimer = null
@@ -440,6 +461,7 @@ const batchClaimTimeTs = ref(null)
 
 const config = reactive({
   masterBinName: '',
+  smsPushUrl: 'https://push.spug.cc/send/p2eNa8D9qqm09gJQ',
 })
 
 const clubInfo = reactive({
@@ -569,6 +591,7 @@ const planSchemes = computed(() => {
 
 const applyConfig = (payload = {}) => {
   config.masterBinName = payload.masterBinName || ''
+  config.smsPushUrl = payload.smsPushUrl || 'https://push.spug.cc/send/p2eNa8D9qqm09gJQ'
 }
 
 const applyClubInfo = (payload = {}) => {
@@ -630,6 +653,36 @@ const fetchAll = async () => {
     message.error(error.message || '加载发车管理数据失败')
   } finally {
     loading.value = false
+  }
+}
+
+const saveWechatConfig = async () => {
+  savingWechatConfig.value = true
+  try {
+    const nextConfig = await api.clubCar.updateConfig({
+      smsPushUrl: config.smsPushUrl,
+    })
+    applyConfig(nextConfig)
+    message.success('微信公众号推送设置已保存')
+  } catch (error) {
+    message.error(error.message || '保存微信公众号推送设置失败')
+  } finally {
+    savingWechatConfig.value = false
+  }
+}
+
+const testWechatNotification = async () => {
+  testingWechat.value = true
+  try {
+    await api.clubCar.updateConfig({
+      smsPushUrl: config.smsPushUrl,
+    })
+    await api.clubCar.testWechat()
+    message.success('微信公众号测试推送已发送')
+  } catch (error) {
+    message.error(error.message || '微信公众号测试推送失败')
+  } finally {
+    testingWechat.value = false
   }
 }
 

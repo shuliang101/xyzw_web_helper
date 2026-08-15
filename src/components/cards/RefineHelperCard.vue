@@ -772,6 +772,7 @@ const quenchContinuous = () => {
 
     try {
       const result = await executeQuench();
+      if (!state.value.continuousQuenching) return;
       if (result && checkHighQualityAttr(result)) {
         message.success("发现橙色或红色属性，已自动暂停");
         stopQuench();
@@ -807,14 +808,29 @@ const removeCondition = (index) => {
   targetConditions.value.splice(index, 1);
 };
 
+const getMaxQuenchLimit = () => {
+  const limit = Number(maxQuenchCount.value);
+  return Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 0;
+};
+
+const getValidTargetConditions = () => {
+  return targetConditions.value
+    .map((condition) => {
+      const attrId = Number(condition?.attrId);
+      const attrValue = Number(condition?.attrValue);
+      if (!Number.isFinite(attrId) || !Number.isFinite(attrValue)) return null;
+      if (attrId <= 0 || attrValue <= 0) return null;
+      return { attrId, attrValue };
+    })
+    .filter(Boolean);
+};
+
 // 自动淬炼
 const startAutoQuench = () => {
   // 检查是否有有效的条件
-  const hasValidCondition = targetConditions.value.some(condition => 
-    condition.attrId !== null && condition.attrValue !== null
-  );
+  const validConditions = getValidTargetConditions();
   
-  if (!hasValidCondition) {
+  if (validConditions.length === 0) {
     message.warning("请至少设置一个有效的目标属性和数值");
     return;
   }
@@ -824,15 +840,21 @@ const startAutoQuench = () => {
     return;
   }
 
+  if (checkTargetAttr({ equipment: heroEquipment.value[selectedPart.value] })) {
+    message.success("当前装备已经满足目标条件，无需继续淬炼");
+    return;
+  }
+
   state.value.autoQuenching = true;
   state.value.isRunning = true;
+  const maxCountLimit = getMaxQuenchLimit();
+  let autoQuenchCount = 0;
 
   // 生成条件描述
-  const conditionDescriptions = targetConditions.value
-    .filter(condition => condition.attrId && condition.attrValue)
+  const conditionDescriptions = validConditions
     .map(condition => `${getAttrName(condition.attrId)} ≥ ${condition.attrValue}`);
 
-  const limitDesc = maxQuenchCount.value > 0 ? `，最多 ${maxQuenchCount.value} 次` : '';
+  const limitDesc = maxCountLimit > 0 ? `，最多 ${maxCountLimit} 次` : '';
   message.info(
     `开始自动淬炼，目标：${conditionDescriptions.join(" 或 ")}${limitDesc}`,
   );
@@ -840,19 +862,23 @@ const startAutoQuench = () => {
   const autoQuench = async () => {
     if (!state.value.autoQuenching) return;
 
-    // 检查是否达到最大次数
-    if (maxQuenchCount.value > 0 && quenchCount.value >= maxQuenchCount.value) {
-      message.warning(`已达到最大淬炼次数 ${maxQuenchCount.value} 次，自动停止`);
-      stopQuench();
-      return;
-    }
-
     try {
       const result = await executeQuench();
+      if (!state.value.autoQuenching) return;
+      if (result) {
+        autoQuenchCount++;
+      }
+
       if (result && checkTargetAttr(result)) {
         message.success(
           `已达到目标条件，自动淬炼已停止`,
         );
+        stopQuench();
+        return;
+      }
+
+      if (maxCountLimit > 0 && autoQuenchCount >= maxCountLimit) {
+        message.warning(`已达到最大淬炼次数 ${maxCountLimit} 次，自动停止`);
         stopQuench();
         return;
       }
@@ -1074,9 +1100,7 @@ const checkHighQualityAttr = (result) => {
 // 检查目标属性
 const checkTargetAttr = (result) => {
   // 获取有效的条件
-  const validConditions = targetConditions.value.filter(condition => 
-    condition.attrId && condition.attrValue
-  );
+  const validConditions = getValidTargetConditions();
   
   if (validConditions.length === 0) return false;
 
@@ -1088,7 +1112,14 @@ const checkTargetAttr = (result) => {
   // 检查是否有任何一个条件满足（OR关系）
   return validConditions.some(condition => {
     return slots.some(slot => {
-      return slot.attrId === condition.attrId && slot.attrNum >= condition.attrValue;
+      const slotAttrId = Number(slot?.attrId);
+      const slotAttrNum = Number(slot?.attrNum);
+      return (
+        Number.isFinite(slotAttrId) &&
+        Number.isFinite(slotAttrNum) &&
+        slotAttrId === condition.attrId &&
+        slotAttrNum >= condition.attrValue
+      );
     });
   });
 };

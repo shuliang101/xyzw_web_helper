@@ -14,6 +14,7 @@ import {
   setClubMemberPasswordByRole,
   updateClubMemberPasswordByRole,
   updateClubMemberSchedule,
+  updateClubMemberPhone,
   updateClubMemberScheduleByRole,
   batchUpdateClubMemberClaimSchedule,
   updateClubMemberTarget,
@@ -27,6 +28,7 @@ import {
   getClubCarRevivePillDailyStatsByRoleId,
   sampleClubCarMemberRevivePillCount,
   sampleAllClubCarMemberRevivePillCounts,
+  testClubCarWechatNotification,
   getClubCarSendPlansByRoleId,
 } from '../services/clubCarService.js'
 import { clubCarScheduler } from '../services/clubCarScheduler.js'
@@ -176,6 +178,15 @@ export const bindClubCarMemberBinByAdminHandler = (req, res, next) => {
   }
 }
 
+export const updateClubCarMemberPhoneHandler = (req, res, next) => {
+  try {
+    const member = updateClubMemberPhone(req.params.id, req.body?.phone)
+    res.json({ success: true, data: member })
+  } catch (error) {
+    next(error)
+  }
+}
+
 export const sampleClubCarMemberRevivePillCountHandler = async (req, res, next) => {
   try {
     const data = await sampleClubCarMemberRevivePillCount(req.params.id)
@@ -219,6 +230,15 @@ export const listClubCarRunLogsHandler = (req, res) => {
     ? getClubCarRunLogs(limit)
     : getClubCarRunLogsByRoleId(roleId, limit)
   res.json({ success: true, data: logs })
+}
+
+export const testClubCarWechatNotificationHandler = async (req, res, next) => {
+  try {
+    const data = await testClubCarWechatNotification()
+    res.json({ success: true, data })
+  } catch (error) {
+    next(error)
+  }
 }
 
 export const listClubCarRevivePillDailyStatsHandler = (req, res) => {

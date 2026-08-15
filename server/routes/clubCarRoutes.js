@@ -17,6 +17,7 @@ import {
   updateClubCarSendPlanHandler,
   deleteClubCarSendPlanHandler,
   updateClubCarMemberScheduleHandler,
+  updateClubCarMemberPhoneHandler,
   batchUpdateClubCarMemberClaimScheduleHandler,
   updateClubCarMemberTargetHandler,
   unbindClubCarMemberBinHandler,
@@ -25,6 +26,7 @@ import {
   sampleAllClubCarMemberRevivePillCountsHandler,
   runClubCarSendNowHandler,
   runClubCarClaimNowHandler,
+  testClubCarWechatNotificationHandler,
   listClubCarRunLogsHandler,
   listClubCarRevivePillDailyStatsHandler,
   memberClubCarLoginHandler,
@@ -71,6 +73,7 @@ router.post('/send-plans', createClubCarSendPlanHandler)
 router.put('/send-plans/:id', updateClubCarSendPlanHandler)
 router.delete('/send-plans/:id', deleteClubCarSendPlanHandler)
 router.put('/members/:id/schedule', updateClubCarMemberScheduleHandler)
+router.put('/members/:id/phone', updateClubCarMemberPhoneHandler)
 router.put('/members/claim-schedule', batchUpdateClubCarMemberClaimScheduleHandler)
 router.put('/members/:id/target', updateClubCarMemberTargetHandler)
 router.post('/members/revive-pill-count', sampleAllClubCarMemberRevivePillCountsHandler)
@@ -79,5 +82,6 @@ router.post('/members/:roleId/bind-bin', upload.single('bin'), bindClubCarMember
 router.delete('/members/:id/bound-bin', unbindClubCarMemberBinHandler)
 router.post('/run/send', runClubCarSendNowHandler)
 router.post('/run/claim', runClubCarClaimNowHandler)
+router.post('/wechat/test', testClubCarWechatNotificationHandler)
 
 export default router

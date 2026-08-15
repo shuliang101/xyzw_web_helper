@@ -128,6 +128,8 @@ import { g_utils } from "@/utils/bonProtocol";
 import { useTokenStore } from "@/stores/tokenStore";
 import { useAuthStore } from "@/stores/auth";
 import api from "@/api/index";
+
+const HORTOR_PACKAGE_NAME = "com.hortor.games.xyzw";
 const tokenStore = useTokenStore();
 const authStore = useAuthStore();
 const { storeArrayBuffer } = useIndexedDB();
@@ -380,7 +382,7 @@ const tryGetWeixinQR = async () => {
     const qrPageUrl =
       "/api/weixin/connect/app/qrconnect" +
       "?appid=wxfb0d5667e5cb1c44" +
-      "&bundleid=com.hortor.games.xyzw" +
+      `&bundleid=${encodeURIComponent(HORTOR_PACKAGE_NAME)}` +
       "&scope=snsapi_base,snsapi_userinfo,snsapi_friend,snsapi_message" +
       "&state=weixin";
 
@@ -573,7 +575,7 @@ const getEncryptedData = async (code) => {
     noLogin: "2",
     distinctId: "DID-a38175b7-14ce-4b36-aa89-3e092ea03ea6",
     state: "hortor",
-    packageName: "com.hortor.games.xyzw",
+    packageName: HORTOR_PACKAGE_NAME,
     tp: "app-we",
     signPrint: "E6:F7:FE:A9:EC:8E:24:D0:4F:2A:32:50:28:78:E1:C5:5E:70:81:13",
   };
@@ -598,7 +600,7 @@ const getEncryptedData = async (code) => {
     "&cryptVersion=1.1.0" +
     "&gameTp=app&system=android" +
     "&deviceUniqueId=DID-0e782e88-2f3b-4f5b-9020-47f5e5a5a026" +
-    "&packageName=com.hortorgames.xyzw";
+    `&packageName=${encodeURIComponent(HORTOR_PACKAGE_NAME)}`;
 
   const res = await new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -613,7 +615,9 @@ const getEncryptedData = async (code) => {
   });
 
   if (res.status !== 200) {
-    throw new Error("HTTP 状态码：" + res.status);
+    throw new Error(
+      `HTTP 状态码：${res.status}${res.responseText ? `，响应：${res.responseText}` : ""}`,
+    );
   }
 
   const json = JSON.parse(res.responseText);

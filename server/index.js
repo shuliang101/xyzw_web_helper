@@ -99,15 +99,34 @@ app.use(async (req, res, next) => {
 
     res.status(response.status)
     response.headers.forEach((value, key) => {
-      if (key.toLowerCase() === 'content-encoding') {
+      const headerKey = key.toLowerCase()
+      if (
+        headerKey === 'content-encoding' ||
+        headerKey === 'content-length' ||
+        headerKey === 'transfer-encoding' ||
+        headerKey === 'connection'
+      ) {
         return
       }
       res.setHeader(key, value)
     })
 
     const arrayBuffer = await response.arrayBuffer()
+    if (response.status >= 400) {
+      const responseText = new TextDecoder('utf-8').decode(arrayBuffer)
+      console.error(
+        `[proxy] ${req.method} ${req.originalUrl} -> ${targetUrl.toString()} returned ${response.status}`,
+      )
+      if (responseText) {
+        console.error(`[proxy] response body: ${responseText.slice(0, 2000)}`)
+      }
+    }
     res.send(Buffer.from(arrayBuffer))
   } catch (error) {
+    console.error(
+      `[proxy] ${req.method} ${req.originalUrl} -> ${proxy.target} failed`,
+      error,
+    )
     next(error)
   }
 })

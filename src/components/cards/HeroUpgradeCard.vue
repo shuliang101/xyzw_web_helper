@@ -33,6 +33,24 @@
         </div>
         <div class="button-area">
           <div class="input-area">
+            <span class="label">升级方式</span>
+            <n-select
+              v-model:value="upgradeMode"
+              :options="upgradeModeOptions"
+            />
+          </div>
+          <div class="input-area" v-if="upgradeMode === 'target'">
+            <span class="label">目标等级</span>
+            <n-input-number
+              v-model:value="targetLevel"
+              :min="1"
+              :max="6000"
+              :step="100"
+              :precision="0"
+              placeholder="输入目标等级"
+            />
+          </div>
+          <div class="input-area" v-if="upgradeMode === 'count'">
             <span class="label">升级等级</span>
             <n-select
               v-model:value="levelNum"
@@ -53,6 +71,7 @@
                 judgeLevelupgrade(HeroItem.level, 1, HeroItem.order) == false
               "
               size="small"
+              v-if="false"
               @click="orderHeroUpgrade"
               >进阶</a-button
             >
@@ -72,6 +91,9 @@ import { HERO_DICT } from "@/utils/HeroList";
 
 const tokenStore = useTokenStore();
 const message = useMessage();
+const COMMAND_DELAY = 500;
+const UPGRADE_OPTIONS = [50, 10, 5, 1];
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const HeroOptions = computed(() => [
   ...Object.values(tokenStore.gameData.roleInfo.role.heroes).map((item) => {
@@ -85,7 +107,9 @@ const HeroOptions = computed(() => [
 
 const HeroValue = ref(null);
 const HeroItem = ref(null);
+const upgradeMode = ref("count");
 const levelNum = ref(1);
+const targetLevel = ref(100);
 const state = ref({
   isRunning: false,
   showConfirm: false,
@@ -101,7 +125,16 @@ const handleUpdateValue = (value) => {
     tokenStore.gameData.roleInfo.role.heroes[value],
     HERO_DICT[value],
   );
+  const currentLevel = Number(HeroItem.value?.level || 0);
+  if (targetLevel.value <= currentLevel) {
+    targetLevel.value = Math.min(6000, currentLevel + 1);
+  }
 };
+
+const upgradeModeOptions = [
+  { label: "升固定等级", value: "count" },
+  { label: "升到等级", value: "target" },
+];
 
 const levelOptions = [
   {
@@ -160,6 +193,115 @@ const orderHeroUpgrade = async () => {
   state.value.isRunning = true;
 
   try {
+    let orderJudgement = judgeLevelupgrade(
+      HeroItem.value.level,
+      levelNum.value,
+      HeroItem.value.order,
+    );
+    if (orderJudgement == HeroItem.value.level) {
+      const result = await tokenStore.sendMessageWithPromise(
+        tokenId,
+        "hero_heroupgradeorder",
+        {
+          heroId: HeroValue.value,
+        },
+        5000,
+      );
+      if (result?.role.heroes) {
+        message.success("杩涢樁鎴愬姛");
+        tokenStore.sendGetRoleInfo(tokenId);
+      }
+    } else {
+      message.warning("杩涢樁澶辫触");
+    }
+    return;
+
+    let current = {
+      level: Number(HeroItem.value?.level || 0),
+      order: Number(HeroItem.value?.order || 0),
+    };
+    const target = Math.min(6000, Math.floor(Number(targetLevel.value || 0)));
+    let remaining =
+      upgradeMode.value === "target"
+        ? target - current.level
+        : Math.max(1, Number(levelNum.value || 1));
+
+    if (remaining <= 0) {
+      message.warning("目标等级必须大于当前等级");
+      return;
+    }
+
+    while (remaining > 0) {
+      const pendingOrder = findPendingOrder(current.level, current.order);
+      if (pendingOrder) {
+        const orderResult = await tokenStore.sendMessageWithPromise(
+          tokenId,
+          "hero_heroupgradeorder",
+          {
+            heroId: HeroValue.value,
+          },
+          5000,
+        );
+        if (!orderResult?.role?.heroes) {
+          throw new Error("进阶后未返回武将数据");
+        }
+        current = getHeroUpgradeState(orderResult);
+        refreshSelectedHero(current);
+        await delay(COMMAND_DELAY);
+        continue;
+      }
+
+      const barrier = findNextOrderBarrier(
+        current.level,
+        remaining,
+        current.order,
+      );
+      const upgradeNum = barrier
+        ? Number(barrier.level) - current.level
+        : remaining;
+      if (upgradeNum <= 0) break;
+
+      const result = await tokenStore.sendMessageWithPromise(
+        tokenId,
+        "hero_heroupgradelevel",
+        {
+          heroId: HeroValue.value,
+          upgradeNum,
+        },
+        5000,
+      );
+      if (result?.role.heroes) {
+        current = getHeroUpgradeState(result);
+        refreshSelectedHero(current);
+        remaining -= upgradeNum;
+        await delay(COMMAND_DELAY);
+      } else {
+        throw new Error("升级后未返回武将数据");
+      }
+    }
+
+    const pendingOrder = findPendingOrder(current.level, current.order);
+    if (pendingOrder) {
+      const orderResult = await tokenStore.sendMessageWithPromise(
+        tokenId,
+        "hero_heroupgradeorder",
+        {
+          heroId: HeroValue.value,
+      },
+      5000,
+    );
+      if (!orderResult?.role?.heroes) {
+        throw new Error("进阶后未返回武将数据");
+      }
+      current = getHeroUpgradeState(orderResult);
+      refreshSelectedHero(current);
+      await delay(COMMAND_DELAY);
+    }
+
+    tokenStore.sendGetRoleInfo(tokenId);
+    message.success("升级完成");
+    return;
+
     let judgement = judgeLevelupgrade(
       HeroItem.value.level,
       levelNum.value,
@@ -190,6 +332,81 @@ const orderHeroUpgrade = async () => {
 };
 
 //英雄升级
+const getHeroUpgradeState = (result) => {
+  const hero =
+    result?.role?.heroes?.[HeroValue.value] ||
+    tokenStore.gameData?.roleInfo?.role?.heroes?.[HeroValue.value] ||
+    HeroItem.value;
+
+  return {
+    level: Number(hero?.level || 0),
+    order: Number(hero?.order || 0),
+  };
+};
+
+const findPendingOrder = (level, order) =>
+  levelArr.find(
+    (item) =>
+      Number(item.level) === Number(level) &&
+      Number(order) !== Number(item.order),
+  );
+
+const findNextOrderBarrier = (level, upgradeNum, order) =>
+  levelArr.find(
+    (item) =>
+      Number(order) !== Number(item.order) &&
+      Number(level) < Number(item.level) &&
+      Number(item.level) <= Number(level) + Number(upgradeNum),
+  );
+
+const refreshSelectedHero = (heroState) => {
+  const source = tokenStore.gameData?.roleInfo?.role?.heroes?.[HeroValue.value];
+  if (!source) return;
+  HeroItem.value = Object.assign({}, source, HERO_DICT[HeroValue.value], heroState || {});
+};
+
+const getUpgradeRemaining = (currentLevel) => {
+  if (upgradeMode.value === "target") {
+    const target = Math.min(6000, Math.floor(Number(targetLevel.value || 0)));
+    return target - Number(currentLevel || 0);
+  }
+  return Math.max(1, Number(levelNum.value || 1));
+};
+
+const getNextUpgradeNum = (current, remaining) => {
+  const barrier = findNextOrderBarrier(
+    current.level,
+    remaining,
+    current.order,
+  );
+  const stepLimit = barrier
+    ? Math.min(Number(barrier.level) - current.level, remaining)
+    : remaining;
+  return UPGRADE_OPTIONS.find((num) => num <= stepLimit) || 1;
+};
+
+const sendHeroUpgradeLevelWithFallback = async (tokenId, upgradeNum) => {
+  let lastError = null;
+  const options = UPGRADE_OPTIONS.filter((num) => num <= upgradeNum);
+  for (const num of options) {
+    try {
+      const result = await tokenStore.sendMessageWithPromise(
+        tokenId,
+        "hero_heroupgradelevel",
+        {
+          heroId: HeroValue.value,
+          upgradeNum: num,
+        },
+        5000,
+      );
+      return { result, upgradeNum: num };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("upgrade failed");
+};
+
 const levelHeroUpgrade = async () => {
   if (!tokenStore.selectedToken) {
     message.warning("请先选择游戏角色");
@@ -207,6 +424,73 @@ const levelHeroUpgrade = async () => {
   state.value.isRunning = true;
 
   try {
+    let current = {
+      level: Number(HeroItem.value?.level || 0),
+      order: Number(HeroItem.value?.order || 0),
+    };
+    let remaining = getUpgradeRemaining(current.level);
+
+    if (remaining <= 0) {
+      message.warning("鐩爣绛夌骇蹇呴』澶т簬褰撳墠绛夌骇");
+      return;
+    }
+
+    while (remaining > 0) {
+      const pendingOrder = findPendingOrder(current.level, current.order);
+      if (pendingOrder) {
+        const orderResult = await tokenStore.sendMessageWithPromise(
+          tokenId,
+          "hero_heroupgradeorder",
+          {
+            heroId: HeroValue.value,
+          },
+          5000,
+        );
+        if (!orderResult?.role?.heroes) {
+          throw new Error("进阶后未返回武将数据");
+        }
+        current = getHeroUpgradeState(orderResult);
+        refreshSelectedHero(current);
+        continue;
+      }
+
+      const nextUpgradeNum = getNextUpgradeNum(current, remaining);
+      if (nextUpgradeNum <= 0) break;
+
+      const { result, upgradeNum } = await sendHeroUpgradeLevelWithFallback(
+        tokenId,
+        nextUpgradeNum,
+      );
+      if (result?.role.heroes) {
+        current = getHeroUpgradeState(result);
+        refreshSelectedHero(current);
+        remaining -= upgradeNum;
+      } else {
+        throw new Error("升级后未返回武将数据");
+      }
+    }
+
+    const pendingOrder = findPendingOrder(current.level, current.order);
+    if (pendingOrder) {
+      const orderResult = await tokenStore.sendMessageWithPromise(
+        tokenId,
+        "hero_heroupgradeorder",
+        {
+          heroId: HeroValue.value,
+        },
+        5000,
+      );
+      if (!orderResult?.role?.heroes) {
+        throw new Error("进阶后未返回武将数据");
+      }
+      current = getHeroUpgradeState(orderResult);
+      refreshSelectedHero(current);
+    }
+
+    tokenStore.sendGetRoleInfo(tokenId);
+    message.success("升级完成");
+    return;
+
     let judgement = judgeLevelupgrade(
       HeroItem.value.level,
       levelNum.value,
@@ -332,6 +616,11 @@ const formatTime = (ts) => new Date(ts).toLocaleTimeString("zh-CN");
     margin: var(--spacing-sm);
     .label {
       flex-shrink: 0;
+    }
+    :deep(.n-select),
+    :deep(.n-input-number) {
+      flex: 1 1 0;
+      min-width: 0;
     }
   }
   .button-group {

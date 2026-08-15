@@ -108,6 +108,8 @@ db.prepare(`
     enabled INTEGER NOT NULL DEFAULT 0,
     min_color INTEGER NOT NULL DEFAULT 4,
     max_refresh_times INTEGER NOT NULL DEFAULT 20,
+    sms_push_url TEXT,
+    sms_master_phone TEXT,
     updated_at TEXT NOT NULL
   )
 `).run()
@@ -132,6 +134,7 @@ db.prepare(`
     send_time TEXT NOT NULL DEFAULT '12:00',
     claim_time TEXT NOT NULL DEFAULT '16:00',
     claim_enabled INTEGER NOT NULL DEFAULT 0,
+    phone TEXT,
     last_send_at TEXT,
     last_help_at TEXT,
     last_claim_at TEXT,
@@ -238,6 +241,14 @@ const hasMaxRefreshTimes = clubConfigColumns.some(column => column.name === 'max
 if (!hasMaxRefreshTimes) {
   db.prepare('ALTER TABLE club_car_config ADD COLUMN max_refresh_times INTEGER NOT NULL DEFAULT 20').run()
 }
+const hasSmsPushUrl = clubConfigColumns.some(column => column.name === 'sms_push_url')
+if (!hasSmsPushUrl) {
+  db.prepare('ALTER TABLE club_car_config ADD COLUMN sms_push_url TEXT').run()
+}
+const hasSmsMasterPhone = clubConfigColumns.some(column => column.name === 'sms_master_phone')
+if (!hasSmsMasterPhone) {
+  db.prepare('ALTER TABLE club_car_config ADD COLUMN sms_master_phone TEXT').run()
+}
 
 const clubMemberColumns = db.prepare("PRAGMA table_info('club_car_members')").all()
 const hasMemberActive = clubMemberColumns.some(column => column.name === 'is_active')
@@ -262,6 +273,10 @@ if (!hasClaimEnabled) {
   db.prepare('ALTER TABLE club_car_members ADD COLUMN claim_enabled INTEGER NOT NULL DEFAULT 0').run()
 }
 db.prepare('UPDATE club_car_members SET claim_enabled = 0 WHERE claim_enabled IS NULL').run()
+const hasMemberPhone = clubMemberColumns.some(column => column.name === 'phone')
+if (!hasMemberPhone) {
+  db.prepare('ALTER TABLE club_car_members ADD COLUMN phone TEXT').run()
+}
 const hasLastSendAt = clubMemberColumns.some(column => column.name === 'last_send_at')
 if (!hasLastSendAt) {
   db.prepare('ALTER TABLE club_car_members ADD COLUMN last_send_at TEXT').run()

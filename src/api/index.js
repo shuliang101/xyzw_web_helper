@@ -206,6 +206,7 @@ const api = {
     updateSendPlan: (planId, body) => request.put(`/club-car/send-plans/${planId}`, body),
     deleteSendPlan: planId => request.delete(`/club-car/send-plans/${planId}`),
     updateMemberSchedule: (memberId, body) => request.put(`/club-car/members/${memberId}/schedule`, body),
+    updateMemberPhone: (memberId, body) => request.put(`/club-car/members/${memberId}/phone`, body),
     batchUpdateMemberClaimSchedule: body => request.put('/club-car/members/claim-schedule', body),
     updateMemberTarget: (memberId, body) => request.put(`/club-car/members/${memberId}/target`, body),
     sampleMemberRevivePillCount: memberId => request.post(`/club-car/members/${memberId}/revive-pill-count`),
@@ -216,6 +217,7 @@ const api = {
     unbindMemberBin: memberId => request.delete(`/club-car/members/${memberId}/bound-bin`),
     runSendNow: () => request.post('/club-car/run/send'),
     runClaimNow: () => request.post('/club-car/run/claim'),
+    testWechat: () => request.post('/club-car/wechat/test'),
     listLogs: (limit = 50, roleId = null) => request.get('/club-car/logs', {
       params: roleId ? { limit, roleId } : { limit },
     }),

@@ -547,6 +547,11 @@ import {
   formatWeapon,
   legacycolor,
 } from "@/utils/HeroList";
+import {
+  getEquipmentStats,
+  isRankHoleCountReliable,
+  formatHoleCount,
+} from "@/utils/equipmentStats";
 import html2canvas from "html2canvas";
 import { downloadCanvasAsImage } from "@/utils/imageExport";
 

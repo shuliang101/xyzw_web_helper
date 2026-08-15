@@ -26,7 +26,13 @@
         </div>
         <div class="selects">
           <n-select v-model:value="type" :options="typeOptions" />
-          <n-select v-model:value="number" :options="numberOptions" />
+          <n-input-number
+            v-model:value="number"
+            :min="1"
+            :step="10"
+            :precision="0"
+            placeholder="输入开箱数量"
+          />
         </div>
       </div>
     </template>
@@ -106,22 +112,69 @@ const typeOptions = [
 ];
 
 const number = ref(10);
-const numberOptions = [
-  { label: "10", value: 10 },
-  { label: "100", value: 100 },
-  { label: "1000", value: 1000 },
-  { label: "2000", value: 2000 },
-  { label: "5000", value: 5000 },
-  { label: "10000", value: 10000 },
-];
 
 const state = ref({
   isRunning: false,
 });
 
+const getSelectedBoxCount = () =>
+  roleInfo.value?.role?.items?.[type.value]?.quantity || 0;
+
+const MAX_BOX_OPEN_BATCH = 100;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const syncRoleState = async (tokenId) => {
+  await tokenStore.sendMessageWithPromise(tokenId, "role_getroleinfo", {}, 10000);
+  await sleep(500);
+};
+
+const openBoxBatch = (tokenId, itemId, boxNumber) =>
+  tokenStore.sendMessageWithPromise(
+    tokenId,
+    "item_openbox",
+    { itemId, number: boxNumber },
+    10000,
+  );
+
+const runBoxBatch = async (tokenId, itemId, boxNumber) => {
+  try {
+    await openBoxBatch(tokenId, itemId, boxNumber);
+    return;
+  } catch (error) {
+    await syncRoleState(tokenId);
+    await sleep(1200);
+
+    try {
+      await openBoxBatch(tokenId, itemId, boxNumber);
+      return;
+    } catch (retryError) {
+      if (boxNumber <= 1) throw retryError;
+
+      const fallbackBatch = boxNumber > 10 ? 10 : 1;
+      let remaining = boxNumber;
+      while (remaining > 0) {
+        const count = Math.min(fallbackBatch, remaining);
+        await runBoxBatch(tokenId, itemId, count);
+        remaining -= count;
+        if (remaining > 0) await sleep(500);
+      }
+    }
+  }
+};
+
 const batchclaimboxpointreward = async () => {
   if (!tokenStore.selectedToken) {
     message.warning("请先选择Token");
+    return;
+  }
+  const openCount = Math.floor(Number(number.value || 0));
+  if (false && openCount < 1) {
+    message.warning("请输入正确数量");
+    return;
+  }
+  const availableCount = getSelectedBoxCount();
+  if (false && openCount > availableCount) {
+    message.warning(`数量不足，当前只有 ${availableCount} 个`);
     return;
   }
   const tokenId = tokenStore.selectedToken.id;
@@ -136,25 +189,26 @@ const handleBoxHelper = async () => {
     message.warning("请先选择Token");
     return;
   }
+  const openCount = Math.floor(Number(number.value || 0));
+  if (openCount < 1) {
+    message.warning("请输入正确数量");
+    return;
+  }
+  const availableCount = getSelectedBoxCount();
+  if (openCount > availableCount) {
+    message.warning(`数量不足，当前只有 ${availableCount} 个`);
+    return;
+  }
   const tokenId = tokenStore.selectedToken.id;
   state.value.isRunning = true;
   message.info("宝箱开启中");
-  if (number.value >= 10) {
-    const batches = Math.floor(number.value / 10);
-    const remainder = number.value % 10;
-    for (let i = 0; i < batches; i++) {
-      const result = await tokenStore.sendMessageWithPromise(
-        tokenId,
-        "item_openbox",
-        { itemId: type.value, number: 10 },
-      );
-    }
-    if (remainder > 0) {
-      const result = await tokenStore.sendMessageWithPromise(
-        tokenId,
-        "item_openbox",
-        { itemId: type.value, number: remainder },
-      );
+  try {
+    let remaining = openCount;
+    while (remaining > 0) {
+      const batchCount = Math.min(MAX_BOX_OPEN_BATCH, remaining);
+      await runBoxBatch(tokenId, type.value, batchCount);
+      remaining -= batchCount;
+      if (remaining > 0) await sleep(500);
     }
     await tokenStore.sendMessage(tokenId, "item_batchclaimboxpointreward");
     await new Promise((r) => setTimeout(r, 500));
@@ -162,8 +216,10 @@ const handleBoxHelper = async () => {
     // 更新活动进度
     tokenStore.sendMessage(tokenId, "activity_get");
     message.success("宝箱开启完毕");
+  } catch (error) {
+    message.error(`宝箱开启失败: ${error.message || error}`);
+  } finally {
     state.value.isRunning = false;
-    return;
   }
 };
 </script>
@@ -220,7 +276,8 @@ const handleBoxHelper = async () => {
     margin-top: 12px;
     min-width: 0;
 
-    :deep(.n-select) {
+    :deep(.n-select),
+    :deep(.n-input-number) {
       min-width: 0;
       flex: 1 1 0;
     }

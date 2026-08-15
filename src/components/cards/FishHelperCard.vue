@@ -22,7 +22,13 @@
         </div>
         <div class="selects">
           <n-select v-model:value="type" :options="typeOptions" />
-          <n-select v-model:value="number" :options="numberOptions" />
+          <n-input-number
+            v-model:value="number"
+            :min="10"
+            :step="10"
+            :precision="0"
+            placeholder="输入钓鱼数量"
+          />
         </div>
       </div>
     </template>
@@ -80,55 +86,99 @@ const typeOptions = [
 ];
 
 const number = ref(10);
-const numberOptions = [
-  { label: "10", value: 10 },
-  { label: "20", value: 20 },
-  { label: "50", value: 50 },
-  { label: "80", value: 80 },
-  { label: "100", value: 100 },
-  { label: "160", value: 160 },
-];
 
 const state = ref({
   isRunning: false,
 });
+
+const getSelectedFishRodCount = () => {
+  const itemId = type.value === 1 ? 1011 : 1012;
+  return roleInfo.value?.role?.items?.[itemId]?.quantity || 0;
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const syncRoleState = async (tokenId) => {
+  await tokenStore.sendMessageWithPromise(tokenId, "role_getroleinfo", {}, 10000);
+  await sleep(500);
+};
+
+const fishBatch = (tokenId, fishType, lotteryNumber) =>
+  tokenStore.sendMessageWithPromise(
+    tokenId,
+    "artifact_lottery",
+    { type: fishType, lotteryNumber, newFree: true },
+    10000,
+  );
+
+const runFishBatch = async (tokenId, fishType, lotteryNumber) => {
+  try {
+    await fishBatch(tokenId, fishType, lotteryNumber);
+    return;
+  } catch (error) {
+    const messageText = String(error?.message || error);
+    if (!messageText.includes("200020") && !messageText.includes("400312")) {
+      throw error;
+    }
+
+    await syncRoleState(tokenId);
+    await sleep(1200);
+
+    try {
+      await fishBatch(tokenId, fishType, lotteryNumber);
+      return;
+    } catch (retryError) {
+      if (lotteryNumber <= 1) throw retryError;
+
+      for (let i = 0; i < lotteryNumber; i++) {
+        await syncRoleState(tokenId);
+        await sleep(800);
+        await fishBatch(tokenId, fishType, 1);
+      }
+    }
+  }
+};
 
 const handleHelper = async () => {
   if (!tokenStore.selectedToken) {
     message.warning("请先选择Token");
     return;
   }
+  const fishCount = Math.floor(Number(number.value || 0));
+  if (fishCount < 10) {
+    message.warning("请输入正确数量");
+    return;
+  }
+  if (fishCount % 10 !== 0) {
+    message.warning("钓鱼数量必须是 10 的倍数");
+    return;
+  }
+  const availableCount = getSelectedFishRodCount();
+  if (fishCount > availableCount) {
+    message.warning(`数量不足，当前只有 ${availableCount} 个`);
+    return;
+  }
   const tokenId = tokenStore.selectedToken.id;
   state.value.isRunning = true;
   message.info("钓鱼助手运行中");
   console.log("🚀 ~ handleHelper ~ type.value:", type.value);
-  if (number.value >= 10) {
-    const batches = Math.floor(number.value / 10);
-    const remainder = number.value % 10;
-    for (let i = 0; i < batches; i++) {
-      const result = await tokenStore.sendMessageWithPromise(
-        tokenId,
-        "artifact_lottery",
-        { type: type.value, lotteryNumber: 10, newFree: true },
-      );
-    }
-    if (remainder > 0) {
-      const result = await tokenStore.sendMessageWithPromise(
-        tokenId,
-        "artifact_lottery",
-        {
-          type: type.value,
-          lotteryNumber: remainder,
-          newFree: true,
-        },
-      );
+  try {
+    await syncRoleState(tokenId);
+    let remaining = fishCount;
+    while (remaining > 0) {
+      const batchCount = Math.min(10, remaining);
+      await runFishBatch(tokenId, type.value, batchCount);
+      remaining -= batchCount;
+      await sleep(1000);
     }
     await tokenStore.sendMessage(tokenId, "role_getroleinfo");
     // 更新活动进度
     tokenStore.sendMessage(tokenId, "activity_get");
     message.success("钓鱼完毕");
+  } catch (error) {
+    message.error(`钓鱼失败: ${error.message || error}`);
+  } finally {
     state.value.isRunning = false;
-    return;
   }
 };
 </script>
@@ -185,7 +235,8 @@ const handleHelper = async () => {
     margin-top: 12px;
     min-width: 0;
 
-    :deep(.n-select) {
+    :deep(.n-select),
+    :deep(.n-input-number) {
       min-width: 0;
       flex: 1 1 0;
     }
