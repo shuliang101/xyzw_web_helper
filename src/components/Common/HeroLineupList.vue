@@ -16,6 +16,7 @@
 </template>
 
 <script setup>
+import { formatStarLevel } from '@/utils/HeroList';
 defineEmits(['select']);
 defineProps({ heroes: { type: Array, default: () => [] }, compact: Boolean, showHole: Boolean, reliable: { type: Boolean, default: true } });
 </script>

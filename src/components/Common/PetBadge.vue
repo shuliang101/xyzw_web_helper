@@ -3,11 +3,12 @@
     <img v-if="pet.icon" :src="pet.icon" :alt="pet.name" />
     <span class="pet-name" :style="{ color: pet.color }">{{ pet.name }}</span>
     <span v-if="pet.level" class="pet-level">Lv.{{ pet.level }}</span>
-    <span v-if="Number(pet.petId) >= 700 && pet.star" class="pet-star">&#9733;{{ pet.star }}</span>
+    <span v-if="Number(pet.petId) >= 700 && pet.star" class="pet-star">{{ formatStarLevel(pet.star) }}</span>
   </span>
 </template>
 
 <script setup>
+import { formatStarLevel } from '@/utils/HeroList';
 defineProps({ pet: { type: Object, default: null } });
 </script>
 

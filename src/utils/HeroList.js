@@ -65,6 +65,13 @@ export const HERO_DICT = {
   314: { name: "孟获", type: "蜀国", avatar: "/team/menghuo.png" },
 };
 
+export const formatStarLevel = (value) => {
+  const stars = Number(value) || 0;
+  if (!stars) return "0";
+  const tiers = ["黄星", "紫星", "橙星", "红星", "皇冠", "紫冠"];
+  return `${tiers[Math.min(Math.ceil(stars / 5), tiers.length) - 1]}${stars}`;
+};
+
 export const LINEUP_RULES = [
   {
     name: "吴国",
