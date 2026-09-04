@@ -382,6 +382,11 @@
         </div>
       </div>
 
+      <div v-if="playerInfo.pet" class="player-pet-row">
+        <span>瀹犵墿:</span>
+        <PetBadge :pet="playerInfo.pet" />
+      </div>
+
       <div class="hero-section">
         <h4>武将阵容</h4>
         <div
@@ -608,6 +613,8 @@ import ClubWeirdTowerInfo from "./ClubWeirdTowerInfo.vue";
 import CarScoreInfo from "./CarScoreInfo.vue";
 import { $emit } from "@/stores/events";
 import { HERO_DICT, legacycolor, HeroFillInfo, getLineupType, LINEUP_RULES } from "@/utils/HeroList";
+import { getShowPet } from "@/utils/PetList";
+import PetBadge from "@/components/Common/PetBadge.vue";
 import html2canvas from 'html2canvas';
 import { downloadCanvasAsImage } from "@/utils/imageExport";
 
@@ -1141,6 +1148,7 @@ const fetchTargetInfo = async (roleId) => {
       holyBeast: heroAndholdAndRed.heroList.filter((hero) => hero.HolyBeast)
         .length,
       maxPower: formatNumber(legionMaxPower),
+      pet: getShowPet(result),
       currentRedDrum: roleRedQuench,
       maxRedDrum: roleMaxRed,
       totalRedCount: totalRedCount,
