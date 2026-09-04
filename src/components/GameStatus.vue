@@ -221,8 +221,16 @@
         <ClubBattleRecords />
       </div>
 
+      <div v-if="saltFieldSubTab === 'warrank'" class="style-switch-bar">
+        <n-radio-group v-model:value="warrankStyle" size="small">
+          <n-radio-button value="style1">样式一</n-radio-button>
+          <n-radio-button value="style2">样式二</n-radio-button>
+        </n-radio-group>
+      </div>
+
       <div class="warrank-full-container" v-if="saltFieldSubTab === 'warrank'">
-        <ClubWarrank />
+        <ClubWarrankV2 v-if="warrankStyle === 'style2'" />
+        <ClubWarrank v-else />
       </div>
 
       <div
@@ -275,8 +283,16 @@
         <PeachBattleRecords />
       </div>
 
+      <div v-if="peachSubTab === 'peach'" class="style-switch-bar">
+        <n-radio-group v-model:value="peachStyle" size="small">
+          <n-radio-button value="style1">样式一</n-radio-button>
+          <n-radio-button value="style2">样式二</n-radio-button>
+        </n-radio-group>
+      </div>
+
       <div class="warrank-full-container" v-if="peachSubTab === 'peach'">
-        <PeachInfo />
+        <PeachInfoV2 v-if="peachStyle === 'style2'" />
+        <PeachInfo v-else />
       </div>
     </div>
 
@@ -372,6 +388,7 @@ import MonthlyTasksCard from "./cards/MonthlyTasksCard.vue";
 import StudyChallengeCard from "./cards/StudyChallengeCard.vue";
 import SkinChallengeCard from "./cards/SkinChallengeCard.vue";
 import ClubWarrank from "./Club/ClubWarrank.vue";
+import ClubWarrankV2 from "./Club/ClubWarrankV2.vue";
 import ClubMonthBattleRecords from "./Club/ClubMonthBattleRecords.vue";
 import ClubBattleRecords from "./Club/ClubBattleRecords.vue";
 import PeachBattleRecords from "./Club/PeachBattleRecords.vue";
@@ -389,6 +406,7 @@ import TowerStatus from "./Tower/TowerStatus.vue";
 import WeirdTowerStatus from "./Tower/WeirdTowerStatus.vue";
 import BossTower from "./Tower/BossTower.vue";
 import PeachInfo from "./Club/PeachInfo.vue";
+import PeachInfoV2 from "./Club/PeachInfoV2.vue";
 import ServerRankList from "./cards/ServerRankListPageCard.vue";
 import LegionWarMap from "./Club/LegionWarMap.vue";
 import LegionWarStatistics from "./Club/LegionWarStatistics.vue";
@@ -406,6 +424,10 @@ const activeSection = ref("daily");
 const saltFieldSubTab = ref("warrank");
 const peachSubTab = ref("peach");
 const rankSubTab = ref("serverrank");
+const warrankStyle = ref(localStorage.getItem("club_warrank_style") || "style1");
+const peachStyle = ref(localStorage.getItem("peach_info_style") || "style1");
+watch(warrankStyle, (value) => localStorage.setItem("club_warrank_style", value));
+watch(peachStyle, (value) => localStorage.setItem("peach_info_style", value));
 
 const subNavDrag = {
   active: false,

@@ -116,9 +116,6 @@
           </n-button-group>
         </n-space>
         <div class="header-actions">
-            </n-button-group>
-          </n-space>
-          <div class="header-actions">
             <n-button type="info" @click="openGame">
               <template #icon>
                 <n-icon>

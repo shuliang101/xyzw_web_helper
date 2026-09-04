@@ -125,6 +125,16 @@ const myRoutes = [
         },
       },
       {
+        path: 'PushingLevels',
+        name: 'PushingLevels',
+        component: () => import('@/views/PushingLevels.vue'),
+        meta: {
+          title: 'Pushing Levels',
+          requiresToken: true,
+          requiresAuth: true,
+        },
+      },
+      {
         path: 'server-tasks',
         name: 'ServerScheduledTasks',
         component: () => import('@/views/ServerScheduledTasks.vue'),

@@ -46,6 +46,10 @@
               <n-icon><Timer /></n-icon>
               <span>定时任务</span>
             </router-link>
+            <router-link to="/admin/PushingLevels" class="nav-item" active-class="active">
+              <n-icon><ArrowUpCircle /></n-icon>
+              <span>主线推关</span>
+            </router-link>
             <router-link to="/admin/message-test" class="nav-item" active-class="active">
               <n-icon><ChatbubbleEllipsesSharp /></n-icon>
               <span>消息测试</span>
@@ -106,6 +110,10 @@
             <n-icon><Timer /></n-icon>
             <span>定时任务</span>
           </router-link>
+          <router-link to="/admin/PushingLevels" class="drawer-item" @click="isMobileMenuOpen = false">
+            <n-icon><ArrowUpCircle /></n-icon>
+            <span>主线推关</span>
+          </router-link>
           <router-link to="/admin/message-test" class="drawer-item" @click="isMobileMenuOpen = false">
             <n-icon><ChatbubbleEllipsesSharp /></n-icon>
             <span>消息测试</span>
@@ -141,6 +149,7 @@ import {
   Settings,
   StatsChart,
   Timer,
+  ArrowUpCircle,
 } from '@vicons/ionicons5'
 import { useAuthStore } from '@/stores/auth'
 import ThemeToggle from '@/components/Common/ThemeToggle.vue'
