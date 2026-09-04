@@ -2014,4 +2014,8 @@ onMounted(() => {
     row-gap: 2px;
   }
 }
+.fight-pvp-container .lineup .separator,
+.fight-pvp-container .lineup .hole-count {
+  display: none;
+}
 </style>
