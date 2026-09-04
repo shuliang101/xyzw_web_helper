@@ -847,7 +847,7 @@ const fetchTargetInfo = async () => {
     // 切磋对手玩家头像
     teamData.headImg = result.roleInfo.headImg;
     teamData.lordWeaponId = formatWeapon(result.roleInfo.lordWeaponId);
-    teamData.pet = getShowPet(result.roleInfo);
+     teamData.pet = getShowPet(result);
     // 切磋对手玩家名称
     teamData.name = result.roleInfo.name;
     teamData.power = formatPower(result.roleInfo.power);

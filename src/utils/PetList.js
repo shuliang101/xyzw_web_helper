@@ -140,7 +140,7 @@ export const getPetQuality = (petId) =>
 /**
  * 从 rank_getroleinfo 的响应里取出展示用的宠物信息
  * @param {object} roleRes rank_getroleinfo 的响应对象
- * @returns {{petId:number, level:number, name:string, icon:string, quality:string, color:string}|null}
+ * @returns {{petId:number, level:number, star:number, name:string, icon:string, quality:string, color:string}|null}
  */
 export const getShowPet = (roleRes) => {
   const pet = roleRes?.role?.pet ?? roleRes?.roleInfo?.pet ?? roleRes?.pet;
@@ -151,6 +151,14 @@ export const getShowPet = (roleRes) => {
   return {
     petId,
     level: roleRes?.showPet?.level ?? pet?.level ?? 0,
+    // 金色宠物可能在不同接口版本中使用不同字段名
+    star:
+      roleRes?.showPet?.star ??
+      roleRes?.showPet?.starLevel ??
+      pet?.star ??
+      pet?.starLevel ??
+      pet?.qualityLevel ??
+      0,
     petUId: roleRes?.showPet?.petUId ?? pet?.petUId ?? pet?.uid ?? "",
     name: dict?.name || `宠物${petId}`,
     icon: dict?.icon || "",
