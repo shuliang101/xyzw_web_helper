@@ -156,23 +156,18 @@ pnpm run format   # 代码格式化
 
 ### Windows helper scripts
 
-- `deploy-app.bat` — 安装依赖并执行 `npm run build`，适合首次部署。
-- `package-app.bat` — 直接复用已安装的依赖，只执行 `npm run build` 完成打包，不会重新下载依赖。
-- `package-zip.bat` — 先调用 `package-app.bat` 生成最新 `dist`，然后把 `dist` 压缩为 zip（可通过第一个参数自定义文件名）。
 - `package-release.bat` — 构建前端、复制 `server` 与 `node_modules`，并将整套前后端运行时压缩为 zip。
-- `run-release.bat` — 启动已构建好的后端 API，并直接托管 `dist` 内的前端静态资源，实现一键运行。
-- `start-app.bat` — 并行启动后端 API（`npm run server`）和端口 8888 的前端预览。
+- `run-release.bat` — 启动已构建好的后端 API，并直接托管 `dist` 内的前端静态资源。
+- `runtime.config.json` — 发布包运行配置，可设置 `serverPort`、`dataDir` 与管理员账号。
 
 在项目根目录直接运行，例如：
 
 ```powershell
-.\package-app.bat
-.\package-zip.bat release-2024-12-25.zip  # 自定义输出文件名
-.\package-release.bat full-release.zip    # 前后端整体打包
-.\run-release.bat                        # 解压 release 后直接运行
+.\package-release.bat full-release.zip
+.\run-release.bat
 ```
 
-`package-release.bat` 会在根目录生成包含 `dist`、`server`、`node_modules` 与 `run-release.bat` 的压缩包，解压后只需保证安装了 Node.js，即可在其中运行 `run-release.bat`，一次性启动 API 与打包后的前端。
+`package-release.bat` 会在根目录生成包含 `dist`、`server`、`node_modules`、`runtime.config.json` 与 `run-release.bat` 的压缩包。解压后修改 `runtime.config.json` 即可配置端口和数据目录；也可以用 `run-release.bat 4001 data-guanhai` 临时覆盖配置。
 ### 部署代理服务 (Cloudflare Pages)
 
 本项目推荐使用 Cloudflare Pages 进行部署，内置了对 API 代理的支持。

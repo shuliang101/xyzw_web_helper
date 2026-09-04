@@ -1,0 +1,8 @@
+{
+  "serverPort": 4000,
+  "dataDir": "data",
+  "admin": {
+    "username": "admin",
+    "password": "admin123"
+  }
+}

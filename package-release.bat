@@ -14,12 +14,16 @@ if "%ZIP_NAME%"=="" (
 set "ZIP_PATH=%ROOT%%ZIP_NAME%"
 
 if not exist "node_modules" (
-    echo [ERROR] Missing node_modules. Run deploy-app.bat or npm install first.
+    echo [ERROR] Missing node_modules. Run npm install first.
     goto :fail
 )
 
 echo [1/5] Building latest frontend bundle...
-call "%ROOT%package-app.bat"
+if exist "dist" (
+    rmdir /s /q "dist"
+    if errorlevel 1 goto :error
+)
+call npm run build
 if errorlevel 1 goto :error
 
 echo [2/5] Preparing release directory...
@@ -40,6 +44,7 @@ call :CopyDir "node_modules" "%STAGE_DIR%\node_modules" || goto :error
 copy /y "%ROOT%package.json" "%STAGE_DIR%" >nul || goto :error
 if exist "%ROOT%package-lock.json" copy /y "%ROOT%package-lock.json" "%STAGE_DIR%" >nul
 copy /y "%ROOT%run-release.bat" "%STAGE_DIR%" >nul || goto :error
+copy /y "%ROOT%runtime.config.json" "%STAGE_DIR%" >nul || goto :error
 
 echo [4/5] Creating zip archive "%ZIP_NAME%"...
 if exist "%ZIP_PATH%" (

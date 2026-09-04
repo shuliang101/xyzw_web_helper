@@ -22,6 +22,7 @@ async function safeImport(moduleName, humanName) {
 
 export default defineConfig(async () => {
   const localApiTarget = `http://localhost:${process.env.SERVER_PORT || "4000"}`;
+  const devServerPort = Number(process.env.VITE_PORT || 8888);
   let basicSsl;
   try {
     ({ default: basicSsl } = await import("@vitejs/plugin-basic-ssl"));
@@ -140,7 +141,7 @@ export default defineConfig(async () => {
       },
     },
     server: {
-      port: 8888,
+      port: devServerPort,
       open: true,
       host: true,
       proxy: {

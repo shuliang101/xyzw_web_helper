@@ -1016,9 +1016,35 @@ const saveBatchClaimSchedule = async () => {
 const buildBindUrl = (member) =>
   `${window.location.origin}/club-car/bind?roleId=${encodeURIComponent(member.roleId)}`
 
+const copyText = async (text) => {
+  try {
+    if (!navigator.clipboard?.writeText) {
+      throw new Error('clipboard api unavailable')
+    }
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    const textArea = document.createElement('textarea')
+    textArea.value = text
+    textArea.setAttribute('readonly', '')
+    textArea.style.position = 'fixed'
+    textArea.style.left = '-9999px'
+    textArea.style.top = '0'
+    document.body.appendChild(textArea)
+    textArea.select()
+    textArea.setSelectionRange(0, textArea.value.length)
+    try {
+      return document.execCommand('copy')
+    } finally {
+      document.body.removeChild(textArea)
+    }
+  }
+}
+
 const copyBindLink = async (member) => {
   try {
-    await navigator.clipboard.writeText(buildBindUrl(member))
+    const copied = await copyText(buildBindUrl(member))
+    if (!copied) throw new Error('copy failed')
     message.success('绑定链接已复制')
   } catch {
     message.error('复制失败，请检查浏览器权限')
