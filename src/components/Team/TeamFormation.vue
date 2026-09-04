@@ -39,6 +39,12 @@
           </svg>
           <span class="refresh-text">刷新</span>
         </button>
+        <div v-if="!loading && currentPet" class="pet-summary">
+          <span class="pet-label">宠物</span>
+          <img v-if="currentPet.icon" :src="currentPet.icon" :alt="currentPet.name" class="pet-avatar" />
+          <span class="pet-name" :style="{ color: currentPet.color }">{{ currentPet.name }}</span>
+          <span v-if="currentPet.level" class="pet-level">Lv.{{ currentPet.level }}</span>
+        </div>
       </div>
     </div>
 
@@ -113,6 +119,7 @@ import { ref, computed, watch, onMounted } from "vue";
 import { useTokenStore } from "@/stores/tokenStore";
 import { useMessage } from "naive-ui";
 import { HERO_DICT } from "@/utils/HeroList.js";
+import { getShowPet } from "@/utils/PetList.js";
 
 const tokenStore = useTokenStore();
 const message = useMessage();
@@ -206,6 +213,8 @@ const currentTeamHeroes = computed(() => {
   console.log("🚀 ~ heroes:", heroes);
   return heroes;
 });
+
+const currentPet = computed(() => getShowPet((tokenStore.gameData as any)?.roleInfo));
 
 const executeGameCommand = async (
   tokenId: string | number,
@@ -365,6 +374,11 @@ watch(
 .team-formation-card {
   min-height: 220px;
 }
+
+.pet-summary { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; }
+.pet-label, .pet-level { color: var(--text-secondary); }
+.pet-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+.pet-name { font-weight: 600; }
 
 .card-header {
   display: flex;

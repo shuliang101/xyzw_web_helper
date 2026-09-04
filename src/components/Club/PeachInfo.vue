@@ -300,6 +300,7 @@
         </div>
 
         <div class="player-heroes">
+          <div v-if="playerInfo.pet" class="player-pet"><PetBadge :pet="playerInfo.pet" /></div>
           <h4>武将阵容</h4>
           <!-- 添加调试信息 -->
           <div v-if="playerInfo.heroList" class="debug-info" style="font-size: 12px; color: #999; margin-bottom: 10px">
@@ -474,6 +475,7 @@ import { useTokenStore } from "@/stores/tokenStore";
 import html2canvas from "html2canvas";
 import { downloadCanvasAsImage } from "@/utils/imageExport";
 import { HERO_DICT, HeroFillInfo, legacycolor, getLineupType, LINEUP_RULES } from "@/utils/HeroList";
+import { getShowPet } from "@/utils/PetList";
 import { getEquipmentStats, isRankHoleCountReliable, formatHoleCount } from "@/utils/equipmentStats";
 import {
   getLastSaturday,
@@ -856,6 +858,7 @@ const fetchTargetInfo = async (roleId) => {
       legionMaxRed: legionMaxRed,
       // 英雄列表
       heroList: heroAndholdAndRed.heroList,
+      pet: getShowPet(result),
       legacy: result.roleInfo.legacy?.color || 0, // 功法等级
     };
 
@@ -1385,6 +1388,7 @@ const fetchBattleInfo = async () => {
               redQuench: totalRed,
               heroList: heroList,
               lineupType: getLineupType(heroList),
+              pet: getShowPet(roleRes),
             };
           }
         } catch (e) {

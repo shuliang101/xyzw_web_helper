@@ -151,6 +151,10 @@
                     <td class="label-cell">玩具：</td>
                     <td class="value-cell">{{ memberData.lordWeaponId }}</td>
                   </tr>
+                  <tr v-if="memberData.pet">
+                    <td class="label-cell">宠物：</td>
+                    <td class="value-cell"><PetBadge :pet="memberData.pet" /></td>
+                  </tr>
                   <tr class="highlight-row">
                     <td class="label-cell">阵容：</td>
                     <td class="value-cell lineup">
@@ -554,6 +558,7 @@ import {
 } from "@/utils/equipmentStats";
 import html2canvas from "html2canvas";
 import { downloadCanvasAsImage } from "@/utils/imageExport";
+import { getShowPet } from "@/utils/PetList";
 
 // 确保legacycolor在模板中可用
 const legacyColorMap = legacycolor;
@@ -842,6 +847,7 @@ const fetchTargetInfo = async () => {
     // 切磋对手玩家头像
     teamData.headImg = result.roleInfo.headImg;
     teamData.lordWeaponId = formatWeapon(result.roleInfo.lordWeaponId);
+    teamData.pet = getShowPet(result.roleInfo);
     // 切磋对手玩家名称
     teamData.name = result.roleInfo.name;
     teamData.power = formatPower(result.roleInfo.power);

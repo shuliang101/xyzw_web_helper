@@ -143,13 +143,15 @@ export const getPetQuality = (petId) =>
  * @returns {{petId:number, level:number, name:string, icon:string, quality:string, color:string}|null}
  */
 export const getShowPet = (roleRes) => {
-  const petId = roleRes?.showPet?.petId ?? roleRes?.roleInfo?.pet?.petId;
+  const pet = roleRes?.role?.pet ?? roleRes?.roleInfo?.pet ?? roleRes?.pet;
+  const petId = roleRes?.showPet?.petId ?? pet?.petId ?? pet?.id;
   if (!petId) return null;
   const dict = PET_DICT[petId];
   const quality = getPetQuality(petId);
   return {
     petId,
-    level: roleRes?.showPet?.level || 0,
+    level: roleRes?.showPet?.level ?? pet?.level ?? 0,
+    petUId: roleRes?.showPet?.petUId ?? pet?.petUId ?? pet?.uid ?? "",
     name: dict?.name || `宠物${petId}`,
     icon: dict?.icon || "",
     quality: quality.name,
