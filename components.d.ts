@@ -47,6 +47,7 @@ declare module 'vue' {
     GoldRankListPageCard: typeof import('./src/components/cards/GoldRankListPageCard.vue')['default']
     GreatRouteRankListPageCard: typeof import('./src/components/Club/GreatRouteRankListPageCard.vue')['default']
     HangUpStatusCard: typeof import('./src/components/cards/HangUpStatusCard.vue')['default']
+    HeroLineupList: typeof import('./src/components/Common/HeroLineupList.vue')['default']
     HeroUpgradeCard: typeof import('./src/components/cards/HeroUpgradeCard.vue')['default']
     IdentityCard: typeof import('./src/components/Common/IdentityCard.vue')['default']
     LegionWarMap: typeof import('./src/components/Club/LegionWarMap.vue')['default']

@@ -194,7 +194,8 @@
               </div>
             </div>
 
-            <div class="heroes-grid compact">
+            <HeroLineupList :heroes="memberData.heroList" compact @select="selectHeroInfo" />
+            <div v-if="false" class="heroes-grid compact">
               <div
                 v-for="hero in memberData.heroList"
                 :key="hero.heroId || hero.heroName"
@@ -559,6 +560,7 @@ import {
 import html2canvas from "html2canvas";
 import { downloadCanvasAsImage } from "@/utils/imageExport";
 import { getShowPet } from "@/utils/PetList";
+import HeroLineupList from "@/components/Common/HeroLineupList.vue";
 
 // 确保legacycolor在模板中可用
 const legacyColorMap = legacycolor;

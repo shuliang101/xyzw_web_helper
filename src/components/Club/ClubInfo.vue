@@ -396,10 +396,8 @@
         >
           武将数量: {{ playerInfo.heroList.length }}
         </div>
-        <div
-          class="hero-list"
-          v-if="playerInfo.heroList && playerInfo.heroList.length > 0"
-        >
+        <HeroLineupList :heroes="playerInfo.heroList" @select="selectHeroInfo" />
+        <div v-if="false" class="hero-list">
           <div
             v-for="(hero, index) in playerInfo.heroList"
             :key="hero.heroId || index"
