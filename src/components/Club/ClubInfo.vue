@@ -432,7 +432,7 @@
             </div>
           </div>
         </div>
-        <div v-else class="empty-heroes">
+        <div v-else-if="false" class="empty-heroes">
           <p>未查询到武将信息</p>
           <!-- 添加调试信息 -->
           <div
@@ -2059,11 +2059,7 @@ const formatNumber = (num) => {
 }
 
 .player-pet-row > span:first-child {
-  font-size: 0;
-}
-.player-pet-row > span:first-child::after {
-  content: "\\5ba0\\7269\\ff1a";
-  font-size: var(--font-size-sm, 14px);
+  display: none;
 }
 
 .player-info-main {
