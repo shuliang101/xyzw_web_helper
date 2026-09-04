@@ -39,7 +39,7 @@
           </svg>
           <span class="refresh-text">刷新</span>
         </button>
-        <div v-if="!loading && currentPet" class="pet-summary">
+        <div v-if="false && currentPet" class="pet-summary">
           <span class="pet-label">宠物</span>
           <img v-if="currentPet.icon" :src="currentPet.icon" :alt="currentPet.name" class="pet-avatar" />
           <span class="pet-name" :style="{ color: currentPet.color }">{{ currentPet.name }}</span>
@@ -55,6 +55,13 @@
           <template v-if="!loading">阵容 {{ currentTeam }}</template>
           <template v-else>加载中…</template>
         </span>
+      </div>
+
+      <div v-if="!loading && currentPet" class="pet-summary">
+        <span class="pet-label">宠物</span>
+        <img v-if="currentPet.icon" :src="currentPet.icon" :alt="currentPet.name" class="pet-avatar" />
+        <span class="pet-name" :style="{ color: currentPet.color }">{{ currentPet.name }}</span>
+        <span v-if="currentPet.level" class="pet-level">Lv.{{ currentPet.level }}</span>
       </div>
 
       <div class="heroes-container">
