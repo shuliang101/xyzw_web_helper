@@ -133,6 +133,13 @@ export const PET_QUALITY = {
   7: { name: "金", color: "#d4a017" },
 };
 
+const PET_NAME_OVERRIDES = {
+  701: "\u9ec4\u91d1\u7ae0\u9c7c",
+  702: "\u8d64\u5154\u9a6c",
+  703: "\u7384\u7fce\u9e64",
+  704: "\u98df\u68a6\u8c98",
+};
+
 /** 取 petId 的首位数字对应的品质配置 */
 export const getPetQuality = (petId) =>
   PET_QUALITY[Math.floor(Number(petId) / 100)] || PET_QUALITY[1];
@@ -147,6 +154,9 @@ export const getShowPet = (roleRes) => {
   const petId = roleRes?.showPet?.petId ?? pet?.petId ?? pet?.id;
   if (!petId) return null;
   const dict = PET_DICT[petId];
+  if (PET_NAME_OVERRIDES[petId]) {
+    if (dict) dict.name = PET_NAME_OVERRIDES[petId];
+  }
   const quality = getPetQuality(petId);
   return {
     petId,

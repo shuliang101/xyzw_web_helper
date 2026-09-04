@@ -2060,6 +2060,14 @@ const formatNumber = (num) => {
   padding: 20px;
 }
 
+.player-pet-row > span:first-child {
+  font-size: 0;
+}
+.player-pet-row > span:first-child::after {
+  content: "\\5ba0\\7269\\ff1a";
+  font-size: var(--font-size-sm, 14px);
+}
+
 .player-info-main {
   display: flex;
   align-items: center;
