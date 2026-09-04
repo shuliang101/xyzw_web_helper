@@ -1026,6 +1026,9 @@ onMounted(() => {
 <style scoped lang="scss">
 .fight-pvp-container {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   // padding: 16px;
 }
 
@@ -1033,6 +1036,10 @@ onMounted(() => {
   background: var(--bg-primary);
   border-radius: var(--border-radius-xl);
   padding: 20px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
 }
@@ -1137,6 +1144,8 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  width: 100%;
+  min-width: 0;
 }
 
 .info-card {
@@ -1144,6 +1153,9 @@ onMounted(() => {
   border: 1px solid var(--border-light);
   border-radius: var(--border-radius-large);
   padding: 12px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   transition: all 0.3s ease;
 }
 
@@ -1859,6 +1871,147 @@ onMounted(() => {
 
   .heroes-card .hero-card {
     padding: 12px;
+  }
+}
+
+/* 防止切磋内容在窄屏下撑破页面 */
+.fight-pvp-container,
+.fight-pvp-container .main-card,
+.fight-pvp-container .content-section,
+.fight-pvp-container .info-card {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.fight-pvp-container .opponent-main-layout {
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+}
+
+.fight-pvp-container .opponent-main-layout .left-card,
+.fight-pvp-container .opponent-main-layout .right-card {
+  min-width: 0;
+}
+
+.fight-pvp-container .opponent-main-layout .right-card {
+  overflow: hidden;
+}
+
+.fight-pvp-container .heroes-grid.compact {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.fight-pvp-container .hero-card.compact {
+  width: 100%;
+  max-width: 130px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.fight-pvp-container .info-table {
+  table-layout: fixed;
+}
+
+.fight-pvp-container .info-table .value-cell {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 768px) {
+  .fight-pvp-container .action-section .input-group {
+    flex-direction: column;
+  }
+
+  .fight-pvp-container .action-section .input-group .target-input,
+  .fight-pvp-container .action-section .input-group .n-button {
+    width: 100%;
+  }
+
+  .fight-pvp-container .action-section .fight-options {
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .fight-pvp-container .action-section .fight-options .option-item,
+  .fight-pvp-container .action-section .fight-options .option-actions {
+    width: 100%;
+  }
+
+  .fight-pvp-container .action-section .fight-options .option-item {
+    justify-content: space-between;
+  }
+
+  .fight-pvp-container .action-section .fight-options .option-item .fight-count-select {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+
+  .fight-pvp-container .action-section .fight-options .option-actions {
+    flex-wrap: wrap;
+  }
+
+  .fight-pvp-container .action-section .fight-options .option-actions .n-button {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+
+  .fight-pvp-container .opponent-main-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .fight-pvp-container .opponent-main-layout .left-card,
+  .fight-pvp-container .opponent-main-layout .right-card {
+    grid-column: 1;
+  }
+
+  .fight-pvp-container .opponent-main-layout .left-card { grid-row: 1; }
+  .fight-pvp-container .opponent-main-layout .right-card { grid-row: 2; }
+
+  .fight-pvp-container .info-table .avatar-cell {
+    width: 54px;
+    padding: 4px 2px;
+  }
+
+  .fight-pvp-container .info-table .label-cell {
+    width: 74px;
+    white-space: normal;
+    word-break: break-all;
+  }
+
+  .fight-pvp-container .info-table td {
+    padding: 3px 4px;
+    line-height: 20px;
+    height: auto;
+  }
+
+  .fight-pvp-container .info-table .value-cell { padding-left: 6px; }
+
+  .fight-pvp-container .heroes-grid.compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 4px 0;
+  }
+
+  .fight-pvp-container .hero-card.compact {
+    max-width: none;
+    height: auto;
+    min-height: 170px;
+    padding: 10px 6px;
+  }
+
+  .fight-pvp-container .hero-card.compact .hero-circle {
+    width: 58px;
+    height: 58px;
+  }
+
+  .fight-pvp-container .hero-card.compact .hero-name-row {
+    flex-wrap: wrap;
+    height: auto;
+    row-gap: 2px;
   }
 }
 </style>
