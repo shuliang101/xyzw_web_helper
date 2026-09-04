@@ -248,6 +248,8 @@
           </div>
         </div>
 
+        <div v-if="playerInfo.pet" class="player-pet-row"><PetBadge :pet="playerInfo.pet" /></div>
+
         <div class="action-section">
           <div style="display: flex; align-items: center; gap: 8px; flex: 1">
             <div class="fight-count-container">
@@ -656,6 +658,8 @@ import {
 import { useTokenStore } from "@/stores/tokenStore";
 import html2canvas from "html2canvas";
 import { downloadCanvasAsImage } from "@/utils/imageExport";
+import { getShowPet } from "@/utils/PetList";
+import PetBadge from "@/components/Common/PetBadge.vue";
 import { Refresh, Copy } from "@vicons/ionicons5";
 import { gettoday } from "@/utils/clubWarrankUtils";
 import { HERO_DICT, HeroFillInfo, legacycolor } from "@/utils/HeroList";
@@ -1011,6 +1015,7 @@ const fetchTargetInfo = async (roleId) => {
       legionMaxRed: legionMaxRed,
       // 英雄列表
       heroList: heroAndholdAndRed.heroList,
+      pet: getShowPet(result),
       legacy: result.roleInfo.legacy?.color || 0, // 功法等级
     };
 
