@@ -213,7 +213,8 @@
       </template>
 
       <div v-if="playerInfo" class="player-info-content">
-        <div class="player-info-main">
+        <RoleInfoSummary :role="playerInfo" />
+        <div v-if="false" class="player-info-main">
           <n-avatar
             round
             :size="60"
@@ -660,6 +661,7 @@ import html2canvas from "html2canvas";
 import { downloadCanvasAsImage } from "@/utils/imageExport";
 import { getShowPet } from "@/utils/PetList";
 import PetBadge from "@/components/Common/PetBadge.vue";
+import RoleInfoSummary from "@/components/Common/RoleInfoSummary.vue";
 import { Refresh, Copy } from "@vicons/ionicons5";
 import { gettoday } from "@/utils/clubWarrankUtils";
 import { HERO_DICT, HeroFillInfo, legacycolor } from "@/utils/HeroList";
