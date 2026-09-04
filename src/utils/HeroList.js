@@ -69,7 +69,9 @@ export const formatStarLevel = (value) => {
   const stars = Number(value) || 0;
   if (!stars) return "0";
   const tiers = ["黄星", "紫星", "橙星", "红星", "皇冠", "紫冠"];
-  return `${tiers[Math.min(Math.ceil(stars / 5), tiers.length) - 1]}${stars}`;
+  const tierIndex = Math.min(Math.ceil(stars / 5), tiers.length) - 1;
+  const tierStar = ((stars - 1) % 5) + 1;
+  return `${tiers[tierIndex]}${tierStar}`;
 };
 
 export const LINEUP_RULES = [
