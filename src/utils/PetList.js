@@ -174,8 +174,10 @@ export const getShowPet = (roleRes) => {
       pet?.starLevel ??
       pet?.starNum ??
       pet?.stars ??
+      pet?.showStar ??
       roleRes?.showPet?.star ??
       roleRes?.showPet?.starLevel ??
+      roleRes?.showPet?.showStar ??
       pet?.qualityLevel ??
       0,
     petUId: roleRes?.showPet?.petUId ?? pet?.petUId ?? pet?.uid ?? "",
