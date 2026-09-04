@@ -961,6 +961,8 @@ const fetchTargetInfo = async (roleId) => {
         includeHero: true,
         includeHeroDetail: true,
         includePearl: true,
+        includePet: true,
+        includePetDetail: true,
       },
       5000,
     );

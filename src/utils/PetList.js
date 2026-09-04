@@ -150,8 +150,15 @@ export const getPetQuality = (petId) =>
  * @returns {{petId:number, level:number, star:number, name:string, icon:string, quality:string, color:string}|null}
  */
 export const getShowPet = (roleRes) => {
-  const pet = roleRes?.role?.pet ?? roleRes?.roleInfo?.pet ?? roleRes?.pet;
-  const petId = roleRes?.showPet?.petId ?? pet?.petId ?? pet?.id;
+  const roleInfo = roleRes?.roleInfo ?? roleRes?.role ?? {};
+  const pet =
+    roleRes?.showPet ??
+    roleInfo?.showPet ??
+    roleInfo?.pet ??
+    roleRes?.pet ??
+    roleInfo?.pets?.find?.((item) => item?.isShow || item?.isActive) ??
+    roleInfo?.pets?.[0];
+  const petId = pet?.petId ?? pet?.id ?? roleRes?.showPet?.petId;
   if (!petId) return null;
   const dict = PET_DICT[petId];
   if (PET_NAME_OVERRIDES[petId]) {
@@ -160,13 +167,15 @@ export const getShowPet = (roleRes) => {
   const quality = getPetQuality(petId);
   return {
     petId,
-    level: roleRes?.showPet?.level ?? pet?.level ?? 0,
+    level: pet?.level ?? roleRes?.showPet?.level ?? 0,
     // 金色宠物可能在不同接口版本中使用不同字段名
     star:
-      roleRes?.showPet?.star ??
-      roleRes?.showPet?.starLevel ??
       pet?.star ??
       pet?.starLevel ??
+      pet?.starNum ??
+      pet?.stars ??
+      roleRes?.showPet?.star ??
+      roleRes?.showPet?.starLevel ??
       pet?.qualityLevel ??
       0,
     petUId: roleRes?.showPet?.petUId ?? pet?.petUId ?? pet?.uid ?? "",

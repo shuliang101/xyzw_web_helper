@@ -816,6 +816,8 @@ const fetchTargetInfo = async () => {
         includeBottleTeam: false,
         isSearch: false,
         roleId: targetId.value,
+        includePet: true,
+        includePetDetail: true,
       },
       5000,
     );
