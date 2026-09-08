@@ -407,30 +407,17 @@
         <div class="fortress-grid">
           <div
             v-for="item in displayMapList"
-            :key="'slot_' + item.slot + '_' + item.id + '_' + (item.mirror ? 'mirror' : 'real')"
+            :key="item.id || item.slot"
             class="fortress-card"
             :class="{
               'is-defeated': item.defeated,
               'is-alive': !item.defeated,
-              'is-mirror': item.mirror,
             }"
             @click="openDuelModal(item)"
           >
             <!-- 卡片顶部据点编号与状态印章 -->
             <div class="card-header-bar">
-              <span class="slot-badge">
-                #{{ item.slot || "?" }} 据点
-                <n-tag
-                  v-if="item.mirror"
-                  size="tiny"
-                  type="warning"
-                  round
-                  :bordered="false"
-                  style="margin-left: 4px; transform: scale(0.9); transform-origin: left center;"
-                >
-                  镜像
-                </n-tag>
-              </span>
+              <span class="slot-badge">#{{ item.slot || "?" }} 据点</span>
               <div class="stamp-wrapper">
                 <span v-if="item.defeated" class="stamp stamp-defeated"
                   >💥 已攻破</span
@@ -461,7 +448,6 @@
               <div class="member-detail">
                 <div class="member-name" :title="item.name">
                   {{ item.name }}
-                  <span v-if="item.mirror" class="mirror-text" style="font-size: 11px; color: #f0a020; margin-left: 2px;">(镜像)</span>
                 </div>
                 <div class="member-power">{{ formatPower(item.power) }}</div>
                 <div class="member-lineup">
@@ -476,9 +462,7 @@
             <div class="card-footer-bar">
               <div class="combat-stat-text">
                 遭遇 <span class="num">{{ item.challengeCnt || 0 }}</span> 次 |
-                防守成功
-                <span class="num error">{{ item.failCnt || 0 }}</span>
-                次
+                失守 <span class="num error">{{ item.failCnt || 0 }}</span> 次
               </div>
               <div class="card-action-hint">
                 <span>战报流水</span>
@@ -808,7 +792,6 @@
           <n-data-table
             :columns="todayTableColumns"
             :data="sortedTodayMembers"
-            :row-key="(row: any) => 'slot_' + (row.slot || '') + '_' + row.id + '_' + (row.mirror ? 'mirror' : 'real')"
             :bordered="false"
             size="small"
             striped
@@ -900,7 +883,6 @@
           <n-data-table
             :columns="weeklyRosterColumns"
             :data="sortedWeeklyRoster"
-            :row-key="(row: any) => 'slot_' + (row.slot || '') + '_' + row.id + '_' + (row.mirror ? 'mirror' : 'real')"
             :bordered="false"
             size="small"
             striped
@@ -936,7 +918,6 @@
         <n-data-table
           :columns="columns"
           :data="currentMemberList"
-          :row-key="(row: any) => 'slot_' + (row.slot || '') + '_' + row.id + '_' + (row.mirror ? 'mirror' : 'real')"
           :bordered="false"
           size="small"
           striped
@@ -961,25 +942,15 @@
     <n-modal
       v-model:show="showDuelModal"
       preset="card"
-      :title="`成员攻防战况流水 - ${targetPlayer?.name || ''}${targetPlayer?.mirror ? '（镜像据点）' : ''}`"
+      :title="`成员攻防战况流水 - ${targetPlayer?.name || ''}`"
       :style="{ width: '740px' }"
       :bordered="false"
       :segmented="{ content: 'soft', footer: 'soft' }"
     >
       <template #header-extra>
-        <span v-if="targetPlayer" class="player-id">
-          <n-tag
-            v-if="targetPlayer.mirror"
-            size="small"
-            type="warning"
-            round
-            :bordered="false"
-            style="margin-right: 8px;"
-          >
-            镜像据点
-          </n-tag>
-          ID: {{ targetPlayer.id }}
-        </span>
+        <span v-if="targetPlayer" class="player-id"
+          >ID: {{ targetPlayer.id }}</span
+        >
       </template>
 
       <div v-if="targetPlayer" class="duel-content">
@@ -991,24 +962,15 @@
             :src="targetPlayer.headImg || '/icons/xiaoyugan.png'"
           />
           <div class="duel-player-info">
-            <h3>
-              {{ targetPlayer.name }}
-              <n-tag
-                v-if="targetPlayer.mirror"
-                size="small"
-                type="warning"
-                round
-                :bordered="false"
-                style="margin-left: 8px;"
-              >
-                镜像
-              </n-tag>
-            </h3>
+            <h3>{{ targetPlayer.name }}</h3>
             <p>
               真实战力: {{ formatPower(targetPlayer.power) }} | 总红淬:
               {{ targetPlayer.redQuench }}
             </p>
-            <p>流派: {{ targetPlayer.lineupType || "常规" }}</p>
+            <p>
+              玩具: {{ targetPlayer.toyName || "无" }} | 流派:
+              {{ targetPlayer.lineupType || "常规" }}
+            </p>
           </div>
         </div>
 
@@ -1271,6 +1233,7 @@ import {
   legacycolor,
   getLineupType,
   LINEUP_RULES,
+  formatWeapon,
 } from "@/utils/HeroList";
 import { getLastSaturday } from "@/utils/clubBattleUtils";
 
@@ -1578,16 +1541,6 @@ const weeklyStats = computed(() => {
   const weekScore = club.weekScore || 0;
   const dayScore = club.dayScore || 0;
 
-  // 个人本周战功：取 club.members 中自己 roleId 对应条目的 score（周累计值，Σmembers.score === club.weekScore 已实测证实）；
-  // siege.score 是另一套口径（实测 siege.score=89 而成员条目 score=28），不能作为本周战功
-  let personalScore = siege.score || 0;
-  for (const m of Object.values(club.members || {}) as any[]) {
-    if (Number(m.roleId) === Number(siege.roleId)) {
-      personalScore = m.score || 0;
-      break;
-    }
-  }
-
   // 个人本周统计 (从 siege.attackMap 中统计)
   const attackMap = siege.attackMap || {};
   let weekAttackCnt = 0;
@@ -1638,7 +1591,7 @@ const weeklyStats = computed(() => {
     danText,
     weekScore,
     dayScore,
-    personalScore,
+    personalScore: siege.score || 0,
     personalLevel: siege.level || 1,
     weekAttackCnt,
     weekWinCnt,
@@ -1795,7 +1748,6 @@ const weeklyRosterRanked = computed(() => {
   const members = [...ownMembers.value];
   return members.map((m) => {
     const w =
-      weeklyDefenseStatsMap.value.get(`${Number(m.id)}_${!!m.mirror}`) ||
       weeklyDefenseStatsMap.value.get(Number(m.id)) ||
       weeklyDefenseStatsMap.value.get(m.id as any);
     return {
@@ -1926,27 +1878,10 @@ const todayTableColumns = [
       h(
         "span",
         {
-          style: {
-            fontWeight: "600",
-            color: "#1890ff",
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "4px",
-          },
+          style: { fontWeight: "600", color: "#1890ff", cursor: "pointer" },
           onClick: () => openDuelModal(row),
         },
-        [
-          row.name,
-          row.mirror
-            ? h(
-                NTag,
-                { size: "tiny", type: "warning", round: true, bordered: false },
-                { default: () => "镜像" }
-              )
-            : null,
-        ]
+        row.name
       ),
   },
   {
@@ -2017,13 +1952,6 @@ const todayTableColumns = [
     width: 120,
     align: "center",
     render: (row: any) => {
-      if (row.mirror) {
-        return h(
-          NTag,
-          { size: "small", type: "default", bordered: false },
-          { default: () => "— 镜像不计" }
-        );
-      }
       const cnt = row.realAttackCnt;
       if (cnt === undefined || cnt === 0) {
         return h(
@@ -2059,13 +1987,6 @@ const todayTableColumns = [
     width: 140,
     align: "center",
     render: (row: any) => {
-      if (row.mirror) {
-        return h(
-          "span",
-          { style: { color: "#94a3b8", fontSize: "12px" } },
-          "—"
-        );
-      }
       if ((row.realAttackCnt || 0) > 0) {
         return h(
           "span",
@@ -2155,27 +2076,10 @@ const weeklyRosterColumns = [
       h(
         "span",
         {
-          style: {
-            fontWeight: "600",
-            color: "#1890ff",
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "4px",
-          },
+          style: { fontWeight: "600", color: "#1890ff", cursor: "pointer" },
           onClick: () => openDuelModal(row),
         },
-        [
-          row.name,
-          row.mirror
-            ? h(
-                NTag,
-                { size: "tiny", type: "warning", round: true, bordered: false },
-                { default: () => "镜像" }
-              )
-            : null,
-        ]
+        row.name
       ),
   },
   {
@@ -2300,7 +2204,7 @@ const fetchMemberRealLineup = async (
       targetTeamRes = await tokenStore.sendMessageWithPromise(
         tokenId,
         "role_gettargetteam",
-        { roleId: Number(roleId), targetId: Number(roleId) },
+        { targetId: roleId },
         4000
       );
     }
@@ -2355,6 +2259,10 @@ const fetchMemberRealLineup = async (
       power: totalPower,
       legacy: baseInfo?.legacy || 0,
       redQuench: totalRedCount,
+      toyName:
+        formatWeapon(
+          role?.weaponId || role?.lordWeaponId || baseInfo?.toyName
+        ) || "",
       petId: role?.petId || baseInfo?.petId || 0,
       legionName: role?.legionName || baseInfo?.legionName || "",
       heroList: heroesInTeam,
@@ -2363,7 +2271,6 @@ const fetchMemberRealLineup = async (
       defeated: baseInfo?.defeated || false,
       challengeCnt: baseInfo?.challengeCnt || 0,
       failCnt: baseInfo?.failCnt || 0,
-      mirror: !!baseInfo?.mirror,
     };
   } catch (e: any) {
     return {
@@ -2374,6 +2281,7 @@ const fetchMemberRealLineup = async (
       power: baseInfo?.power || 0,
       legacy: 0,
       redQuench: 0,
+      toyName: "",
       petId: baseInfo?.petId || 0,
       heroList: [],
       lineupType: "未知",
@@ -2381,7 +2289,6 @@ const fetchMemberRealLineup = async (
       defeated: baseInfo?.defeated || false,
       challengeCnt: baseInfo?.challengeCnt || 0,
       failCnt: baseInfo?.failCnt || 0,
-      mirror: !!baseInfo?.mirror,
     };
   }
 };
@@ -2511,7 +2418,7 @@ const fetchCampChallengeData = async () => {
       },
     };
 
-    // 6. 构建敌我双方 30 名成员基础列表 (保留 slot 据点编号、镜像标记与受击数据)
+    // 6. 构建敌我双方 30 名成员基础列表 (保留 slot 据点编号与受击数据)
     const oppDefendersEntries = Object.entries(currentOppo.defenders || {}) as [
       string,
       any
@@ -2527,12 +2434,12 @@ const fetchCampChallengeData = async () => {
         defeated: d.defeated || false,
         challengeCnt: d.challengeCnt || 0,
         failCnt: d.failCnt || 0,
-        mirror: !!d.mirror,
         heroList: [],
-      lineupType: "常规",
-      redQuench: 0,
-      legacy: 0,
-      petId: d.petId || 0,
+        lineupType: "常规",
+        redQuench: 0,
+        legacy: 0,
+        toyName: "",
+        petId: d.petId || 0,
         legionName: displayOppName,
       })
     );
@@ -2552,12 +2459,12 @@ const fetchCampChallengeData = async () => {
         defeated: m.defeated || false,
         challengeCnt: m.challengeCnt || 0,
         failCnt: m.failCnt || 0,
-        mirror: !!m.mirror,
         heroList: [],
-      lineupType: "常规",
-      redQuench: 0,
-      legacy: 0,
-      petId: m.petId || 0,
+        lineupType: "常规",
+        redQuench: 0,
+        legacy: 0,
+        toyName: "",
+        petId: m.petId || 0,
         legionName: ownClubData.name || "我方俱乐部",
       })
     );
@@ -2732,40 +2639,29 @@ const aggregateAllMemberAttacks = async (tokenId: string, day: number) => {
   let oppTotalLosses = 0;
 
   // 1. 统计我方出手：读取对手据点 challengeCnt 与 failCnt 计算出刀与胜负
-  //    failCnt 语义已用 100 条今日战报逐成员比对钉死：failCnt = 攻击方挑战失败次数 = 该据点防守成功次数；
-  //    故我方挑战成功(胜) = challengeCnt - failCnt，我方挑战失败 = failCnt
   for (const d of oppDefenders as any[]) {
     const cnt = d.challengeCnt || 0;
-    const defSucc = d.failCnt || 0; // 对手据点防守成功次数 = 我方挑战失败次数
+    const wins = d.failCnt || 0;
     ourTotalAttacks += cnt;
-    ourTotalWins += Math.max(0, cnt - defSucc);
-    ourTotalLosses += defSucc;
+    ourTotalWins += wins;
+    ourTotalLosses += Math.max(0, cnt - wins);
   }
 
   // 1b. 并发拉取对手防守据点战报（即我方出刀战报）：仅当前比赛日可查（往日返回 200020），
   //     用于补充每刀明细与成员归属，不重复累加总出手数（总数已由 challengeCnt 真值提供）
-  const seenOppDefRecords = new Set<string>();
   const oppDefPromise = Promise.all(
     oppDefenders.map(async (d: any) => {
       try {
         const defRes: any = await tokenStore.sendMessageWithPromise(
           tokenId,
           "club_getdefenserecord",
-          { targetId: d.roleId, targetIsMirror: !!d.mirror },
+          { targetId: d.roleId, targetIsMirror: false },
           5000
         );
         if (Array.isArray(defRes?.records)) {
           for (const r of defRes.records) {
             // 过滤非指定比赛日的战报
             if (!isRecordInMatchDay(r.created, day)) continue;
-
-            // 全局战报去重（根据全局唯一 recordName 或 特征键，避免镜像据点或同角色复用导致战报重复累计）
-            const recordKey =
-              r.recordName ||
-              `${r.created}_${r.roleId}_${r.nodeId ?? d.slot ?? ""}_${r.isWin}`;
-            if (seenOppDefRecords.has(recordKey)) continue;
-            seenOppDefRecords.add(recordKey);
-
             // 挑战方攻破判定：对手据点记录中 isWin 为 false 表示攻破成功
             const attackerWon = r.isWin === false;
 
@@ -2809,14 +2705,13 @@ const aggregateAllMemberAttacks = async (tokenId: string, day: number) => {
   );
 
   // 2. 并发拉取我方防守据点战报
-  const seenOurDefRecords = new Set<string>();
   const ourDefPromise = Promise.all(
     ourDefenders.map(async (m: any) => {
       try {
         const defRes: any = await tokenStore.sendMessageWithPromise(
           tokenId,
           "club_getdefenserecord",
-          { targetId: m.id || m.roleId, targetIsMirror: !!m.mirror },
+          { targetId: m.id || m.roleId, targetIsMirror: false },
           5000
         );
         if (Array.isArray(defRes?.records)) {
@@ -2837,21 +2732,13 @@ const aggregateAllMemberAttacks = async (tokenId: string, day: number) => {
 
             // 过滤非指定比赛日的战报
             if (!isRecordInMatchDay(r.created, day)) continue;
-
-            // 全局战报去重（避免镜像据点或同角色复用导致对手出刀数据被多次翻倍累计）
-            const recordKey =
-              r.recordName ||
-              `${r.created}_${r.roleId}_${r.nodeId ?? m.slot ?? ""}_${r.isWin}`;
-            if (!seenOurDefRecords.has(recordKey)) {
-              seenOurDefRecords.add(recordKey);
-              oppTotalAttacks++;
-              // 防守记录判定：isWin 为 true 代表防守守住，false 代表失守
-              const oppAttackerWon = r.isWin === false;
-              if (oppAttackerWon) oppTotalWins++;
-              else oppTotalLosses++;
-            }
-
+            oppTotalAttacks++;
+            // 防守记录判定：isWin 为 true 代表防守守住，false 代表失守
+            const oppAttackerWon = r.isWin === false;
             const defenderWon = r.isWin === true;
+            if (oppAttackerWon) oppTotalWins++;
+            else oppTotalLosses++;
+
             list.push({
               attackType: 0,
               winFlag: defenderWon, // 我方防守成功（对方挑战失败）
@@ -2868,11 +2755,7 @@ const aggregateAllMemberAttacks = async (tokenId: string, day: number) => {
             });
           }
           list.sort((a, b) => b.timestamp - a.timestamp);
-          const memberRoleId = m.id || m.roleId;
-          defRecordsMap.set(`${memberRoleId}_${!!m.mirror}`, list);
-          if (!m.mirror || !defRecordsMap.has(memberRoleId)) {
-            defRecordsMap.set(memberRoleId, list);
-          }
+          defRecordsMap.set(m.id || m.roleId, list);
           // 计算当周防守胜率并写入周统计
           w.defWinRate =
             w.challengeCnt > 0
@@ -2880,10 +2763,7 @@ const aggregateAllMemberAttacks = async (tokenId: string, day: number) => {
               : "—";
           w.defWinRateNum =
             w.challengeCnt > 0 ? (w.defWins / w.challengeCnt) * 100 : -1;
-          weeklyDefenseStatsMap.value.set(`${memberRoleId}_${!!m.mirror}`, w);
-          if (!m.mirror || !weeklyDefenseStatsMap.value.has(memberRoleId)) {
-            weeklyDefenseStatsMap.value.set(memberRoleId, w);
-          }
+          weeklyDefenseStatsMap.value.set(m.id || m.roleId, w);
         }
       } catch (e) {
         // 忽略单据点拉取失败
@@ -2979,12 +2859,9 @@ const todayBattleStarted = computed(() => {
  */
 const injectAttackStatsIntoOwnMembers = () => {
   ownMembers.value = ownMembers.value.map((m: any) => {
-    const isMirror = !!m.mirror;
-    // 镜像据点为系统填充的虚拟防守据点，作为独立个体本身无出战行为，不继承本体的主动出刀统计
-    const stats = isMirror
-      ? null
-      : memberAttackStatsMap.value.get(Number(m.id)) ||
-        memberAttackStatsMap.value.get(m.id as any);
+    const stats =
+      memberAttackStatsMap.value.get(Number(m.id)) ||
+      memberAttackStatsMap.value.get(m.id as any);
 
     // 1. 出手信息
     const realAttackCnt = stats ? stats.attackCnt : 0;
@@ -2998,10 +2875,7 @@ const injectAttackStatsIntoOwnMembers = () => {
     // 判定成员出战状态与出刀次数文本
     let attackStatusText = "0/3 未出战";
     let attackStatusType: "error" | "warning" | "success" | "info" = "error";
-    if (isMirror) {
-      attackStatusText = "— 镜像不计";
-      attackStatusType = "info";
-    } else if (realAttackCnt === 0) {
+    if (realAttackCnt === 0) {
       attackStatusText = "0/3 未出战";
       attackStatusType = "error";
     } else if (realAttackCnt < 3) {
@@ -3016,17 +2890,15 @@ const injectAttackStatsIntoOwnMembers = () => {
     }
 
     // 2. 防守信息：计算防守守住次数、失守次数与防守胜率
-    //    failCnt 语义已用 100 条今日战报逐成员比对钉死：failCnt = 攻击方挑战失败次数 = 我方防守成功(守住)次数；
-    //    我方失守次数 = 遭遇挑战次数 - failCnt
     const challengeCnt = m.challengeCnt || 0;
-    const defWins = m.failCnt || 0;
-    const defLosses = Math.max(0, challengeCnt - defWins);
+    const defLosses = m.failCnt || 0;
+    const defWins = Math.max(0, challengeCnt - defLosses);
     const defWinRateNum =
       challengeCnt > 0 ? (defWins / challengeCnt) * 100 : -1;
     const defWinRate = challengeCnt > 0 ? defWinRateNum.toFixed(1) + "%" : "—";
 
-    // 3. 今日未开战时将今日战功归 0，开战后读取 score；镜像据点不计出战战功
-    const todayScore = !isMirror && todayBattleStarted.value ? m.score || 0 : 0;
+    // 3. 今日未开战时将今日战功归 0，开战后读取 score
+    const todayScore = todayBattleStarted.value ? m.score || 0 : 0;
 
     return {
       ...m,
@@ -3087,7 +2959,6 @@ const handleMatchDayChange = async (day: number) => {
         defeated: fresh.defeated ?? m.defeated,
         challengeCnt: fresh.challengeCnt ?? 0,
         failCnt: fresh.failCnt ?? 0,
-        mirror: fresh.mirror !== undefined ? !!fresh.mirror : m.mirror,
       };
     });
 
@@ -3107,11 +2978,11 @@ const handleMatchDayChange = async (day: number) => {
         defeated: d.defeated || false,
         challengeCnt: d.challengeCnt || 0,
         failCnt: d.failCnt || 0,
-        mirror: !!d.mirror,
         heroList: [],
         lineupType: "常规",
         redQuench: 0,
         legacy: 0,
+        toyName: "",
         petId: d.petId || 0,
         legionName: oppo.name,
       })
@@ -3179,7 +3050,7 @@ const openDuelModal = async (player: any) => {
       const defRes: any = await tokenStore.sendMessageWithPromise(
         tokenId,
         "club_getdefenserecord",
-        { targetId: player.id, targetIsMirror: !!player.mirror },
+        { targetId: player.id },
         5000
       );
       if (Array.isArray(defRes?.records)) {
@@ -3206,50 +3077,44 @@ const openDuelModal = async (player: any) => {
       playerAttackRecords.value = [];
     } else {
       // 目标是我方俱乐部成员：
-      const isMirror = !!player.mirror;
       const roleIdNum = Number(player.id);
-      // 1. 出手信息（我方进攻）：镜像据点为系统填充的虚拟防守据点，作为独立个体无主动出战出刀记录
-      if (isMirror) {
-        playerAttackRecords.value = [];
+      // 1. 出手信息（我方进攻）：出手信息中挑战成功就是挑战成功！
+      const s =
+        memberAttackStatsMap.value.get(roleIdNum) ||
+        memberAttackStatsMap.value.get(player.id);
+      if (s && s.attacks.length > 0) {
+        playerAttackRecords.value = s.attacks;
+      } else if (
+        roleIdNum === Number(tokenStore.selectedToken?.roleId) &&
+        cachedAttackRecords.value.length > 0
+      ) {
+        playerAttackRecords.value = cachedAttackRecords.value
+          .filter((r: any) =>
+            isRecordInMatchDay(r.created, selectedMatchDay.value)
+          )
+          .map((r: any) => ({
+            attackType: 1,
+            winFlag: r.isWin === true, // 进攻信息：挑战成功就是挑战成功！
+            timestamp: r.created,
+            difficulty: r.difficulty,
+            nodeId: r.nodeId,
+            targetRoleInfo: {
+              roleId: r.roleId,
+              name: r.name,
+              legionName:
+                r.legionName ||
+                battleInfo.value?.opponentClub?.name ||
+                "敌方俱乐部",
+              headImg: r.headImg || "/icons/xiaoyugan.png",
+              power: r.power,
+            },
+          }));
       } else {
-        const s =
-          memberAttackStatsMap.value.get(roleIdNum) ||
-          memberAttackStatsMap.value.get(player.id);
-        if (s && s.attacks.length > 0) {
-          playerAttackRecords.value = s.attacks;
-        } else if (
-          roleIdNum === Number(tokenStore.selectedToken?.roleId) &&
-          cachedAttackRecords.value.length > 0
-        ) {
-          playerAttackRecords.value = cachedAttackRecords.value
-            .filter((r: any) =>
-              isRecordInMatchDay(r.created, selectedMatchDay.value)
-            )
-            .map((r: any) => ({
-              attackType: 1,
-              winFlag: r.isWin === true, // 进攻信息：挑战成功就是挑战成功！
-              timestamp: r.created,
-              difficulty: r.difficulty,
-              nodeId: r.nodeId,
-              targetRoleInfo: {
-                roleId: r.roleId,
-                name: r.name,
-                legionName:
-                  r.legionName ||
-                  battleInfo.value?.opponentClub?.name ||
-                  "敌方俱乐部",
-                headImg: r.headImg || "/icons/xiaoyugan.png",
-                power: r.power,
-              },
-            }));
-        } else {
-          playerAttackRecords.value = [];
-        }
+        playerAttackRecords.value = [];
       }
 
       // 2. 防守信息（匹配俱乐部打我们）：防守信息中对方挑战成功我们就是失败了！
       const cachedDef =
-        memberDefenseRecordsMap.value.get(`${roleIdNum}_${!!player.mirror}`) ||
         memberDefenseRecordsMap.value.get(roleIdNum) ||
         memberDefenseRecordsMap.value.get(player.id);
       if (cachedDef && cachedDef.length > 0) {
@@ -3258,7 +3123,7 @@ const openDuelModal = async (player: any) => {
         const defRes: any = await tokenStore.sendMessageWithPromise(
           tokenId,
           "club_getdefenserecord",
-          { targetId: player.id, targetIsMirror: !!player.mirror },
+          { targetId: player.id },
           5000
         );
         if (Array.isArray(defRes?.records)) {
@@ -3409,6 +3274,13 @@ const columns = [
         { default: () => cfg.name }
       );
     },
+  },
+  {
+    title: "玩具",
+    key: "toyName",
+    width: 100,
+    align: "center",
+    render: (row: any) => h("span", { class: "toy-cell" }, row.toyName || "—"),
   },
   {
     title: "真实营地挑战布阵 (1~5号站位)",
@@ -4232,10 +4104,6 @@ onMounted(() => {
     rgba(16, 185, 129, 0.01) 100%
   );
   border-color: rgba(16, 185, 129, 0.3);
-}
-
-.fortress-card.is-mirror {
-  border-style: dashed;
 }
 
 .card-header-bar {
