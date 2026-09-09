@@ -476,7 +476,9 @@
             <div class="card-footer-bar">
               <div class="combat-stat-text">
                 遭遇 <span class="num">{{ item.challengeCnt || 0 }}</span> 次 |
-                失守 <span class="num error">{{ item.failCnt || 0 }}</span> 次
+                防守成功
+                <span class="num error">{{ item.failCnt || 0 }}</span>
+                次
               </div>
               <div class="card-action-hint">
                 <span>战报流水</span>
@@ -1580,6 +1582,16 @@ const weeklyStats = computed(() => {
   const weekScore = club.weekScore || 0;
   const dayScore = club.dayScore || 0;
 
+  // 个人本周战功：取 club.members 中自己 roleId 对应条目的 score（周累计值，Σmembers.score === club.weekScore 已实测证实）；
+  // siege.score 是另一套口径（实测 siege.score=89 而成员条目 score=28），不能作为本周战功
+  let personalScore = siege.score || 0;
+  for (const m of Object.values(club.members || {}) as any[]) {
+    if (Number(m.roleId) === Number(siege.roleId)) {
+      personalScore = m.score || 0;
+      break;
+    }
+  }
+
   // 个人本周统计 (从 siege.attackMap 中统计)
   const attackMap = siege.attackMap || {};
   let weekAttackCnt = 0;
@@ -1630,7 +1642,7 @@ const weeklyStats = computed(() => {
     danText,
     weekScore,
     dayScore,
-    personalScore: siege.score || 0,
+    personalScore,
     personalLevel: siege.level || 1,
     weekAttackCnt,
     weekWinCnt,
@@ -2717,12 +2729,14 @@ const aggregateAllMemberAttacks = async (tokenId: string, day: number) => {
   let oppTotalLosses = 0;
 
   // 1. 统计我方出手：读取对手据点 challengeCnt 与 failCnt 计算出刀与胜负
+  //    failCnt 语义已用 100 条今日战报逐成员比对钉死：failCnt = 攻击方挑战失败次数 = 该据点防守成功次数；
+  //    故我方挑战成功(胜) = challengeCnt - failCnt，我方挑战失败 = failCnt
   for (const d of oppDefenders as any[]) {
     const cnt = d.challengeCnt || 0;
-    const wins = d.failCnt || 0;
+    const defSucc = d.failCnt || 0; // 对手据点防守成功次数 = 我方挑战失败次数
     ourTotalAttacks += cnt;
-    ourTotalWins += wins;
-    ourTotalLosses += Math.max(0, cnt - wins);
+    ourTotalWins += Math.max(0, cnt - defSucc);
+    ourTotalLosses += defSucc;
   }
 
   // 1b. 并发拉取对手防守据点战报（即我方出刀战报）：仅当前比赛日可查（往日返回 200020），
@@ -2996,9 +3010,11 @@ const injectAttackStatsIntoOwnMembers = () => {
     }
 
     // 2. 防守信息：计算防守守住次数、失守次数与防守胜率
+    //    failCnt 语义已用 100 条今日战报逐成员比对钉死：failCnt = 攻击方挑战失败次数 = 我方防守成功(守住)次数；
+    //    我方失守次数 = 遭遇挑战次数 - failCnt
     const challengeCnt = m.challengeCnt || 0;
-    const defLosses = m.failCnt || 0;
-    const defWins = Math.max(0, challengeCnt - defLosses);
+    const defWins = m.failCnt || 0;
+    const defLosses = Math.max(0, challengeCnt - defWins);
     const defWinRateNum =
       challengeCnt > 0 ? (defWins / challengeCnt) * 100 : -1;
     const defWinRate = challengeCnt > 0 ? defWinRateNum.toFixed(1) + "%" : "—";
