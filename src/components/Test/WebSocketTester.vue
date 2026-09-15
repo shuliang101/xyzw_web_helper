@@ -195,7 +195,11 @@ const commandOptions = [
   { label: "获取邮件列表", value: "mail_getlist" },
   { label: "领取所有邮件附件", value: "mail_claimallattachment" },
   { label: "获取军团信息", value: "legion_getinfo" },
+  { label: "获取营地挑战概览", value: "club_getinfo" },
+  { label: "获取营地成员阵容", value: "club_gettargetteam" },
+  { label: "获取成员目标阵容", value: "role_gettargetteam" },
   { label: "英雄招募", value: "hero_recruit" },
+  { label: "开始功法挂机", value: "legacy_beginhangup" },
   { label: "领取挂机奖励", value: "system_claimhangupreward" },
 ];
 

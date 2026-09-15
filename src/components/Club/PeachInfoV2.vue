@@ -900,6 +900,8 @@ const fetchTargetInfo = async (roleId) => {
         includeHero: true,
         includeHeroDetail: true,
         includePearl: true,
+        includePet: true,
+        includePetDetail: true,
       },
       5000,
     );
@@ -972,6 +974,7 @@ const fetchTargetInfo = async (roleId) => {
       legionMaxRed: legionMaxRed,
       // 英雄列表
       heroList: heroAndholdAndRed.heroList,
+      pet: getShowPet(result),
       legacy: result.roleInfo.legacy?.color || 0, // 功法等级
     };
 

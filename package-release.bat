@@ -33,14 +33,15 @@ if exist "%STAGE_DIR%" (
 )
 mkdir "%STAGE_DIR%" || goto :error
 
-echo [3/5] Copying runtime files (server + frontend + dependencies)...
+echo [3/5] Copying runtime files (server + frontend + package manifests)...
 call :CopyDir "dist" "%STAGE_DIR%\dist" || goto :error
 call :CopyDir "server" "%STAGE_DIR%\server" || goto :error
+if not exist "%STAGE_DIR%\server\assets" mkdir "%STAGE_DIR%\server\assets" || goto :error
+copy /y "%ROOT%public\answer.json" "%STAGE_DIR%\server\assets\answer.json" >nul || goto :error
 if exist "%STAGE_DIR%\server\data" (
     echo    - Removing server data directory from release...
     rmdir /s /q "%STAGE_DIR%\server\data" || goto :error
 )
-call :CopyDir "node_modules" "%STAGE_DIR%\node_modules" || goto :error
 copy /y "%ROOT%package.json" "%STAGE_DIR%" >nul || goto :error
 if exist "%ROOT%package-lock.json" copy /y "%ROOT%package-lock.json" "%STAGE_DIR%" >nul
 copy /y "%ROOT%run-release.bat" "%STAGE_DIR%" >nul || goto :error

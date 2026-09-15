@@ -3,6 +3,8 @@
  * 移植自 src/utils/dailyTaskRunner.js 及 src/utils/batch/
  */
 
+import fs from 'fs'
+
 const generateRandomSeed = (lastLoginTime) => {
   if (!lastLoginTime) return 0
   let seed = Number(lastLoginTime) | 0
@@ -47,6 +49,53 @@ const extraCardRewards = [
   { name: '限时礼包', cardId: 4002 },
   { name: '永久卡礼包', cardId: 4003 },
 ]
+
+const loadStudyQuestions = () => {
+  const candidates = [
+    new URL('../assets/answer.json', import.meta.url),
+    new URL('../../dist/answer.json', import.meta.url),
+    new URL('../../public/answer.json', import.meta.url),
+  ]
+
+  for (const fileUrl of candidates) {
+    try {
+      const questions = JSON.parse(fs.readFileSync(fileUrl, 'utf8'))
+      if (Array.isArray(questions)) return questions
+    } catch {
+      // 尝试下一个部署位置
+    }
+  }
+
+  console.error('[DailyTask] 未找到答题题库 answer.json')
+  return []
+}
+
+const studyQuestions = loadStudyQuestions()
+
+const normalizeQuestion = (value) =>
+  String(value || '').replace(/\s+/g, '').toLowerCase()
+
+const findStudyAnswer = (question) => {
+  const normalizedQuestion = normalizeQuestion(question)
+  if (!normalizedQuestion) return null
+
+  const matched = studyQuestions.find((item) => {
+    const name = normalizeQuestion(item?.name)
+    return name && (normalizedQuestion.includes(name) || name.includes(normalizedQuestion))
+  })
+  return matched?.value ?? null
+}
+
+const isStudyCompletedThisWeek = (study) => {
+  const maxCorrectNum = Number(study?.maxCorrectNum || 0)
+  const beginTime = Number(study?.beginTime || 0)
+  if (maxCorrectNum < 10 || beginTime <= 0) return false
+
+  const weekStart = new Date()
+  weekStart.setHours(0, 0, 0, 0)
+  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7))
+  return beginTime * 1000 >= weekStart.getTime()
+}
 
 const battleCommands = new Set([
   'fight_startareaarena',
@@ -144,6 +193,60 @@ export class ServerDailyTaskRunner {
       }
       throw error
     }
+  }
+
+  async runStudy(roleData) {
+    if (isStudyCompletedThisWeek(roleData?.study)) {
+      this.log('本周答题已完成，自动跳过', 'success')
+      return
+    }
+
+    const startResponse = await this.executeGameCommand(
+      'study_startgame',
+      {},
+      '开始答题',
+      8000,
+    )
+    const questionList = startResponse?.questionList
+    const studyId = startResponse?.role?.study?.id
+
+    if (!Array.isArray(questionList) || questionList.length === 0) {
+      throw new Error('答题响应中未找到题目列表')
+    }
+    if (!studyId) {
+      throw new Error('答题响应中未找到学习ID')
+    }
+
+    this.log(`找到 ${questionList.length} 道题目，开始自动答题`)
+    for (let i = 0; i < questionList.length; i++) {
+      const question = questionList[i]
+      const answer = findStudyAnswer(question?.question) ?? 1
+      await this.executeGameCommand(
+        'study_answer',
+        {
+          id: studyId,
+          option: [answer],
+          questionId: [question?.id],
+        },
+        `提交第${i + 1}题答案`,
+        8000,
+      )
+      if (i < questionList.length - 1) {
+        await sleep(300)
+      }
+    }
+
+    await sleep(1500)
+    for (let rewardId = 1; rewardId <= 10; rewardId++) {
+      await this.executeOptionalGameCommand(
+        'study_claimreward',
+        { rewardId },
+        `领取答题奖励${rewardId}`,
+        5000,
+      )
+      await sleep(200)
+    }
+    this.log('一键答题完成', 'success')
   }
 
   async switchToFormationIfNeeded(targetFormation, formationName) {
@@ -353,6 +456,12 @@ export class ServerDailyTaskRunner {
 
     const taskList = []
 
+    // 答题固定纳入每日任务流程，不需要额外勾选
+    taskList.push({
+      name: '一键答题',
+      execute: () => this.runStudy(roleData),
+    })
+
     // 1. 基础任务
     if (!isTaskCompleted(2)) {
       taskList.push({ name: '分享一次游戏', execute: () => this.executeGameCommand('system_mysharecallback', { isSkipShareCard: true, type: 2 }, '分享游戏') })
@@ -493,6 +602,14 @@ export class ServerDailyTaskRunner {
       }
     }
 
+    // 固定每日动作：免费扭蛋仅周二、周四、周六；功法残券每天领取。
+    const dayOfWeek = new Date().getDay()
+    if ([2, 4, 6].includes(dayOfWeek) && isTodayAvailable(statisticsTime['gacha:free'])) {
+      taskList.push({ name: '免费扭蛋', execute: () => this.executeOptionalGameCommand('gacha_drawreward', { num: 1, isGroup: false }, '免费扭蛋') })
+    }
+    taskList.push({ name: '开始功法挂机', execute: () => this.executeOptionalGameCommand('legacy_beginhangup', {}, '开始功法挂机') })
+    taskList.push({ name: '领取功法残券', execute: () => this.executeOptionalGameCommand('legacy_claimhangup', {}, '领取功法残券') })
+
     const kingdoms = ['魏国', '蜀国', '吴国', '群雄']
     for (let gid = 1; gid <= 4; gid++) {
       if (isTodayAvailable(statisticsTime[`genie:daily:free:${gid}`])) {
@@ -509,14 +626,9 @@ export class ServerDailyTaskRunner {
     }
 
     // 深海灯神
-    const dayOfWeek = new Date().getDay()
-    if (dayOfWeek === 1 && isTodayAvailable(statisticsTime['genie:daily:free:5'])) {
+    const currentDayOfWeek = new Date().getDay()
+    if (currentDayOfWeek === 1 && isTodayAvailable(statisticsTime['genie:daily:free:5'])) {
       taskList.push({ name: '深海灯神', execute: () => this.executeGameCommand('genie_sweep', { genieId: 5, sweepCnt: 1 }, '深海灯神') })
-    }
-
-    // 阵容还原
-    if (originalFormation) {
-      taskList.push({ name: '阵容还原', execute: () => this.switchToFormationIfNeeded(originalFormation, '初始阵容') })
     }
 
     // 7. 任务奖励
@@ -526,6 +638,11 @@ export class ServerDailyTaskRunner {
     taskList.push({ name: '领取日常任务奖励', execute: () => this.executeGameCommand('task_claimdailyreward', {}, '领取日常任务奖励') })
     taskList.push({ name: '领取周常任务奖励', execute: () => this.executeGameCommand('task_claimweekreward', {}, '领取周常任务奖励') })
     taskList.push({ name: '领取通行证奖励', execute: () => this.executeGameCommand('activity_recyclewarorderrewardclaim', { actId: 1 }, '领取通行证奖励') })
+
+    // 所有任务和奖励完成后，恢复执行前的原始阵容
+    if (originalFormation) {
+      taskList.push({ name: '阵容还原', execute: () => this.switchToFormationIfNeeded(originalFormation, '初始阵容') })
+    }
 
     // 执行
     const totalTasks = taskList.length

@@ -21,7 +21,9 @@ export const createDefaultDailySettings = () => ({
   arenaEnable: true,
   claimHangUp: true,
   claimEmail: true,
-  blackMarketPurchase: true
+  blackMarketPurchase: true,
+  // 免费扭蛋仅在周二、周四、周六执行；功法残卷每天执行
+
 })
 
 export const resetDailySettingsCache = () => {

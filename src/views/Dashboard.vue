@@ -61,12 +61,10 @@ import {
   PersonCircle,
   Cube,
   Settings,
-  CheckmarkCircle,
   Time,
   TrendingUp,
   Add,
   Cloud,
-  GameController,
 } from "@vicons/ionicons5";
 import useIndexedDB from "@/hooks/useIndexedDB";
 import lz4 from "lz4js";
@@ -185,13 +183,6 @@ const currentDate = computed(() => {
 
 const quickActions = ref([
   {
-    id: 1,
-    icon: GameController,
-    title: "打开游戏",
-    description: "使用当前Token直接进入游戏",
-    action: "open-game",
-  },
-  {
     id: 2,
     icon: Cube,
     title: "游戏功能",
@@ -204,13 +195,6 @@ const quickActions = ref([
     title: "添加Token",
     description: "快速添加新的游戏Token",
     action: "add-token",
-  },
-  {
-    id: 4,
-    icon: CheckmarkCircle,
-    title: "批量任务",
-    description: "批量执行任务",
-    action: "batch-daily-tasks",
   },
   {
     id: 5,

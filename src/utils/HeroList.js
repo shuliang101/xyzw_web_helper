@@ -65,13 +65,25 @@ export const HERO_DICT = {
   314: { name: "孟获", type: "蜀国", avatar: "/team/menghuo.png" },
 };
 
-export const formatStarLevel = (value) => {
+export const getStarTier = (value) => {
   const stars = Number(value) || 0;
-  if (!stars) return "0";
-  const tiers = ["黄星", "紫星", "橙星", "红星", "皇冠", "紫冠"];
+  if (!stars) return { name: "", star: 0, color: "#888", background: "transparent" };
+  const tiers = [
+    { name: "黄星", color: "#b8860b", background: "#fff7cc" },
+    { name: "紫星", color: "#8e5bb7", background: "#f1e5ff" },
+    { name: "橙星", color: "#d46b08", background: "#fff0d9" },
+    { name: "红星", color: "#cf1322", background: "#ffe1e1" },
+    { name: "皇冠", color: "#9a6700", background: "#ffe58f" },
+    { name: "紫冠", color: "#531dab", background: "#d9c2ff" },
+  ];
   const tierIndex = Math.min(Math.ceil(stars / 5), tiers.length) - 1;
   const tierStar = ((stars - 1) % 5) + 1;
-  return `${tiers[tierIndex]}${tierStar}`;
+  return { ...tiers[tierIndex], star: tierStar };
+};
+
+export const formatStarLevel = (value) => {
+  const tier = getStarTier(value);
+  return tier.star ? `${tier.name}${tier.star}` : "0";
 };
 
 export const LINEUP_RULES = [

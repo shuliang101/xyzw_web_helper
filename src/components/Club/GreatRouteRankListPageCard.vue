@@ -315,6 +315,7 @@
           </div>
         </div>
 
+        <div v-if="playerInfo.pet" class="player-pet-row"><PetBadge :pet="playerInfo.pet" /></div>
         <div class="action-section">
           <div style="display: flex; align-items: center; gap: 8px; flex: 1">
             <div class="fight-count-container">
@@ -723,6 +724,8 @@
 </template>
 
 <script setup>
+import { getShowPet } from "@/utils/PetList";
+import PetBadge from "@/components/Common/PetBadge.vue";
 import { ref, computed, onMounted, reactive } from "vue";
 import * as XLSX from "xlsx";
 import {
@@ -959,6 +962,8 @@ const fetchTargetInfo = async (roleId) => {
         includeHero: true,
         includeHeroDetail: true,
         includePearl: true,
+        includePet: true,
+        includePetDetail: true,
       },
       5000,
     );
@@ -1061,6 +1066,7 @@ const fetchTargetInfo = async (roleId) => {
       legionMaxRed: legionMaxRed,
       // 英雄列表
       heroList: heroAndholdAndRed.heroList,
+      pet: getShowPet(result),
       legacy: result.roleInfo.legacy?.color || 0, // 功法等级
     };
 

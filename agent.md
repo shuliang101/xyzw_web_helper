@@ -1,3 +1,8 @@
 # Agent Rules
 
 1. When reading or editing files that may contain Chinese or other non-ASCII text, always use explicit UTF-8 handling. Do not use PowerShell's default `Get-Content` / `Set-Content` path for full-file rewrites, because it can display or persist mojibake in UTF-8 files without BOM. Prefer `apply_patch` for small edits, or explicitly use `[System.Text.Encoding]::UTF8` for inspection and write-back.
+2. A garbled-looking terminal result is not evidence that the file is corrupted. Before diagnosing source encoding or syntax problems, reread the file with explicit UTF-8 (`Get-Content -Encoding UTF8`, `[IO.File]::ReadAllText(path, [Text.Encoding]::UTF8)`, or an equivalent tool) and inspect the raw bytes when necessary.
+3. On Windows PowerShell, always specify `-Encoding UTF8` for Chinese source files, JSON, Markdown, Vue, JavaScript, TypeScript, CSS, and configuration files. Do not use unqualified `Get-Content`, `Set-Content`, or redirected output for these files.
+4. Do not infer a build or runtime failure from truncated, mojibaked, or otherwise misrendered command output. Re-run the smallest relevant command with UTF-8-aware file reads and capture the actual exit code and error location.
+5. When reporting an encoding issue, distinguish among: file bytes, decoded file content, terminal rendering, and application behavior. Only call the file corrupted after verifying its bytes or a correctly decoded parse/build result.
+6. Before changing code because of a suspected syntax error, validate it with the project’s actual parser or build command. Preserve valid user content, especially Chinese UI text, unless the user explicitly requests text changes.

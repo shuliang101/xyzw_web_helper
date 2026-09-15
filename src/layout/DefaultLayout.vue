@@ -16,10 +16,6 @@
               <n-icon><People /></n-icon>
               <span>用户管理</span>
             </router-link>
-            <router-link to="/admin/club-car" class="nav-item" active-class="active">
-              <n-icon><CarSport /></n-icon>
-              <span>俱乐部收发车</span>
-            </router-link>
             <router-link to="/club-car/revive-pill-stats" class="nav-item" active-class="active">
               <n-icon><StatsChart /></n-icon>
               <span>复活丹统计</span>
@@ -38,9 +34,9 @@
               <n-icon><PersonCircle /></n-icon>
               <span>Token 管理</span>
             </router-link>
-            <router-link to="/club-car/monitor" class="nav-item" active-class="active">
-              <n-icon><Eye /></n-icon>
-              <span>发车监视</span>
+            <router-link to="/game" class="nav-item" active-class="active">
+              <n-icon><GameController /></n-icon>
+              <span>打开游戏</span>
             </router-link>
             <router-link to="/admin/server-tasks" class="nav-item" active-class="active">
               <n-icon><Timer /></n-icon>
@@ -80,10 +76,6 @@
             <n-icon><People /></n-icon>
             <span>用户管理</span>
           </router-link>
-          <router-link to="/admin/club-car" class="drawer-item" @click="isMobileMenuOpen = false">
-            <n-icon><CarSport /></n-icon>
-            <span>俱乐部收发车</span>
-          </router-link>
           <router-link to="/club-car/revive-pill-stats" class="drawer-item" @click="isMobileMenuOpen = false">
             <n-icon><StatsChart /></n-icon>
             <span>复活丹统计</span>
@@ -102,9 +94,9 @@
             <n-icon><PersonCircle /></n-icon>
             <span>Token 管理</span>
           </router-link>
-          <router-link to="/club-car/monitor" class="drawer-item" @click="isMobileMenuOpen = false">
-            <n-icon><Eye /></n-icon>
-            <span>发车监视</span>
+          <router-link to="/game" class="drawer-item" @click="isMobileMenuOpen = false">
+            <n-icon><GameController /></n-icon>
+            <span>打开游戏</span>
           </router-link>
           <router-link to="/admin/server-tasks" class="drawer-item" @click="isMobileMenuOpen = false">
             <n-icon><Timer /></n-icon>
@@ -137,11 +129,10 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import {
-  CarSport,
   ChatbubbleEllipsesSharp,
   ChevronDown,
   Cube,
-  Eye,
+  GameController,
   Home,
   Menu,
   People,

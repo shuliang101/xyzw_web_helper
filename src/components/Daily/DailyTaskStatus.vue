@@ -185,6 +185,7 @@
               <span class="switch-label">付费招募</span>
               <n-switch v-model:value="settings.payRecruit" />
             </div>
+
           </div>
         </div>
       </div>
@@ -487,6 +488,9 @@ const runDailyFix = async () => {
     const runner = new DailyTaskRunner(tokenStore, {
       commandDelay: settings.commandDelay,
       taskDelay: settings.taskDelay,
+    }, {
+      authUser: authStore.user,
+      hasAuth: !!authStore.isAuthenticated,
     });
 
     await runner.run(

@@ -6,6 +6,7 @@
       'full-page-mode':
         activeSection === 'saltFieldGroup' ||
         activeSection === 'peachGroup' ||
+        activeSection === 'campChallengeGroup' ||
         activeSection === 'rankGroup',
       'club-mode': activeSection === 'club',
     }"
@@ -27,6 +28,7 @@
       <n-tab-pane name="club" tab="俱乐部" />
       <n-tab-pane name="saltFieldGroup" tab="盐场" />
       <n-tab-pane name="peachGroup" tab="蟠桃园" />
+      <n-tab-pane name="campChallengeGroup" tab="营地挑战" />
       <n-tab-pane name="rankGroup" tab="排行榜" />
       <n-tab-pane name="fightPvp" tab="切磋" />
     </n-tabs>
@@ -297,6 +299,10 @@
       </div>
     </div>
 
+    <div class="camp-challenge-group" v-if="activeSection === 'campChallengeGroup'">
+      <CampChallenge />
+    </div>
+
     <!-- 排行榜分组 -->
     <div class="rank-group" v-if="activeSection === 'rankGroup'">
       <div
@@ -411,6 +417,7 @@ import PeachInfoV2 from "./Club/PeachInfoV2.vue";
 import ServerRankList from "./cards/ServerRankListPageCard.vue";
 import LegionWarMap from "./Club/LegionWarMap.vue";
 import LegionWarStatistics from "./Club/LegionWarStatistics.vue";
+import CampChallenge from "./Club/CampChallenge.vue";
 
 const tokenStore = useTokenStore();
 const message = useMessage();
@@ -425,7 +432,8 @@ const activeSection = ref("daily");
 const saltFieldSubTab = ref("warrank");
 const peachSubTab = ref("peach");
 const rankSubTab = ref("serverrank");
-const warrankStyle = ref(localStorage.getItem("club_warrank_style") || "style1");
+// 盐场默认使用新版样式；保留用户之前手动选择的样式
+const warrankStyle = ref(localStorage.getItem("club_warrank_style") || "style2");
 const peachStyle = ref(localStorage.getItem("peach_info_style") || "style1");
 watch(warrankStyle, (value) => localStorage.setItem("club_warrank_style", value));
 watch(peachStyle, (value) => localStorage.setItem("peach_info_style", value));

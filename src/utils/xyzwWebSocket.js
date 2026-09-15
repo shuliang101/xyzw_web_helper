@@ -221,6 +221,17 @@ export function registerDefaultCommands(reg) {
     .register("league_getgroupopponent")
     .register("legion_signup") // 盐场报名
 
+    // 营地挑战 / 俱乐部战
+    .register("club_getinfo")
+    .register("club_gettargetteam", { targetId: 0 })
+    .register("club_getattackrecord")
+    .register("club_getdefenserecord", {
+      targetId: 0,
+      targetIsMirror: false,
+    })
+    .register("club_getgrouprank")
+    .register("club_getrolerank")
+
     // 邮件
     .register("mail_getlist", { category: [0, 4, 5], lastId: 0, size: 60 })
     .register("mail_claimallattachment", { category: 0 })
@@ -261,6 +272,9 @@ export function registerDefaultCommands(reg) {
 
     // 军团匹配和签到
     .register("legionmatch_rolesignup")
+    .register("legionmatch_signup")
+    .register("legionmatch_getrank")
+    .register("legionmatch_getbattlerecord")
     .register("legion_signin")
 
     // 钓鱼
@@ -345,6 +359,7 @@ export function registerDefaultCommands(reg) {
 
     // 功法
     .register("legacy_getinfo")
+    .register("legacy_beginhangup")
     .register("legacy_claimhangup")
     // 功法残卷赠送
     .register("legacy_gift_getlist")
@@ -1104,6 +1119,16 @@ export class XyzwWebSocketClient {
       league_getgroupopponentresp: "league_getgroupopponent",
       legion_signupresp: "legion_signup",
       legion_payloadsignupresp: "legion_payloadsignup",
+      legionmatch_rolesignupresp: "legionmatch_rolesignup",
+      legionmatch_signupresp: "legionmatch_signup",
+      legionmatch_getrankresp: "legionmatch_getrank",
+      legionmatch_getbattlerecordresp: "legionmatch_getbattlerecord",
+      club_getinforesp: "club_getinfo",
+      club_gettargetteamresp: "club_gettargetteam",
+      club_getattackrecordresp: "club_getattackrecord",
+      club_getdefenserecordresp: "club_getdefenserecord",
+      club_getgrouprankresp: "club_getgrouprank",
+      club_getrolerankresp: "club_getrolerank",
       pearl_replaceskillresp: "pearl_replaceskill",
       pearl_exchangeskillresp: "pearl_exchangeskill",
       pearl_unloadskillresp: "pearl_unloadskill",
@@ -1137,6 +1162,7 @@ export class XyzwWebSocketClient {
       bosstower_gethelprankresp: "bosstower_gethelprank",
       // 功法相关响应映射
       legacy_getinforesp: "legacy_getinfo",
+      legacy_beginhangupresp: "legacy_beginhangup",
       legacy_claimhangupresp: "legacy_claimhangup",
       legacy_sendgiftresp: "legacy_sendgift",
       legacy_getgiftsresp: "legacy_getgifts",

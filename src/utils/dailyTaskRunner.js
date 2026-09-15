@@ -1,4 +1,12 @@
-import { useTokenStore } from "@/stores/tokenStore";
+﻿import { useTokenStore } from "@/stores/tokenStore";
+import {
+  buildDailySettingsKeySets,
+  createDefaultDailySettings,
+  loadDailySettings as loadDailySettingsRecord,
+  saveDailySettings as saveDailySettingsRecord,
+} from "@/utils/dailySettingsStorage";
+import { preloadQuestions } from "@/utils/studyQuestionsFromJSON.js";
+
 
 // 辅助函数
 const pickArenaTargetId = (targets) => {
@@ -44,12 +52,13 @@ const getTodayBossId = () => {
 };
 
 export class DailyTaskRunner {
-  constructor(tokenStore, delaySettings = null) {
+  constructor(tokenStore, delaySettings = null, context = {}) {
     this.tokenStore = tokenStore;
     this.delaySettings = delaySettings || {
       commandDelay: 500,
       taskDelay: 500
     };
+    this.context = context;
   }
 
   log(message, type = "info") {
@@ -149,32 +158,83 @@ export class DailyTaskRunner {
     }
   }
 
-  loadSettings(roleId) {
+  async loadSettings(tokenId) {
     try {
-      const raw = localStorage.getItem(`daily-settings:${roleId}`);
-      const defaultSettings = {
-        arenaFormation: 1,
-        bossFormation: 1,
-        bossTimes: 2,
-        claimBottle: true,
-        payRecruit: true,
-        openBox: true,
-        arenaEnable: true,
-        claimHangUp: true,
-        claimEmail: true,
-        blackMarketPurchase: true,
-        freeGachaEnable: true,
-      };
-      return raw ? { ...defaultSettings, ...JSON.parse(raw) } : defaultSettings;
+      const token =
+        this.tokenStore.gameTokens.find((t) => t.id === tokenId) ||
+        this.tokenStore.selectedToken;
+      const keySets = buildDailySettingsKeySets({
+        authUser: this.context.authUser,
+        token,
+      });
+      const result = await loadDailySettingsRecord({
+        keySets,
+        hasAuth: !!this.context.hasAuth,
+      });
+      return result
+        ? { ...createDefaultDailySettings(), ...result.data }
+        : createDefaultDailySettings();
     } catch (error) {
       console.error("Failed to load settings:", error);
-      return null;
+      return createDefaultDailySettings();
     }
+  }
+
+  async runStudy(tokenId, roleData) {
+    const study = roleData?.study || {};
+    const maxCorrectNum = Number(study.maxCorrectNum || 0);
+    const beginTime = Number(study.beginTime || 0);
+    const weekStart = new Date();
+    weekStart.setHours(0, 0, 0, 0);
+    weekStart.setDate(
+      weekStart.getDate() - ((weekStart.getDay() + 6) % 7),
+    );
+
+    if (
+      maxCorrectNum >= 10 &&
+      beginTime > 0 &&
+      beginTime * 1000 >= weekStart.getTime()
+    ) {
+      this.log("本周答题已完成，自动跳过", "success");
+      return;
+    }
+
+    await preloadQuestions();
+    this.tokenStore.gameData.studyStatus = {
+      ...this.tokenStore.gameData.studyStatus,
+      isAnswering: false,
+      questionCount: 0,
+      answeredCount: 0,
+      status: "starting",
+      timestamp: Date.now(),
+    };
+
+    await this.executeGameCommand(
+      tokenId,
+      "study_startgame",
+      {},
+      "开始答题",
+      8000,
+    );
+
+    await new Promise((resolve, reject) => {
+      const startedAt = Date.now();
+      const timer = setInterval(() => {
+        const status = this.tokenStore.gameData.studyStatus;
+        if (status?.status === "completed") {
+          clearInterval(timer);
+          resolve();
+        } else if (Date.now() - startedAt >= 90000) {
+          clearInterval(timer);
+          reject(new Error("答题超时或未收到答题响应"));
+        }
+      }, 500);
+    });
   }
 
   async run(tokenId, callbacks = {}, customSettings = null) {
     this.callbacks = callbacks;
-    const settings = customSettings || this.loadSettings(tokenId); // 优先使用传入的设置
+    const settings = customSettings || await this.loadSettings(tokenId); // 优先使用传入的设置
 
     // 获取角色信息以确认 roleId 和 任务状态
     this.log("正在获取角色信息...");
@@ -192,10 +252,7 @@ export class DailyTaskRunner {
       throw new Error("角色数据不存在");
     }
 
-    // 重新加载设置，使用正确的 roleId (虽然通常 tokenId 就是 roleId 或者一一对应，但为了保险)
-    // 在这个项目中，tokenId 似乎就是 roleId 或者用于标识
-    // DailyTaskStatus.vue 中: const role = getCurrentRole() -> roleId: tokenStore.selectedToken.id
-    // 所以 tokenId 就是 key
+    // 重新加载设置，使用统一的 key 规则
 
     this.log("开始执行每日任务补差");
 
@@ -221,6 +278,12 @@ export class DailyTaskRunner {
     const statisticsTime = roleData.statisticsTime ?? {};
 
     const taskList = [];
+
+    // 答题固定纳入每日任务流程，不需要额外勾选
+    taskList.push({
+      name: "一键答题",
+      execute: () => this.runStudy(tokenId, roleData),
+    });
 
     // 1. 基础任务
     if (!isTaskCompleted(2)) {
@@ -552,9 +615,28 @@ export class DailyTaskRunner {
             "gacha_drawreward",
             { num: 1, isGroup: false },
             "免费扭蛋",
-          ),
+        ),
       });
     }
+
+    taskList.push({
+      name: "开始功法挂机",
+      execute: () =>
+        this.executeOptionalGameCommand(
+          "legacy_beginhangup",
+          {},
+          "开始功法挂机",
+        ),
+    });
+    taskList.push({
+      name: "领取功法残卷",
+      execute: () =>
+        this.executeOptionalGameCommand(
+          "legacy_claimhangup",
+          {},
+          "领取功法残卷",
+        ),
+    });
 
     // 5. 免费活动
     if (isTodayAvailable(statistics["artifact:normal:lottery:time"])) {
@@ -633,19 +715,6 @@ export class DailyTaskRunner {
       });
     }
 
-    // 阵容还原
-    if (originalFormation) {
-      taskList.push({
-        name: "阵容还原",
-        execute: () =>
-          this.switchToFormationIfNeeded(
-            tokenId,
-            originalFormation,
-            "初始阵容",
-          ),
-      });
-    }
-
     // 7. 任务奖励
     for (let taskId = 1; taskId <= 10; taskId++) {
       taskList.push({
@@ -693,6 +762,19 @@ export class DailyTaskRunner {
           ),
       },
     );
+
+    // 所有任务和奖励完成后，恢复执行前的原始阵容
+    if (originalFormation) {
+      taskList.push({
+        name: "阵容还原",
+        execute: () =>
+          this.switchToFormationIfNeeded(
+            tokenId,
+            originalFormation,
+            "初始阵容",
+          ),
+      });
+    }
 
     // 执行
     const totalTasks = taskList.length;

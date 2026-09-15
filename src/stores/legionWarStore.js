@@ -8,7 +8,9 @@ import { getCurrentTimeByFormat } from "@/utils/DateTimeUtils";
 
 export const useLegionWarStore = defineStore("legionWar", () => {
   const tokenStore = useTokenStore();
-  const CACHE_PREFIX = "legion-war-statistics-cache";
+  // 更新版本以立即废弃旧版可能混入其他 Token/场次的数据。
+  const CACHE_PREFIX = "legion-war-statistics-cache-v2";
+  const CACHE_MAX_AGE = 3 * 60 * 60 * 1000;
 
   // 状态
   const isConnected = ref(false);
@@ -25,6 +27,8 @@ export const useLegionWarStore = defineStore("legionWar", () => {
 
   // WebSocket 实例
   let legionWarWebSocket = null;
+  let connectedTokenId = null;
+  let connectingTokenId = null;
   // 消息提示实例（需要在组件中使用，这里先用 console 或者简单的 error throwing，或者在 action 中传入 message）
   // 由于 pinia 中不能直接使用 useMessage，我们可以在 action 中接收 message 对象，或者只抛出错误让组件处理
   // 但为了统一管理，简单的 toast 可以在这里处理，或者通过 global properties，或者不处理 UI 反馈只处理逻辑。
@@ -56,7 +60,7 @@ export const useLegionWarStore = defineStore("legionWar", () => {
     }
   };
 
-  const loadCache = () => {
+  const loadCache = (expectedBattlefieldId = null) => {
     const key = getCacheKey();
     if (!key) return false;
 
@@ -65,12 +69,25 @@ export const useLegionWarStore = defineStore("legionWar", () => {
       if (!raw) return false;
 
       const cached = JSON.parse(raw);
+      const cachedAt = Number(cached.cachedAt || 0);
+      const isExpired = !cachedAt || Date.now() - cachedAt > CACHE_MAX_AGE;
+      const isDifferentBattlefield =
+        expectedBattlefieldId !== null &&
+        String(cached.battlefieldId) !== String(expectedBattlefieldId);
+
+      if (isExpired || isDifferentBattlefield) {
+        localStorage.removeItem(key);
+        return false;
+      }
+
       validData.value = cached.validData || null;
       legionDetails.value = cached.legionDetails || {};
       lastUpdateTime.value = cached.lastUpdateTime
         ? `${cached.lastUpdateTime}（缓存）`
         : "已恢复缓存";
-      battlefieldId.value = cached.battlefieldId || null;
+      if (expectedBattlefieldId === null) {
+        battlefieldId.value = cached.battlefieldId || null;
+      }
       return Boolean(validData.value);
     } catch (error) {
       console.warn("读取盐场战况缓存失败", error);
@@ -100,9 +117,10 @@ export const useLegionWarStore = defineStore("legionWar", () => {
       throw new Error("请先选择一个Token");
     }
 
-    loadCache();
+    const tokenId = tokenStore.selectedToken.id;
+    const tokenValue = tokenStore.selectedToken.token;
 
-    if (isConnected.value) {
+    if (isConnected.value && connectedTokenId === tokenId) {
       // 已经连接，如果还没进入战场（可能是之前的连接还在但状态不对），尝试重新进入
       if (!isJoined.value && !connecting.value) {
         tryJoinBattlefield();
@@ -110,14 +128,21 @@ export const useLegionWarStore = defineStore("legionWar", () => {
       return;
     }
 
-    if (connecting.value) {
+    if (connecting.value && connectingTokenId === tokenId) {
       return; // 正在连接中
     }
 
-    connecting.value = true;
-    try {
-      const tokenId = tokenStore.selectedToken.id;
+    // 当前连接属于其他 Token 时必须重连，否则会把其他战场的数据展示并缓存到当前账号。
+    if (legionWarWebSocket || connectedTokenId || connectingTokenId) {
+      performDisconnect();
+      validData.value = null;
+      legionDetails.value = {};
+      lastUpdateTime.value = "";
+    }
 
+    connecting.value = true;
+    connectingTokenId = tokenId;
+    try {
       // 1. 获取战场信息
       // 如果已经有 battlefieldId 且 token 没变，是否需要重新获取？
       // 为了安全起见，每次连接前重新获取 sid 和 battlefieldId
@@ -131,28 +156,43 @@ export const useLegionWarStore = defineStore("legionWar", () => {
       if (!getbattlefield || !getbattlefield.info) {
         throw new Error("无法获取战场信息");
       }
+      if (
+        connectingTokenId !== tokenId ||
+        tokenStore.selectedToken?.id !== tokenId
+      ) {
+        throw new Error("Token 已切换，请重新连接盐场");
+      }
 
-      battlefieldId.value = getbattlefield.info.battlefieldId;
+      const currentBattlefieldId = getbattlefield.info.battlefieldId;
+      battlefieldId.value = currentBattlefieldId;
+      if (!loadCache(currentBattlefieldId)) {
+        validData.value = null;
+        legionDetails.value = {};
+        lastUpdateTime.value = "";
+      }
 
       // 2. 构建 WS URL
       const baseWsUrl =
         "wss://xxz-xyzw-new.hortorgames.com/agent" +
-        `?p=${encodeURIComponent(tokenStore.selectedToken.token)}` +
-        `&e=x&sid2=${getbattlefield.info.sid}&lang=chinese` +
-        `&sid2=${getbattlefield.info.sid}`;
+        `?p=${encodeURIComponent(tokenValue)}` +
+        `&e=x&sid2=${getbattlefield.info.sid}&lang=chinese`;
 
       // 3. 建立连接
-      legionWarWebSocket = new XyzwLegionWarWebSocketClient({
+      const client = new XyzwLegionWarWebSocketClient({
         url: baseWsUrl,
         utils: null,
         hint: battlefieldId.value,
         heartbeatMs: 5000,
       });
+      legionWarWebSocket = client;
 
-      legionWarWebSocket.onConnect = () => {
+      client.onConnect = () => {
+        if (legionWarWebSocket !== client) return;
         console.log("战场WebSocket连接成功");
         isConnected.value = true;
         connecting.value = false;
+        connectingTokenId = null;
+        connectedTokenId = tokenId;
 
         // 延迟发送进入战场指令
         setTimeout(() => {
@@ -160,7 +200,12 @@ export const useLegionWarStore = defineStore("legionWar", () => {
         }, 1000);
       };
 
-      legionWarWebSocket.setMessageListener((msg) => {
+      client.setMessageListener((msg) => {
+        if (
+          legionWarWebSocket !== client ||
+          connectedTokenId !== tokenId ||
+          tokenStore.selectedToken?.id !== tokenId
+        ) return;
         const cmd = msg?.cmd || "unknown";
         // 1. war_getbattlefieldinfo: 完整的战场快照
         if (cmd.includes("war_getbattlefieldinfo")) {
@@ -182,27 +227,34 @@ export const useLegionWarStore = defineStore("legionWar", () => {
         }
       });
 
-      legionWarWebSocket.onDisconnect = (event) => {
+      client.onDisconnect = (event) => {
+        if (legionWarWebSocket !== client) return;
         console.log("战场WebSocket断开", event);
         isConnected.value = false;
         isJoined.value = false;
         connecting.value = false;
+        connectedTokenId = null;
+        connectingTokenId = null;
         // 不清除 validData，以便在断开后仍能看到最后的数据？或者清除？
         // 原组件中没有清除 validData (Map)，但 Statistics 组件也没有清除。
         // 为了体验，断开后保留最后数据比较好。
       };
 
-      legionWarWebSocket.onError = (error) => {
+      client.onError = (error) => {
+        if (legionWarWebSocket !== client) return;
         console.error("战场WebSocket错误", error);
         isConnected.value = false;
         isJoined.value = false;
         connecting.value = false;
+        connectedTokenId = null;
+        connectingTokenId = null;
       };
 
-      legionWarWebSocket.init();
+      client.init();
     } catch (error) {
       console.error("连接失败:", error);
       connecting.value = false;
+      connectingTokenId = null;
       subscriberCount.value--; // 连接失败，回滚计数
       throw error;
     }
@@ -250,6 +302,8 @@ export const useLegionWarStore = defineStore("legionWar", () => {
     isConnected.value = false;
     isJoined.value = false;
     connecting.value = false;
+    connectedTokenId = null;
+    connectingTokenId = null;
     // validData.value = null; // 可选：是否清空数据
     battlefieldId.value = null;
     disconnectTimer = null;
@@ -275,14 +329,22 @@ export const useLegionWarStore = defineStore("legionWar", () => {
 
   const fetchLegionDetail = async (legionId) => {
     if (!tokenStore.selectedToken) return;
+    const tokenId = tokenStore.selectedToken.id;
+    const expectedBattlefieldId = battlefieldId.value;
     try {
       const response = await tokenStore.sendMessageWithPromise(
-        tokenStore.selectedToken.id,
+        tokenId,
         "legion_getinfobyid",
         { legionId: legionId },
       );
 
-      if (response && (response.legionData || response.info)) {
+      if (
+        connectedTokenId === tokenId &&
+        tokenStore.selectedToken?.id === tokenId &&
+        battlefieldId.value === expectedBattlefieldId &&
+        response &&
+        (response.legionData || response.info)
+      ) {
         legionDetails.value[legionId] = response.legionData || response.info;
         saveCache();
       }

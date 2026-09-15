@@ -151,6 +151,21 @@ export class GameCommands {
   }
 
   /**
+   * 开始功法挂机
+   */
+  legacy_beginhangup(ack = 0, seq = 0, params = {}) {
+    return {
+      ack,
+      body: this.g_utils.bon.encode({
+        ...params,
+      }),
+      cmd: "legacy_beginhangup",
+      seq,
+      time: Date.now(),
+    };
+  }
+
+  /**
    * 开宝箱
    */
   item_openbox(ack = 0, seq = 0, params = {}) {
@@ -534,8 +549,129 @@ export class GameCommands {
   legionmatch_rolesignup(ack = 0, seq = 0, params = {}) {
     return {
       ack,
-      body: this.g_utils.bon.encode({}),
+      body: this.g_utils.bon.encode(params),
       cmd: "legionmatch_rolesignup",
+      seq,
+      time: Date.now(),
+    };
+  }
+
+  /**
+   * 军团匹配报名
+   */
+  legionmatch_signup(ack = 0, seq = 0, params = {}) {
+    return {
+      ack,
+      body: this.g_utils.bon.encode(params),
+      cmd: "legionmatch_signup",
+      seq,
+      time: Date.now(),
+    };
+  }
+
+  /**
+   * 获取营地挑战排位与赛况
+   */
+  legionmatch_getrank(ack = 0, seq = 0, params = {}) {
+    return {
+      ack,
+      body: this.g_utils.bon.encode(params),
+      cmd: "legionmatch_getrank",
+      seq,
+      time: Date.now(),
+    };
+  }
+
+  /**
+   * 获取营地挑战战报
+   */
+  legionmatch_getbattlerecord(ack = 0, seq = 0, params = {}) {
+    return {
+      ack,
+      body: this.g_utils.bon.encode(params),
+      cmd: "legionmatch_getbattlerecord",
+      seq,
+      time: Date.now(),
+    };
+  }
+
+  /**
+   * 获取营地挑战概览信息
+   */
+  club_getinfo(ack = 0, seq = 0, params = {}) {
+    return {
+      ack,
+      body: this.g_utils.bon.encode(params),
+      cmd: "club_getinfo",
+      seq,
+      time: Date.now(),
+    };
+  }
+
+  /**
+   * 获取营地挑战成员阵容
+   */
+  club_gettargetteam(ack = 0, seq = 0, params = {}) {
+    return {
+      ack,
+      body: this.g_utils.bon.encode({ targetId: 0, ...params }),
+      cmd: "club_gettargetteam",
+      seq,
+      time: Date.now(),
+    };
+  }
+
+  /**
+   * 获取营地挑战进攻战报
+   */
+  club_getattackrecord(ack = 0, seq = 0, params = {}) {
+    return {
+      ack,
+      body: this.g_utils.bon.encode(params),
+      cmd: "club_getattackrecord",
+      seq,
+      time: Date.now(),
+    };
+  }
+
+  /**
+   * 获取营地挑战防守战报
+   */
+  club_getdefenserecord(ack = 0, seq = 0, params = {}) {
+    return {
+      ack,
+      body: this.g_utils.bon.encode({
+        targetId: 0,
+        targetIsMirror: false,
+        ...params,
+      }),
+      cmd: "club_getdefenserecord",
+      seq,
+      time: Date.now(),
+    };
+  }
+
+  /**
+   * 获取营地挑战小组排名
+   */
+  club_getgrouprank(ack = 0, seq = 0, params = {}) {
+    return {
+      ack,
+      body: this.g_utils.bon.encode(params),
+      cmd: "club_getgrouprank",
+      seq,
+      time: Date.now(),
+    };
+  }
+
+  /**
+   * 获取营地挑战个人排名
+   */
+  club_getrolerank(ack = 0, seq = 0, params = {}) {
+    return {
+      ack,
+      body: this.g_utils.bon.encode(params),
+      cmd: "club_getrolerank",
       seq,
       time: Date.now(),
     };

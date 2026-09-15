@@ -116,23 +116,6 @@
           </n-button-group>
         </n-space>
         <div class="header-actions">
-            <n-button type="info" @click="openGame">
-              <template #icon>
-                <n-icon>
-                  <GameController />
-                </n-icon>
-              </template>
-              打开游戏
-            </n-button>
-            <n-button type="success" @click="goToDashboard">
-              <template #icon>
-                <n-icon>
-                  <List />
-                </n-icon>
-              </template>
-              批量功能
-            </n-button>
-
             <n-button
               v-if="!showImportForm"
               type="primary"
@@ -637,14 +620,12 @@ import {
   Create,
   EllipsisHorizontal,
   Grid,
-  List,
   Home,
   Key,
   Menu,
   Refresh,
   Star,
   TrashBin,
-  GameController,
 } from "@vicons/ionicons5";
 import { NIcon, NAlert, useDialog, useMessage } from "naive-ui";
 import { h, onMounted, onUnmounted, reactive, ref, watch } from "vue";
@@ -1772,10 +1753,6 @@ const maskToken = (token) => {
 
 const formatTime = (timestamp) => {
   return new Date(timestamp).toLocaleString("zh-CN");
-};
-
-const goToDashboard = () => {
-  router.push("/admin/batch-daily-tasks");
 };
 
 // ============ BIN 格式转换（来自 convertBin.mjs） ============

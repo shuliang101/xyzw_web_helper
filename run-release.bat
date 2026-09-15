@@ -20,8 +20,9 @@ if not exist "dist" (
 )
 
 if not exist "node_modules" (
-    echo [ERROR] Missing node_modules. Install dependencies or bundle them before running this script.
-    goto :fail
+    echo Dependencies not found. Installing production dependencies...
+    call npm install --omit=dev
+    if errorlevel 1 goto :error
 )
 
 echo Starting XYZW helper (backend + static frontend)...

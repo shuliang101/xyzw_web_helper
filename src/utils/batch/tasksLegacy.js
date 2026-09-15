@@ -55,6 +55,13 @@ export function createTasksLegacy(deps) {
         });
         await ensureConnection(tokenId);
 
+        await tokenStore.sendMessageWithPromise(
+          tokenId,
+          "legacy_beginhangup",
+          {},
+          5000,
+        );
+
         const LegacyClaimHangUpResp = await tokenStore.sendMessageWithPromise(
           tokenId,
           "legacy_claimhangup",

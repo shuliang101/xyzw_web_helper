@@ -5811,6 +5811,9 @@ const startBatch = async () => {
         const runner = new DailyTaskRunner(tokenStore, {
           commandDelay: batchSettings.commandDelay,
           taskDelay: batchSettings.taskDelay,
+        }, {
+          authUser: authStore.user,
+          hasAuth: !!authStore.isAuthenticated,
         });
 
         // Run tasks
