@@ -45,6 +45,9 @@ const errorCodeMap = {
   200330: "无效的ID",
   1500040: "上座塔的奖励未领取",
   1500010: "已经全部通关",
+  4800080: "不在规定时间内或未到报名阶段",
+  4800040: "俱乐部没有报名",
+  2100010: "活动未开放",
 };
 
 // 事件节流定义表，根据实际需要调整命令和节流时间
@@ -212,23 +215,23 @@ export function registerDefaultCommands(reg) {
     .register("saltroad_getsaltroadwartotalrank")
     .register("legionwar_getgoldmonthwarrank")
     .register("legion_getopponent")
+    .register("club_getinfo")
+    .register("club_gettargetteam")
+    .register("club_attack")
+    .register("club_attackmonster")
+    .register("club_taskclaim")
     .register("legion_getbattlefield")
     .register("legion_claimpayloadtask")
     .register("legion_claimpayloadtaskprogress")
     .register("saltroad_getwartype")
     .register("saltroad_getsaltroadwargrouprank")
     .register("league_getbattlefield")
-    .register("league_getgroupopponent")
     .register("legion_signup") // 盐场报名
-
     // 营地挑战 / 俱乐部战
     .register("club_getinfo")
     .register("club_gettargetteam", { targetId: 0 })
     .register("club_getattackrecord")
-    .register("club_getdefenserecord", {
-      targetId: 0,
-      targetIsMirror: false,
-    })
+    .register("club_getdefenserecord", { targetId: 0, targetIsMirror: false })
     .register("club_getgrouprank")
     .register("club_getrolerank")
 
@@ -264,13 +267,15 @@ export function registerDefaultCommands(reg) {
     .register("mergebox_claimcostprogress", { actType: 1 })
     .register("mergebox_claimmergeprogress", { actType: 1 })
     .register("evotower_claimtask", { taskId: 1 })
+    .register("evotower_buyenergy", { energy: 1 })
+    .register("tower_buyenergy", { buyNum: 1 })
 
     // 瓶子机器人
     .register("bottlehelper_claim")
     .register("bottlehelper_start", { bottleType: -1 })
     .register("bottlehelper_stop", { bottleType: -1 })
 
-    // 军团匹配和签到
+    // 军团匹配/营地挑战和签到
     .register("legionmatch_rolesignup")
     .register("legionmatch_signup")
     .register("legionmatch_getrank")
@@ -346,7 +351,7 @@ export function registerDefaultCommands(reg) {
 
     // 扭蛋相关
     .register("gacha_drawreward", { num: 1, isGroup: false })
-    
+
     // 车辆相关
     .register("car_getrolecar")
     .register("car_refresh", { carId: 0 })
@@ -359,7 +364,6 @@ export function registerDefaultCommands(reg) {
 
     // 功法
     .register("legacy_getinfo")
-    .register("legacy_beginhangup")
     .register("legacy_claimhangup")
     // 功法残卷赠送
     .register("legacy_gift_getlist")
@@ -405,7 +409,24 @@ export function registerDefaultCommands(reg) {
     .register("towers_fight")
 
     //发送游戏内消息
-    .register("system_sendchatmessage");
+    .register("system_sendchatmessage")
+
+    // 盐杯竞猜
+    .register("saltcup26_getbetinfo")
+    .register("saltcup26_placebet", { matchId: "", pick: 0 })
+
+    // 换皮闯关领奖
+    .register("activity_startactegame", { actId: 0 })
+    .register("activity_actegamestageclaim", { actId: 0 })
+
+    // 逐鹿盐山竞猜
+    .register("apex_getroleinfo")
+    .register("apex_getguesslist", { scheduleId: 0, idx: 0 })
+    .register("apex_guess", { teamId: "" })
+    .register("apex_get64oppomap", { scheduleId: 0, groupId: 0 })
+    // —— APEX 逐鹿盐山：按需注册，仅登记组件实际调用的命令 ——
+    .register("apex_getvotelist")
+    .register("apex_vote", { round: 0, teamId: "" });
   registry.commands.set(
     "fight_startareaarena",
     (ack = 0, seq = 0, params = {}) => {
@@ -1071,6 +1092,12 @@ export class XyzwWebSocketClient {
       fight_levelresp: "fight_level",
       studyresp: "study_startgame",
       role_getroleinforesp: "role_getroleinfo",
+      apex_getroleinforesp: "apex_getroleinfo",
+      apex_getguesslistresp: "apex_getguesslist",
+      apex_guessresp: "apex_guess",
+      apex_get64oppomapresp: "apex_get64oppomap",
+      apex_getvotelistresp: "apex_getvotelist",
+      apex_voteresp: "apex_vote",
       hero_recruitresp: "hero_recruit",
       friend_batchresp: "friend_batch",
       system_claimhanguprewardresp: "system_claimhangupreward",
@@ -1123,12 +1150,6 @@ export class XyzwWebSocketClient {
       legionmatch_signupresp: "legionmatch_signup",
       legionmatch_getrankresp: "legionmatch_getrank",
       legionmatch_getbattlerecordresp: "legionmatch_getbattlerecord",
-      club_getinforesp: "club_getinfo",
-      club_gettargetteamresp: "club_gettargetteam",
-      club_getattackrecordresp: "club_getattackrecord",
-      club_getdefenserecordresp: "club_getdefenserecord",
-      club_getgrouprankresp: "club_getgrouprank",
-      club_getrolerankresp: "club_getrolerank",
       pearl_replaceskillresp: "pearl_replaceskill",
       pearl_exchangeskillresp: "pearl_exchangeskill",
       pearl_unloadskillresp: "pearl_unloadskill",
@@ -1147,6 +1168,11 @@ export class XyzwWebSocketClient {
       // 军团信息
       legion_getinforesp: "legion_getinfo",
       legion_getinforresp: "legion_getinfo",
+      club_getinforesp: "club_getinfo",
+      club_gettargetteamresp: "club_gettargetteam",
+      club_attackresp: "club_attack",
+      club_attackmonsterresp: "club_attackmonster",
+      club_taskclaimresp: "club_taskclaim",
       // 车辆相关响应映射
       car_getrolecarresp: "car_getrolecar",
       car_refreshresp: "car_refresh",
@@ -1162,10 +1188,13 @@ export class XyzwWebSocketClient {
       bosstower_gethelprankresp: "bosstower_gethelprank",
       // 功法相关响应映射
       legacy_getinforesp: "legacy_getinfo",
-      legacy_beginhangupresp: "legacy_beginhangup",
       legacy_claimhangupresp: "legacy_claimhangup",
       legacy_sendgiftresp: "legacy_sendgift",
       legacy_getgiftsresp: "legacy_getgifts",
+      // 盐杯竞猜响应映射
+      saltcup26_getbetinforesp: "saltcup26_getbetinfo",
+      saltcup26_placebetresp: "saltcup26_placebet",
+      activity_takeegamerewardresp: "activity_startactegame",
       // 换皮闯关相关响应映射
       towers_getinforesp: "towers_getinfo",
       towers_startresp: "towers_start",

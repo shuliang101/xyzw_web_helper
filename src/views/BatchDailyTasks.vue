@@ -393,6 +393,19 @@
                 >
                   一键灯神扫荡
                 </n-button>
+                <n-popselect
+                  :value="campChallengeMode"
+                  :options="campChallengeModeOptions"
+                  trigger="click"
+                  @update:value="onCampChallengeModeChange"
+                >
+                  <n-button
+                    size="small"
+                    :disabled="isRunning || selectedTokens.length === 0"
+                  >
+                    营地挑战({{ campChallengeModeLabel }})
+                  </n-button>
+                </n-popselect>
               </n-space>
             </n-tab-pane>
             <n-tab-pane name="dungeon" tab="副本">
@@ -439,6 +452,26 @@
                   "
                 >
                   一键购买梦境商品
+                </n-button>              
+                <n-popselect
+                  :value="footballPick"
+                  :options="footballPickOptions"
+                  trigger="click"
+                  @update:value="onFootballPickChange"
+                >
+                  <n-button
+                    size="small"
+                    :disabled="isRunning || selectedTokens.length === 0"
+                  >
+                    一键竞猜({{ footballPickLabel }})
+                  </n-button>
+                </n-popselect>
+                <n-button
+                  size="small"
+                  :disabled="isRunning || selectedTokens.length === 0"
+                  @click="batchApexGuess()"
+                >
+                  逐鹿盐山竞猜
                 </n-button>
               </n-space>
             </n-tab-pane>
@@ -470,6 +503,17 @@
             </n-tab-pane>
             <n-tab-pane name="weirdTower" tab="怪异塔">
               <n-space>
+                <n-input-number
+                  v-model:value="weirdTowerMaxClimb"
+                  class="weird-tower-count-input"
+                  size="small"
+                  :min="1"
+                  :precision="0"
+                  :show-button="false"
+                  placeholder="次数"
+                  :disabled="isRunning"
+                />
+                <span class="weird-tower-count-unit">次</span>
                 <n-button
                   size="small"
                   @click="climbWeirdTower"
@@ -706,7 +750,6 @@
       :title="`任务设置 - ${currentSettingsTokenName}`"
       style="width: 90%; max-width: 400px"
     >
-      <n-spin :show="settingsModalLoading">
       <div class="settings-content">
         <div class="settings-grid">
           <div class="setting-item">
@@ -773,10 +816,9 @@
           </div>
         </div>
         <div class="modal-actions" style="margin-top: 20px; text-align: right">
-          <n-button type="primary" :loading="settingsSaving" :disabled="settingsModalLoading || settingsSaving" @click="saveSettings">保存设置</n-button>
+          <n-button type="primary" @click="saveSettings">保存设置</n-button>
         </div>
       </div>
-      </n-spin>
     </n-modal>
 
     <!-- Task Template Modal -->
@@ -2817,17 +2859,12 @@ import {
   h,
 } from "vue";
 import { useTokenStore, gameTokens, tokenGroups } from "@/stores/tokenStore";
-import { useAuthStore } from "@/stores/auth";
+import { $emit } from "@/stores/events/index.ts";
 import { DailyTaskRunner } from "@/utils/dailyTaskRunner";
 import { preloadQuestions } from "@/utils/studyQuestionsFromJSON.js";
 import { useMessage } from "naive-ui";
 import { Settings } from "@vicons/ionicons5";
-import {
-  buildDailySettingsKeySets,
-  createDefaultDailySettings,
-  loadDailySettings as loadDailySettingsRecord,
-  saveDailySettings as saveDailySettingsRecord,
-} from "@/utils/dailySettingsStorage";
+import { DEFAULT_WEIRD_TOWER_MAX_CLIMB } from "@/utils/towerClimbLimit.js";
 
 // Import batch task modules
 import {
@@ -2881,14 +2918,17 @@ import {
   createTasksArena,
   createTasksStore,
   createTasksLegacy,
+  createTasksFootball,
+  createTasksApex,
+  createTasksCampChallenge,
 } from "@/utils/batch";
 
 import { merchantConfig, goldItemsConfig } from "@/utils/dreamConstants";
 
 // Initialize token store, message service, and task runner
 const tokenStore = useTokenStore();
-const authStore = useAuthStore();
 const message = useMessage();
+const weirdTowerMaxClimb = ref(DEFAULT_WEIRD_TOWER_MAX_CLIMB);
 
 // 排序配置（从localStorage读取，与TokenImport共享）
 const savedSortConfig = localStorage.getItem("tokenSortConfig");
@@ -3276,9 +3316,19 @@ const handleWarGuessCheer = async () => {
 const showSettingsModal = ref(false);
 const currentSettingsTokenId = ref(null);
 const currentSettingsTokenName = ref("");
-const currentSettings = reactive({ ...createDefaultDailySettings(), towerFormation: 1 });
-const settingsModalLoading = ref(false);
-const settingsSaving = ref(false);
+const currentSettings = reactive({
+  arenaFormation: 1,
+  towerFormation: 1,
+  bossFormation: 1,
+  bossTimes: 2,
+  claimBottle: true,
+  payRecruit: true,
+  openBox: true,
+  arenaEnable: true,
+  claimHangUp: true,
+  claimEmail: true,
+  blackMarketPurchase: true,
+});
 
 // Task Template State
 const showTaskTemplateModal = ref(false);
@@ -3479,6 +3529,9 @@ const taskGroupDefinitions = [
       "batcharenafight",
       "batchSmartSendCar",
       "batchClaimCars",
+      "batchCampChallenge",
+      "batchCampChallengePet",
+      "batchCampClaimTasks",
       "store_purchase",
       "collection_claimfreereward",
       "batchGenieSweep",
@@ -3529,12 +3582,6 @@ const taskGroupDefinitions = [
     tasks: ["batchTopUpFish", "batchTopUpArena"],
   },
 ];
-
-const availableTaskValues = new Set(availableTasks.map((task) => task.value));
-const sanitizeScheduledSelectedTasks = (selectedTasks = []) =>
-  Array.isArray(selectedTasks)
-    ? selectedTasks.filter((task) => availableTaskValues.has(task))
-    : [];
 
 // 计算属性，根据 taskGroupDefinitions 将 availableTasks 分组
 const groupedAvailableTasks = computed(() => {
@@ -3603,12 +3650,7 @@ const loadScheduledTasks = () => {
       const parsed = JSON.parse(saved);
 
       // Ensure we have an array
-      scheduledTasks.value = Array.isArray(parsed)
-        ? parsed.map((task) => ({
-            ...task,
-            selectedTasks: sanitizeScheduledSelectedTasks(task.selectedTasks),
-          }))
-        : [];
+      scheduledTasks.value = Array.isArray(parsed) ? parsed : [];
     } else {
       scheduledTasks.value = [];
     }
@@ -3667,7 +3709,6 @@ const editTask = (task) => {
     );
   }
   Object.assign(taskForm, taskData);
-  taskForm.selectedTasks = sanitizeScheduledSelectedTasks(taskData.selectedTasks);
   taskScheduleSelectedGroupIds.value = [];
   showTaskModal.value = true;
 };
@@ -3758,7 +3799,7 @@ const saveTask = () => {
     runTime: formattedRunTime,
     cronExpression: taskForm.runType === "cron" ? taskForm.cronExpression : "",
     selectedTokens: [...taskForm.selectedTokens],
-    selectedTasks: sanitizeScheduledSelectedTasks(taskForm.selectedTasks),
+    selectedTasks: [...taskForm.selectedTasks],
     enabled: taskForm.enabled,
   };
 
@@ -4409,7 +4450,7 @@ const verifyTaskDependencies = async (task) => {
   }
 
   // Verify task functions exist
-  for (const taskName of sanitizeScheduledSelectedTasks(task.selectedTasks)) {
+  for (const taskName of task.selectedTasks) {
     const taskFunction = eval(taskName);
     if (typeof taskFunction !== "function") {
       addLog({
@@ -4501,7 +4542,7 @@ const executeScheduledTask = async (task) => {
     selectedTokens.value = [...availableTokens];
 
     // Execute selected tasks in parallel
-    const taskPromises = sanitizeScheduledSelectedTasks(task.selectedTasks).map(async (taskName) => {
+    const taskPromises = task.selectedTasks.map(async (taskName) => {
       if (shouldStop.value) return;
 
       if (
@@ -4511,6 +4552,18 @@ const executeScheduledTask = async (task) => {
         addLog({
           time: new Date().toLocaleTimeString(),
           message: `跳过任务: ${availableTasks.find((t) => t.value === taskName)?.label || taskName} (不在宝库开放时间)`,
+          type: "warning",
+        });
+        return;
+      }
+
+      if (
+        ["batchmengjing", "batchBuyDreamItems"].includes(taskName) &&
+        !ismengjingActivityOpen.value
+      ) {
+        addLog({
+          time: new Date().toLocaleTimeString(),
+          message: `跳过任务: ${availableTasks.find((t) => t.value === taskName)?.label || taskName} (不在梦境开放时间)`,
           type: "warning",
         });
         return;
@@ -4925,50 +4978,45 @@ const clearAllItems = () => {
 
 // 注: formationOptions, bossTimesOptions 已从 @/utils/batch 导入
 
-const getTokenKeySets = (token) =>
-  buildDailySettingsKeySets({ authUser: authStore.user, token });
-
-const loadSettings = async (token) => {
-  const keySets = getTokenKeySets(token);
-  const result = await loadDailySettingsRecord({
-    keySets,
-    hasAuth: !!authStore.isAuthenticated,
-  });
-  return result ? { ...createDefaultDailySettings(), towerFormation: 1, ...result.data } : { ...createDefaultDailySettings(), towerFormation: 1 };
-};
-
-const openSettings = async (token) => {
-  currentSettingsTokenId.value = token.id;
-  currentSettingsTokenName.value = token.name;
-  settingsModalLoading.value = true;
-  showSettingsModal.value = true;
+const loadSettings = (tokenId) => {
   try {
-    const saved = await loadSettings(token);
-    Object.assign(currentSettings, saved);
-  } finally {
-    settingsModalLoading.value = false;
+    const raw = localStorage.getItem(`daily-settings:${tokenId}`);
+    const defaultSettings = {
+      arenaFormation: 1,
+      towerFormation: 1,
+      bossFormation: 1,
+      bossTimes: 2,
+      claimBottle: true,
+      payRecruit: true,
+      openBox: true,
+      arenaEnable: true,
+      claimHangUp: true,
+      claimEmail: true,
+      blackMarketPurchase: true,
+    };
+    return raw ? { ...defaultSettings, ...JSON.parse(raw) } : defaultSettings;
+  } catch (error) {
+    console.error("Failed to load settings:", error);
+    return null;
   }
 };
 
-const saveSettings = async () => {
-  if (!currentSettingsTokenId.value) return;
-  const token = tokens.value.find((t) => t.id === currentSettingsTokenId.value);
-  if (!token) return;
-  const keySets = getTokenKeySets(token);
-  settingsSaving.value = true;
-  try {
-    await saveDailySettingsRecord({
-      keySets,
-      data: { ...currentSettings },
-      hasAuth: !!authStore.isAuthenticated,
-    });
+const openSettings = (token) => {
+  currentSettingsTokenId.value = token.id;
+  currentSettingsTokenName.value = token.name;
+  const saved = loadSettings(token.id);
+  Object.assign(currentSettings, saved);
+  showSettingsModal.value = true;
+};
+
+const saveSettings = () => {
+  if (currentSettingsTokenId.value) {
+    localStorage.setItem(
+      `daily-settings:${currentSettingsTokenId.value}`,
+      JSON.stringify(currentSettings),
+    );
     message.success(`已保存 ${currentSettingsTokenName.value} 的设置`);
     showSettingsModal.value = false;
-  } catch (error) {
-    message.error("保存设置失败");
-    console.error("Failed to save settings:", error);
-  } finally {
-    settingsSaving.value = false;
   }
 };
 
@@ -5690,6 +5738,7 @@ const createTaskDeps = () => ({
   // 设置相关
   currentSettings,
   helperSettings,
+  weirdTowerMaxClimb,
   // 功法赠送相关
   recipientIdInput,
   recipientInfo,
@@ -5762,6 +5811,51 @@ const {
 const tasksLegacy = createTasksLegacy(createTaskDeps());
 const { batchLegacyClaim, batchLegacyGiftSendEnhanced } = tasksLegacy;
 
+const tasksFootball = createTasksFootball(createTaskDeps());
+const { batchFootballBet } = tasksFootball;
+
+const tasksApex = createTasksApex(createTaskDeps());
+const { batchApexGuess } = tasksApex;
+
+const tasksCampChallenge = createTasksCampChallenge(createTaskDeps());
+const { batchCampChallenge, batchCampChallengePet, batchCampClaimTasks } = tasksCampChallenge;
+
+// 营地挑战模式选择
+const campChallengeMode = ref("pet");
+const campChallengeModeOptions = [
+  { label: "挑战宠物", value: "pet" },
+  { label: "随机挑战人员", value: "random" },
+  { label: "领取任务奖励", value: "claim" },
+];
+const campChallengeModeLabel = computed(() => {
+  return campChallengeModeOptions.find((o) => o.value === campChallengeMode.value)?.label || "";
+});
+const onCampChallengeModeChange = async (val) => {
+  campChallengeMode.value = val;
+  if (val === "pet") {
+    await batchCampChallengePet();
+  } else if (val === "claim") {
+    await batchCampClaimTasks();
+  } else {
+    await batchCampChallenge();
+  }
+};
+
+// 盐杯竞猜 pick 选择
+const footballPick = ref(3);
+const footballPickOptions = [
+  { label: "主胜", value: 1 },
+  { label: "平局", value: 2 },
+  { label: "客胜", value: 3 },
+];
+const footballPickLabel = computed(() => {
+  return footballPickOptions.find((o) => o.value === footballPick.value)?.label || "";
+});
+const onFootballPickChange = async (val) => {
+  footballPick.value = val;
+  await batchFootballBet(val);
+};
+
 const startBatch = async () => {
   if (selectedTokens.value.length === 0) return;
 
@@ -5811,9 +5905,6 @@ const startBatch = async () => {
         const runner = new DailyTaskRunner(tokenStore, {
           commandDelay: batchSettings.commandDelay,
           taskDelay: batchSettings.taskDelay,
-        }, {
-          authUser: authStore.user,
-          hasAuth: !!authStore.isAuthenticated,
         });
 
         // Run tasks
@@ -6097,6 +6188,19 @@ const stopBatch = () => {
 .switch-label {
   font-size: 14px;
   color: #666;
+}
+
+.weird-tower-count-input {
+  width: 86px;
+  flex-shrink: 0;
+}
+
+.weird-tower-count-unit {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  color: #666;
+  font-size: 14px;
 }
 
 /* Responsive Design */
