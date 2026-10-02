@@ -232,6 +232,7 @@ export function registerDefaultCommands(reg) {
     .register("saltroad_getwartype")
     .register("saltroad_getsaltroadwargrouprank")
     .register("league_getbattlefield")
+    .register("league_getgroupopponent")
     .register("legion_signup") // 盐场报名
     // 营地挑战 / 俱乐部战
     .register("club_getinfo")
@@ -378,6 +379,7 @@ export function registerDefaultCommands(reg) {
 
     // 功法
     .register("legacy_getinfo")
+    .register("legacy_beginhangup")
     .register("legacy_claimhangup")
     // 功法残卷赠送
     .register("legacy_gift_getlist")
@@ -1161,6 +1163,7 @@ export class XyzwWebSocketClient {
       warguess_getguesscoinrewardresp: "warguess_getguesscoinreward",
       league_getbattlefieldresp: "league_getbattlefield",
       league_getgroupopponentresp: "league_getgroupopponent",
+      league_getgroupopponentresp: "league_getgroupopponent",
       legion_signupresp: "legion_signup",
       legion_payloadsignupresp: "legion_payloadsignup",
       legionmatch_rolesignupresp: "legionmatch_rolesignup",
@@ -1214,6 +1217,7 @@ export class XyzwWebSocketClient {
       bosstower_gethelprankresp: "bosstower_gethelprank",
       // 功法相关响应映射
       legacy_getinforesp: "legacy_getinfo",
+      legacy_beginhangupresp: "legacy_beginhangup",
       legacy_claimhangupresp: "legacy_claimhangup",
       legacy_sendgiftresp: "legacy_sendgift",
       legacy_getgiftsresp: "legacy_getgifts",
