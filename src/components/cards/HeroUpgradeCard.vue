@@ -98,7 +98,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const HeroOptions = computed(() => [
   ...Object.values(tokenStore.gameData.roleInfo.role.heroes).map((item) => {
     return {
-      label: HERO_DICT[item.heroId].name + "(" + item.level + "/6000)",
+      label: `${HERO_DICT[item.heroId]?.name || `武将${item.heroId}`}(${item.level}/6000)`,
       value: item.heroId,
       disabled: item.level == 6000,
     };
@@ -123,7 +123,7 @@ const handleUpdateValue = (value) => {
   HeroItem.value = Object.assign(
     {},
     tokenStore.gameData.roleInfo.role.heroes[value],
-    HERO_DICT[value],
+    HERO_DICT[value] || { name: `武将${value}`, type: "未知", avatar: "" },
   );
   const currentLevel = Number(HeroItem.value?.level || 0);
   if (targetLevel.value <= currentLevel) {
@@ -165,7 +165,7 @@ watch(
         HeroItem.value = Object.assign(
           {},
           tokenStore.gameData.roleInfo.role.heroes[HeroValue.value],
-          HERO_DICT[HeroValue.value],
+          HERO_DICT[HeroValue.value] || { name: `武将${HeroValue.value}`, type: "未知", avatar: "" },
         );
       } else {
         HeroItem.value = null;
