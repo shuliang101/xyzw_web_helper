@@ -54,7 +54,8 @@
     <HangUpStatusCard v-show="activeSection === 'daily'" />
 
     <!-- 无限阵容助手（提取组件） -->
-    <Unlimitedlineup v-show="activeSection === 'tools'" />
+    <!-- 云端阵容/无限阵容助手（暂时隐藏） -->
+    <!-- <Unlimitedlineup v-show="activeSection === 'tools'" /> -->
 
     <!-- 宝箱助手（提取组件） -->
     <BoxHelperCard v-show="activeSection === 'tools'" />
@@ -81,9 +82,10 @@
     <RefineHelperCard v-if="activeSection === 'tools'" />
 
     <!-- 消耗活动进度（提取组件） -->
-    <ConsumptionProgressCard v-if="activeSection === 'tools'" />
-    <!-- 咸王宝库（提取组件） -->
-    <BossTower v-if="activeSection === 'tools'" />
+    <!-- 消耗活动进度（已隐藏） -->
+    <!-- <ConsumptionProgressCard v-if="activeSection === 'tools'" /> -->
+    <!-- 咸王宝库（已隐藏） -->
+    <!-- <BossTower v-if="activeSection === 'tools'" /> -->
     <!-- 俱乐部排位（暂时隐藏） -->
     <div
       class="status-card legion-match"
@@ -161,7 +163,8 @@
 
     <!-- 俱乐部信息与疯狂赛车（同级卡片，仅俱乐部分区） -->
     <ClubInfo v-if="activeSection === 'club'" />
-    <ClubCarKing v-if="activeSection === 'club'" />
+    <!-- 疯狂赛车卡片暂时隐藏，保留组件以便后续恢复 -->
+    <!-- <ClubCarKing v-if="activeSection === 'club'" /> -->
 
     <!-- 月度任务进度（提取组件） -->
     <MonthlyTasksCard v-show="activeSection === 'activity'" />
