@@ -290,11 +290,6 @@ router.beforeEach(async (to, from, next) => {
     return
   }
 
-  if (to.name === 'BatchDailyTasks') {
-    next('/admin/dashboard')
-    return
-  }
-
   if ((to.path === '/login' || to.path === '/register') && authStore.isAuthenticated) {
     if (isAdminUser) {
       next('/admin/users')

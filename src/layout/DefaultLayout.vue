@@ -42,17 +42,13 @@
               <n-icon><Timer /></n-icon>
               <span>定时任务</span>
             </router-link>
+            <router-link to="/admin/batch-daily-tasks" class="nav-item" active-class="active">
+              <n-icon><Timer /></n-icon>
+              <span>批量任务</span>
+            </router-link>
             <router-link to="/admin/PushingLevels" class="nav-item" active-class="active">
               <n-icon><ArrowUpCircle /></n-icon>
               <span>主线推关</span>
-            </router-link>
-            <router-link to="/admin/message-test" class="nav-item" active-class="active">
-              <n-icon><ChatbubbleEllipsesSharp /></n-icon>
-              <span>消息测试</span>
-            </router-link>
-            <router-link to="/admin/profile" class="nav-item" active-class="active">
-              <n-icon><Settings /></n-icon>
-              <span>个人设置</span>
             </router-link>
           </template>
         </div>
@@ -102,17 +98,13 @@
             <n-icon><Timer /></n-icon>
             <span>定时任务</span>
           </router-link>
+          <router-link to="/admin/batch-daily-tasks" class="drawer-item" @click="isMobileMenuOpen = false">
+            <n-icon><Timer /></n-icon>
+            <span>批量任务</span>
+          </router-link>
           <router-link to="/admin/PushingLevels" class="drawer-item" @click="isMobileMenuOpen = false">
             <n-icon><ArrowUpCircle /></n-icon>
             <span>主线推关</span>
-          </router-link>
-          <router-link to="/admin/message-test" class="drawer-item" @click="isMobileMenuOpen = false">
-            <n-icon><ChatbubbleEllipsesSharp /></n-icon>
-            <span>消息测试</span>
-          </router-link>
-          <router-link to="/admin/profile" class="drawer-item" @click="isMobileMenuOpen = false">
-            <n-icon><Settings /></n-icon>
-            <span>个人设置</span>
           </router-link>
         </template>
       </div>
@@ -154,16 +146,10 @@ const isAdmin = computed(() => authStore.user?.role === 'admin')
 const displayName = computed(() => authStore.user?.nickname || authStore.user?.username || '未登录')
 
 const userMenuOptions = [
-  { label: '个人资料', key: 'profile' },
-  { type: 'divider' },
   { label: '退出登录', key: 'logout' },
 ]
 
 const handleUserAction = (key) => {
-  if (key === 'profile') {
-    router.push('/admin/profile')
-    return
-  }
   if (key === 'logout') {
     authStore.logout()
     message.success('账号已退出')

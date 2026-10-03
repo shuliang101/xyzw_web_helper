@@ -7,6 +7,7 @@
         activeSection === 'saltFieldGroup' ||
         activeSection === 'peachGroup' ||
         activeSection === 'campChallengeGroup' ||
+        activeSection === 'apexChallengeGroup' ||
         activeSection === 'rankGroup',
       'club-mode': activeSection === 'club',
     }"
@@ -24,12 +25,12 @@
     >
       <n-tab-pane name="daily" tab="日常" />
       <n-tab-pane name="activity" tab="活动" />
-      <n-tab-pane name="apexChallengeGroup" tab="逐鹿盐山" />
       <n-tab-pane v-if="ENABLE_TOOLS_TAB" name="tools" tab="工具" />
       <n-tab-pane name="club" tab="俱乐部" />
       <n-tab-pane name="saltFieldGroup" tab="盐场" />
       <n-tab-pane name="peachGroup" tab="蟠桃园" />
       <n-tab-pane name="campChallengeGroup" tab="营地挑战" />
+      <n-tab-pane name="apexChallengeGroup" tab="逐鹿盐山" />
       <n-tab-pane name="rankGroup" tab="排行榜" />
       <n-tab-pane name="fightPvp" tab="切磋" />
     </n-tabs>

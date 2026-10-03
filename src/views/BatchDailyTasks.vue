@@ -16,7 +16,8 @@
         >
           <div style="display: flex; align-items: center; gap: 16px">
             <h2>批量日常任务</h2>
-            <div
+            <!-- 定时任务入口暂时隐藏，保留后台调度逻辑 -->
+            <div v-if="false"
               style="
                 display: flex;
                 align-items: center;
@@ -487,7 +488,7 @@
                 </n-button>
               </n-space>
             </n-tab-pane>
-            <n-tab-pane name="baoku" tab="宝库">
+            <n-tab-pane v-if="false" name="baoku" tab="宝库">
               <n-space>
                 <n-button
                   size="small"

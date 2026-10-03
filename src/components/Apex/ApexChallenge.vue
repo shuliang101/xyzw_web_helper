@@ -1876,7 +1876,16 @@ watch(
 
 <style scoped>
 .apex-challenge-container {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 8px;
+}
+
+.apex-challenge-container :deep(.main-content) {
+  width: 100%;
+  max-width: none;
 }
 
 .toolbar {

@@ -83,6 +83,13 @@
         <div class="section-header">
           <n-space align="center">
             <h2>我的Token列表 ({{ tokenStore.gameTokens.length }}个)</h2>
+            <n-input
+              v-model:value="tokenSearch"
+              clearable
+              size="small"
+              placeholder="搜索账号、服务器或备注"
+              style="width: 220px"
+            />
             <n-radio-group v-model:value="viewMode" size="small">
               <n-radio-button value="list">列表</n-radio-button>
               <n-radio-button value="card">卡片</n-radio-button>
@@ -345,12 +352,12 @@
             @dragover="handleDragOver($event)"
             @drop="handleDrop(index, $event)"
             size="small"
-            style="margin-bottom: 8px"
+            class="token-list-item"
             hoverable
             @click="selectToken(token)"
             :class="{ active: selectedTokenId === token.id }"
           >
-            <n-space justify="space-between" align="center">
+            <n-space justify="space-between" align="center" :wrap="false" class="token-list-row">
               <!-- Info -->
               <n-space align="center" :size="6">
                 <!-- 连接状态 - 移动到最前端显示 -->
@@ -685,6 +692,7 @@ const dragIndex = ref(null);
 // 备注编辑状态管理
 const editingRemark = ref(null); // 当前正在编辑备注的tokenId
 const tempRemarks = ref({}); // 临时保存编辑中的备注内容
+const tokenSearch = ref("");
 
 // 监听视图模式变化，保存到localStorage
 watch(viewMode, (newViewMode) => {
@@ -704,11 +712,16 @@ const sortConfig = ref(
 
 // 排序后的游戏角色Token列表
 const sortedTokens = computed(() => {
-  if (sortConfig.value.field === "manual") {
-    return tokenStore.gameTokens;
-  }
+  const keyword = tokenSearch.value.trim().toLowerCase();
+  const source = tokenStore.gameTokens.filter((token) => {
+    if (!keyword) return true;
+    return [token.name, token.server, token.remark]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(keyword));
+  });
+  if (sortConfig.value.field === "manual") return source;
 
-  return [...tokenStore.gameTokens].sort((tokenA, tokenB) => {
+  return [...source].sort((tokenA, tokenB) => {
     let valueA, valueB;
 
     // 根据排序字段获取比较值
@@ -2315,6 +2328,33 @@ onUnmounted(() => {
 
   &::-webkit-scrollbar-thumb:hover {
     background: var(--border-dark);
+  }
+}
+
+.token-list-item {
+  margin-bottom: 8px;
+  border: 1px solid var(--border-light);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.token-list-item:hover,
+.token-list-item.active {
+  border-color: var(--primary-color);
+  box-shadow: 0 2px 10px rgba(102, 126, 234, 0.12);
+}
+
+.token-list-row {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .token-list-row {
+    align-items: flex-start;
+  }
+
+  .token-list-row > :first-child {
+    min-width: 0;
+    overflow: hidden;
   }
 }
 

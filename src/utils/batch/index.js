@@ -26,3 +26,5 @@ export { createTasksLegacy } from './tasksLegacy.js';
 export { createTasksFootball } from './tasksFootball.js';
 export { createTasksApex } from './tasksApex.js';
 export { createTasksXuanwuBlessing } from './tasksXuanwuBlessing.js';
+
+export { createTasksCampChallenge } from './tasksCampChallenge.js';

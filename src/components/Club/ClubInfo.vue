@@ -300,13 +300,6 @@
             <ClubWeirdTowerInfo inline />
           </n-tab-pane>
 
-          <n-tab-pane
-            name="carsocre"
-            tab="赛车积分信息"
-            display-directive="show:lazy"
-          >
-            <CarScoreInfo inline />
-          </n-tab-pane>
         </n-tabs>
       </div>
     </template>
@@ -608,7 +601,6 @@ import { useTokenStore } from "@/stores/tokenStore";
 import { Copy, Refresh, People, BarChart, Flame, Skull, Megaphone, Person, ShieldCheckmark } from "@vicons/ionicons5";
 import ClubHistoryRecords from "./ClubHistoryRecords.vue";
 import ClubWeirdTowerInfo from "./ClubWeirdTowerInfo.vue";
-import CarScoreInfo from "./CarScoreInfo.vue";
 import { $emit } from "@/stores/events";
 import { HERO_DICT, legacycolor, HeroFillInfo, getLineupType, LINEUP_RULES } from "@/utils/HeroList";
 import { getShowPet } from "@/utils/PetList";
